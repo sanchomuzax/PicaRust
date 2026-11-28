@@ -14,6 +14,7 @@ slint.workspace = true
 thread-priority.workspace = true
 pr-faces = { path = "../pr-faces" }
 pr-thumbs = { path = "../pr-thumbs" }
+pr-scan = { path = "../pr-scan" }
 
 [build-dependencies]
 slint-build.workspace = true
