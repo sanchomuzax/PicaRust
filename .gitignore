@@ -1,0 +1,31 @@
+# Titkok és kulcsok (soha ne kerüljenek a repóba)
+.env*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+secrets/
+credentials/
+credentials*.json
+*credentials*.json
+*secret*.json
+token*.json
+*token*.json
+**/_google_oauth.json
+*.crt
+*.cer
+
+# Fordító és letöltött modellek
+target/
+*.pdb
+*.onnx
+models/
+
+# Ellenőrző sor, munkás- és ideiglenes állapot
+.ell/
+.bt/
+.tmp/
+.codex-*
+.gemini-*
+.ellenor-*

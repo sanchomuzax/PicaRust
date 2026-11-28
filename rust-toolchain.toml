@@ -1,0 +1,5 @@
+# Rögzített Rust-verzió: a fejlesztői gép, a tesztgép és a CI ugyanazzal fordít.
+[toolchain]
+channel = "1.100.0"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

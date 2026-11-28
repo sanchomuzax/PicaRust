@@ -1,0 +1,6 @@
+# A munkaterület csomagjai közti engedett függések (belső, `path` élek).
+# Formátum: "forrás -> cél" (csomagnevek). Ami nincs itt, azt a
+# `crates/pr-core/tests/fuggesek.rs` teszt megfogja.
+# Most egyetlen csomag van, él nincs.
+engedett = [
+]

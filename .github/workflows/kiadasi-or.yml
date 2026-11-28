@@ -1,0 +1,35 @@
+# Kiadási őr: amíg nincs kiadás, csak `belso-` előtagú tag jöhet létre.
+# A nyilvános kiadás a teljes funkciókészletig tiltott; ez az őr bukik, ha más
+# tag kerül a repóba. (Ha a kiadás ideje eljön, ezt a fájlt a tulajdonos módosítja.)
+name: Kiadási őr
+
+on:
+  push:
+    tags:
+      - "**"
+
+permissions:
+  contents: read
+
+jobs:
+  or:
+    name: kiadasi-or
+    runs-on: ubuntu-latest
+    steps:
+      - name: A tag előtagja belso-
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          case "$TAG" in
+            belso-*[!0-9]*|belso-)
+              echo "::error title=Hibás belső tag::A(z) '$TAG' tag nem belso-N alakú (N egész szám)."
+              exit 1
+              ;;
+            belso-*)
+              echo "belső előkiadás ($TAG): megengedett, de nem kiadás."
+              ;;
+            *)
+              echo "::error title=Nincs kiadás::A(z) '$TAG' tag nem belso- előtagú; nyilvános kiadás még nincs."
+              exit 1
+              ;;
+          esac
