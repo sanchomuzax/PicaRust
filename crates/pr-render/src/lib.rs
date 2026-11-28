@@ -3,7 +3,7 @@
 //! Az `src/effektek/` mappába kizárólag effektet megvalósító `.rs` fájl kerüljön.
 //! Minden fájl tegye közzé a kisbetűs `NEV` belső nevet, a pontos `LANC_NEV`
 //! láncnevet és az `alkalmaz` függvényt. A fájlonkénti `PARAMETER_COUNT` a
-//! láncolvasó aritás-ellenőrzéséhez kell. A `build.rs` a fájlnevekből hozza létre
+//! láncolvasó a paraméterek számának ellenőrzéséhez használja. A `build.rs` a fájlnevekből hozza létre
 //! a modulokat és az effektjegyzéket.
 
 pub mod lanc;
