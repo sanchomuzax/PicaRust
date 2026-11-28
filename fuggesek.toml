@@ -4,6 +4,14 @@
 # Engedett belső csomagfüggések.
 engedett = [
     "pr-app -> pr-faces",
+    "pr-app -> pr-index",
+    "pr-app -> pr-ini",
+    "pr-app -> pr-meta",
+    "pr-app -> pr-render",
+    "pr-app -> pr-scan",
     "pr-app -> pr-thumbs",
     "pr-faces -> pr-thumbs",
+    "pr-index -> pr-ini",
+    "pr-index -> pr-meta",
+    "pr-index -> pr-scan",
 ]

@@ -1,0 +1,10 @@
+[package]
+name = "pr-ini"
+version = "0.0.0"
+description = "A .picasa.ini olvasása és írása; az egyetlen író."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
