@@ -64,10 +64,10 @@ jobs:
       - name: Tesztek
         run: cargo test --workspace --locked
 
-      - name: A bélyegkép- és az arckereső csomag nem függ a felülettől
+      - name: A felület nélküli csomagok nem függnek a felülettől
         run: |
           set -euo pipefail
-          for cs in pr-thumbs pr-faces; do
+          for cs in pr-thumbs pr-faces pr-scan pr-index pr-ini pr-meta; do
             # előbb a fa (ha a cargo hibázik, a lépés bukik), csak utána a keresés
             fa="$(cargo tree --locked -p "$cs" --prefix none)"
             if grep -qE '^(slint|pr-app) ' <<<"$fa"; then

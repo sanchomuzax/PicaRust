@@ -3263,6 +3263,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "pr-index"
+version = "0.0.0"
+
+[[package]]
+name = "pr-ini"
+version = "0.0.0"
+
+[[package]]
+name = "pr-meta"
+version = "0.0.0"
+
+[[package]]
+name = "pr-scan"
+version = "0.0.0"
+
+[[package]]
 name = "pr-thumbs"
 version = "0.1.0"
 dependencies = [
