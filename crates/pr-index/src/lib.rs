@@ -502,13 +502,14 @@ fn ut_betoltes(bajtok: &[u8]) -> Result<PathBuf, Hiba> {
     #[cfg(windows)]
     {
         use std::os::windows::ffi::OsStringExt;
-        let szavak = bajtok
-            .chunks_exact(2)
-            .map(|par| u16::from_le_bytes([par[0], par[1]]))
-            .collect::<Vec<_>>();
-        if bajtok.len() % 2 != 0 {
+        let (parok, maradek) = bajtok.as_chunks::<2>();
+        if !maradek.is_empty() {
             return Err(Hiba::Schema("hibás útvonaladat".to_string()));
         }
+        let szavak = parok
+            .iter()
+            .map(|par| u16::from_le_bytes(*par))
+            .collect::<Vec<_>>();
         Ok(PathBuf::from(std::ffi::OsString::from_wide(&szavak)))
     }
     #[cfg(not(any(unix, windows)))]
