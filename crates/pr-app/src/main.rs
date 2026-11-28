@@ -4,10 +4,7 @@
 //! `picarust --modell <onnx> --onteszt <kép>`: a modell betöltődik és talál-e arcot.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod arc;
-mod arcnaplo;
 mod beallitas;
-mod belyegkep;
 mod elrendezes;
 mod feladat;
 mod felulet;
@@ -20,6 +17,8 @@ use std::path::Path;
 use std::process::ExitCode;
 use std::sync::OnceLock;
 use std::time::Instant;
+
+use pr_faces::arc;
 
 #[expect(
     clippy::unwrap_used,
@@ -62,11 +61,13 @@ fn main() -> ExitCode {
 
 /// A mérés előtti gyors ellenőrzés. Kilépési kód: 0 rendben, 3 nincs modell, 4 nincs arc.
 fn onteszt(modell: &Path, kep: &Path) -> ExitCode {
-    let mut detektor = arc::Detektor::betolt(modell);
-    if let Some(ok) = detektor.helyettesito_oka() {
-        println!("onteszt: a modell nem toltodott be: {ok}");
-        return ExitCode::from(3);
-    }
+    let mut detektor = match arc::Detektor::betolt(modell) {
+        Ok(detektor) => detektor,
+        Err(hiba) => {
+            println!("onteszt: az arckereses nem indult el: {hiba}");
+            return ExitCode::from(3);
+        }
+    };
     let t = Instant::now();
     match detektor.arcok_szama(kep) {
         Ok(n) => {

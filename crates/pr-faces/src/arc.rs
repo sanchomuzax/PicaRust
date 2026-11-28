@@ -5,21 +5,18 @@
 //! üres eredmény utáni második és harmadik menete, valamint az SFace-vektorok itt nincsenek meg.
 //! A modell bemenetét a yunet_dinamikus.py teszi tetszőleges méretűvé.
 
-use std::path::Path;
-use std::time::{Duration, Instant};
-
 use image::RgbImage;
 use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::value::Tensor;
 
-use crate::belyegkep;
+use std::any::Any;
+use std::path::Path;
+
+use pr_thumbs::belyegkep;
 
 const HOSSZABB_OLDAL: u32 = 960;
 const PONTSZAM_KUSZOB: f32 = 0.9;
 const NMS_KUSZOB: f32 = 0.3;
-/// Ha a modell nem tölthető be: a következtetés helyett ennyi pörgetés képenként (becslés).
-const HELYETTESITO: Duration = Duration::from_millis(150);
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Jelolt {
     pub x: f32,
@@ -37,23 +34,11 @@ pub struct Bemenet {
 
 pub enum Detektor {
     YuNet(Session),
-    /// A modell nem töltődött be; a szöveg az ok.
-    Helyettesito(String),
 }
 
 impl Detektor {
-    pub fn betolt(modell: &Path) -> Self {
-        match munkamenet(modell) {
-            Ok(s) => Detektor::YuNet(s),
-            Err(e) => Detektor::Helyettesito(e),
-        }
-    }
-
-    pub fn helyettesito_oka(&self) -> Option<&str> {
-        match self {
-            Detektor::Helyettesito(ok) => Some(ok),
-            Detektor::YuNet(_) => None,
-        }
+    pub fn betolt(modell: &Path) -> Result<Self, String> {
+        munkamenet(modell).map(Detektor::YuNet)
     }
 
     pub fn arcok_szama(&mut self, kep: &Path) -> Result<usize, String> {
@@ -65,10 +50,6 @@ impl Detektor {
         let bemenet = tensor_adat(&kicsi);
         match self {
             Detektor::YuNet(munkamenet) => Ok(kovetkeztet(munkamenet, bemenet)?.len()),
-            Detektor::Helyettesito(_) => {
-                porget(HELYETTESITO);
-                Ok(0)
-            }
         }
     }
 }
@@ -80,16 +61,53 @@ fn szoveg<E: std::fmt::Display>(e: E) -> String {
 /// Egy szálon fut (a hívó szálán), így annak alacsony prioritása érvényes rá.
 fn munkamenet(modell: &Path) -> Result<Session, String> {
     if !modell.is_file() {
-        return Err(format!("nincs modellfajl: {}", modell.display()));
+        return Err(format!("nincs modellfájl: {}", modell.display()));
     }
-    Session::builder()
-        .map_err(szoveg)?
-        .with_optimization_level(GraphOptimizationLevel::Level3)
-        .map_err(szoveg)?
-        .with_intra_threads(1)
-        .map_err(szoveg)?
-        .commit_from_file(modell)
-        .map_err(szoveg)
+    if let Ok(dll) = std::env::var("ORT_DYLIB_PATH") {
+        let dll_ut = Path::new(&dll);
+        if dll_ut.components().count() > 1 && !dll_ut.is_file() {
+            return Err(ort_hiba(format!(
+                "a megadott DLL útvonal nem található: {dll}"
+            )));
+        }
+    }
+    let betoltes = std::panic::catch_unwind(|| {
+        Session::builder()
+            .map_err(szoveg)?
+            .with_optimization_level(GraphOptimizationLevel::Level3)
+            .map_err(szoveg)?
+            .with_intra_threads(1)
+            .map_err(szoveg)?
+            .commit_from_file(modell)
+            .map_err(szoveg)
+    });
+    match betoltes {
+        Ok(Ok(munkamenet)) => Ok(munkamenet),
+        Ok(Err(hiba)) => Err(format!(
+            "az ONNX Runtime munkamenet nem tölthető be: {hiba}"
+        )),
+        Err(hiba) => Err(ort_hiba(panik_szoveg(hiba.as_ref()).to_string())),
+    }
+}
+
+fn panik_szoveg(hiba: &(dyn Any + Send)) -> &str {
+    if let Some(szoveg) = hiba.downcast_ref::<String>() {
+        szoveg.as_str()
+    } else if let Some(szoveg) = hiba.downcast_ref::<&str>() {
+        szoveg
+    } else {
+        "ismeretlen ONNX Runtime hiba"
+    }
+}
+
+fn ort_hiba<E: std::fmt::Display>(hiba: E) -> String {
+    let dll = match std::env::var("ORT_DYLIB_PATH") {
+        Ok(ut) => ut,
+        Err(_) => "az alapértelmezett hely".to_string(),
+    };
+    format!(
+        "az ONNX Runtime DLL nem tölthető be ({dll}); ellenőrizd az ORT_DYLIB_PATH beállítását: {hiba}"
+    )
 }
 
 /// BGR sorrendű NCHW-tömb, jobbra és lent 32 többszörösére nullákkal kiegészítve.
@@ -183,21 +201,12 @@ fn iou(a: &Jelolt, b: &Jelolt) -> f32 {
     metszet / (a.szel * a.mag + b.szel * b.mag - metszet)
 }
 
-fn porget(ido: Duration) {
-    let kezdet = Instant::now();
-    let mut x = 1.0f64;
-    while kezdet.elapsed() < ido {
-        x = std::hint::black_box((x * 1.000_001).sin() + 1.0);
-    }
-    std::hint::black_box(x);
-}
-
 #[cfg(test)]
 mod tesztek {
     use super::*;
 
     #[test]
-    fn a_tensor_bgr_es_kiegeszitett() {
+    fn a_tensor_bgr_es_kiegeszitett() -> Result<(), String> {
         let mut kep = RgbImage::new(40, 30);
         kep.put_pixel(1, 0, image::Rgb([10, 20, 30]));
         let b = tensor_adat(&kep);
@@ -207,10 +216,11 @@ mod tesztek {
             [b.adat[1], b.adat[sik + 1], b.adat[2 * sik + 1]],
             [30.0, 20.0, 10.0]
         );
+        Ok(())
     }
 
     #[test]
-    fn a_dekodolas_a_cella_helyere_teszi_a_keretet() {
+    fn a_dekodolas_a_cella_helyere_teszi_a_keretet() -> Result<(), String> {
         let cls = [0.0, 0.0, 0.0, 1.0];
         let obj = [1.0, 1.0, 1.0, 0.9];
         let bbox = [0.0; 16];
@@ -218,10 +228,11 @@ mod tesztek {
         assert_eq!(j.len(), 1);
         // a 3. cella (1. oszlop, 1. sor): középpont 8;8, oldal 8
         assert_eq!((j[0].x, j[0].y, j[0].szel, j[0].mag), (4.0, 4.0, 8.0, 8.0));
+        Ok(())
     }
 
     #[test]
-    fn az_atfedo_keretekbol_a_legerosebb_marad() {
+    fn az_atfedo_keretekbol_a_legerosebb_marad() -> Result<(), String> {
         let k = |x, pontszam| Jelolt {
             x,
             y: 0.0,
@@ -231,11 +242,24 @@ mod tesztek {
         };
         let marad = nms(vec![k(1.0, 0.91), k(0.0, 0.99), k(50.0, 0.95)], 0.3);
         assert_eq!(marad.iter().map(|j| j.x).collect::<Vec<_>>(), [0.0, 50.0]);
+        Ok(())
     }
 
     #[test]
+    fn hianyzo_modellnel_hiba_ter_vissza() -> Result<(), String> {
+        let hiba = match Detektor::betolt(Path::new("nincs-ilyen-modell.onnx")) {
+            Ok(_) => return Err("a hianyzo modell betoltese sikerult".to_string()),
+            Err(hiba) => hiba,
+        };
+        assert!(hiba.contains("nincs modellfájl"));
+        Ok(())
+    }
+
+    /// A próbaprogram eredeti tesztje, a nevét megtartva: modell nélkül a detektor nem áll
+    /// össze. Régen helyettesítő munkát adott, most hibát ad, és a program arckeresés nélkül
+    /// megy tovább (ezt a `pr-app` háttérmunkás-tesztje védi).
+    #[test]
     fn modell_nelkul_helyettesito_munka() {
-        let d = Detektor::betolt(Path::new("nincs-ilyen-modell.onnx"));
-        assert!(d.helyettesito_oka().is_some());
+        assert!(Detektor::betolt(Path::new("nincs-ilyen-modell.onnx")).is_err());
     }
 }

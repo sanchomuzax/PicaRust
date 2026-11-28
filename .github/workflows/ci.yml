@@ -64,6 +64,18 @@ jobs:
       - name: Tesztek
         run: cargo test --workspace --locked
 
+      - name: A bélyegkép- és az arckereső csomag nem függ a felülettől
+        run: |
+          set -euo pipefail
+          for cs in pr-thumbs pr-faces; do
+            # előbb a fa (ha a cargo hibázik, a lépés bukik), csak utána a keresés
+            fa="$(cargo tree --locked -p "$cs" --prefix none)"
+            if grep -qE '^(slint|pr-app) ' <<<"$fa"; then
+              echo "::error::a(z) $cs csomag a felülettől függ"
+              exit 1
+            fi
+          done
+
       - name: Licenc, biztonság, tiltások, források
         run: cargo deny check licenses advisories bans sources
 

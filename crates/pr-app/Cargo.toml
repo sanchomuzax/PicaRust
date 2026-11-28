@@ -11,10 +11,9 @@ path = "src/main.rs"
 
 [dependencies]
 slint.workspace = true
-image.workspace = true
-jpeg-decoder.workspace = true
-ort.workspace = true
 thread-priority.workspace = true
+pr-faces = { path = "../pr-faces" }
+pr-thumbs = { path = "../pr-thumbs" }
 
 [build-dependencies]
 slint-build.workspace = true

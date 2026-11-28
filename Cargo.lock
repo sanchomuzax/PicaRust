@@ -3241,9 +3241,8 @@ dependencies = [
 name = "pr-app"
 version = "0.1.0"
 dependencies = [
- "image",
- "jpeg-decoder",
- "ort",
+ "pr-faces",
+ "pr-thumbs",
  "slint",
  "slint-build",
  "thread-priority",
@@ -3252,6 +3251,23 @@ dependencies = [
 [[package]]
 name = "pr-core"
 version = "0.0.0"
+
+[[package]]
+name = "pr-faces"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "ort",
+ "pr-thumbs",
+]
+
+[[package]]
+name = "pr-thumbs"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "jpeg-decoder",
+]
 
 [[package]]
 name = "prettyplease"

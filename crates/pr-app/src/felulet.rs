@@ -16,7 +16,8 @@ use crate::feladat::Sorban;
 use crate::konyvtar::{self, Mappa};
 use crate::munkasok::{self, ArcSzamlalo, Eredmeny, Munka};
 use crate::racsmodell::{kep_slintbe, Allapot, RacsModell};
-use crate::{arcnaplo, elrendezes, naplo, AppWindow, MappaElem};
+use crate::{elrendezes, naplo, AppWindow, MappaElem};
+use pr_faces::arcnaplo;
 
 /// Az indításkori 1000-230 képpontos rácshoz; az első ütem a valódi szélességre igazít.
 const KEZDO_OSZLOP: usize = 4;
@@ -45,7 +46,11 @@ impl Kezelo {
             });
             let ujak = self.allapot.borrow_mut().hozzaad(mappa);
             for (_, foto) in &ujak {
-                if !self.arc_kesz_kulcsok.contains(&arcnaplo::kulcs(foto)) {
+                if !self.arc_kesz_kulcsok.contains(&arcnaplo::kulcs(
+                    &foto.ut,
+                    foto.meret,
+                    foto.mtime_ns,
+                )) {
                     self.arc_szamlalo.osszes.fetch_add(1, Ordering::SeqCst);
                     // az arckereső szál a program végéig él
                     if self.arc_ki.send(foto.clone()).is_err() {

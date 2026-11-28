@@ -92,7 +92,13 @@ mod tesztek {
     use super::*;
 
     fn ideiglenes(nev: &str) -> Result<PathBuf, String> {
-        let ut = std::env::temp_dir().join(format!("picarust-{nev}-{}", std::process::id()));
+        let gyoker = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .ok_or_else(|| "nem talalhato a munkafa gyokere".to_string())?;
+        let ut = gyoker
+            .join(".tmp")
+            .join(format!("picarust-{nev}-{}", std::process::id()));
         if ut.exists() {
             std::fs::remove_dir_all(&ut).map_err(|e| e.to_string())?;
         }

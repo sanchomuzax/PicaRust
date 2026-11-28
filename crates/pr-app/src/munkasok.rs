@@ -7,11 +7,12 @@ use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::arc::Detektor;
-use crate::belyegkep::{self, Pixelek};
 use crate::feladat::Sorban;
 use crate::konyvtar::{self, Foto, Mappa};
-use crate::{arcnaplo, naplo, prioritas};
+use crate::{naplo, prioritas};
+use pr_faces::arc::Detektor;
+use pr_faces::arcnaplo;
+use pr_thumbs::belyegkep::{self, Pixelek};
 
 pub struct Munka {
     pub id: usize,
@@ -44,12 +45,21 @@ pub fn indit_belyegkep_szalak(
             prioritas::sajat_szal(prioritas::HATTER);
             loop {
                 let Munka { id, foto, mutat } = munkak.kivesz();
-                if !mutat && belyegkep::gyorstar_ut(&gyorstar, &foto).exists() {
+                if !mutat
+                    && belyegkep::gyorstar_ut(&gyorstar, &foto.ut, foto.meret, foto.mtime_ns)
+                        .exists()
+                {
                     continue;
                 }
-                let kep = belyegkep::betolt_vagy_keszit(&foto, &gyorstar)
-                    .map_err(|e| naplo(&format!("belyegkep-hiba: {e}")))
-                    .ok();
+                let kep = belyegkep::betolt_vagy_keszit(
+                    &foto.ut,
+                    foto.meret,
+                    foto.mtime_ns,
+                    &gyorstar,
+                    naplo,
+                )
+                .map_err(|e| naplo(&format!("belyegkep-hiba: {e}")))
+                .ok();
                 if mutat && ki.send(Eredmeny::Belyegkep { id, kep }).is_err() {
                     break;
                 }
@@ -70,13 +80,17 @@ pub fn nagy_kep(id: usize, foto: Foto, ki: Sender<Eredmeny>) {
     });
 }
 
-fn betolt_naplozva(modell: &std::path::Path) -> Detektor {
-    let detektor = Detektor::betolt(modell);
-    match detektor.helyettesito_oka() {
-        Some(ok) => naplo(&format!("arckereses: HELYETTESITO munka ({ok})")),
-        None => naplo("arckereses: YuNet (ONNX Runtime, 1 szal)"),
+fn betolt_naplozva(modell: &std::path::Path) -> Result<Detektor, String> {
+    match Detektor::betolt(modell) {
+        Ok(detektor) => {
+            naplo("arckereses: YuNet (ONNX Runtime, 1 szal)");
+            Ok(detektor)
+        }
+        Err(hiba) => {
+            naplo(&format!("arckereses kikapcsolva: {hiba}"));
+            Err(hiba)
+        }
     }
-    detektor
 }
 
 /// Egy szál a legalacsonyabb prioritással; a modellt az első képnél tölti be.
@@ -88,7 +102,7 @@ pub fn indit_arckereso(
     let (ki, be) = mpsc::channel::<Foto>();
     std::thread::spawn(move || {
         prioritas::sajat_szal(prioritas::LEGALACSONYABB);
-        let mut detektor: Option<Detektor> = None;
+        let mut detektor: Option<Result<Detektor, String>> = None;
         let mut arcok = 0;
         let mut kezdet = Instant::now();
         for foto in be {
@@ -96,14 +110,18 @@ pub fn indit_arckereso(
                 kezdet = Instant::now();
                 betolt_naplozva(&modell)
             });
-            match d.arcok_szama(&foto.ut) {
-                Ok(n) => {
-                    arcok += n;
-                    if let Err(e) = arcnaplo::hozzafuz(&naploja, &foto, n) {
-                        naplo(&format!("arcnaplo-hiba: {e}"));
+            if let Ok(d) = d {
+                match d.arcok_szama(&foto.ut) {
+                    Ok(n) => {
+                        arcok += n;
+                        if let Err(e) =
+                            arcnaplo::hozzafuz(&naploja, &foto.ut, foto.meret, foto.mtime_ns, n)
+                        {
+                            naplo(&format!("arcnaplo-hiba: {e}"));
+                        }
                     }
+                    Err(e) => naplo(&format!("arckeresesi hiba: {e}")),
                 }
-                Err(e) => naplo(&format!("arckeresesi hiba: {e}")),
             }
             let kesz = szamlalo.kesz.fetch_add(1, Ordering::SeqCst) + 1;
             if kesz == szamlalo.osszes.load(Ordering::SeqCst) {
@@ -140,4 +158,54 @@ pub fn indit_mappafigyelo(gyoker: PathBuf, mut ismert: HashSet<PathBuf>, ki: Sen
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tesztek {
+    use super::*;
+    use std::path::Path;
+    use std::time::Duration;
+
+    #[test]
+    fn hianyzo_modellnel_a_hattermunka_kereses_nelkul_folytatodik() -> Result<(), String> {
+        let gyoker = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .ok_or_else(|| "nem talalhato a munkafa gyokere".to_string())?
+            .join(".tmp");
+        std::fs::create_dir_all(&gyoker).map_err(|hiba| hiba.to_string())?;
+        let azonosito = std::process::id();
+        let naploja = gyoker.join(format!("pr-app-arckereso-{azonosito}.tsv"));
+        if naploja.exists() {
+            std::fs::remove_file(&naploja).map_err(|hiba| hiba.to_string())?;
+        }
+
+        let szamlalo = Arc::new(ArcSzamlalo::default());
+        szamlalo.osszes.store(1, Ordering::SeqCst);
+        let kuldo = indit_arckereso(
+            gyoker.join(format!("nem-letezo-modell-{azonosito}.onnx")),
+            naploja.clone(),
+            Arc::clone(&szamlalo),
+        );
+        kuldo
+            .send(Foto {
+                ut: gyoker.join("nem-letezo-kep.jpg"),
+                meret: 0,
+                mtime_ns: 0,
+            })
+            .map_err(|hiba| hiba.to_string())?;
+        drop(kuldo);
+
+        let hatarido = Instant::now() + Duration::from_secs(3);
+        while szamlalo.kesz.load(Ordering::SeqCst) == 0 && Instant::now() < hatarido {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        if szamlalo.kesz.load(Ordering::SeqCst) != 1 {
+            return Err("a hianyzo modell melletti munka nem fejezodott be".to_string());
+        }
+        if naploja.exists() {
+            return Err("a hianyzo modell mellett arckeresesi naplo keszult".to_string());
+        }
+        Ok(())
+    }
 }

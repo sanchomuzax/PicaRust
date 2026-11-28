@@ -12,12 +12,12 @@ use slint::{
     VecModel,
 };
 
-use crate::belyegkep::Pixelek;
 use crate::elrendezes::{self, SorTipus, Tartomany};
 use crate::feladat::Sorban;
 use crate::konyvtar::{Foto, Mappa};
 use crate::munkasok::Munka;
 use crate::{Cella, Sor};
+use pr_thumbs::belyegkep::Pixelek;
 
 /// Ennyi bélyegkép marad a memóriában; a többi a lemezes gyorstárból jön újra.
 const MEMORIABAN: usize = 600;
