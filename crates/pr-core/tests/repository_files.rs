@@ -62,6 +62,48 @@ fn gitignore_sorai() -> Result<Vec<String>, String> {
     Ok(szoveg.lines().map(|sor| sor.trim().to_string()).collect())
 }
 
+fn ci_munkanevek(szoveg: &str) -> Vec<String> {
+    let mut munkakban = false;
+    let mut munkaban = false;
+    let mut nevek = Vec::new();
+    for sor in szoveg.lines() {
+        let tartalom = sor.split('#').next().unwrap_or("").trim_end();
+        let behuzas = tartalom.len() - tartalom.trim_start().len();
+        let tartalom = tartalom.trim();
+        if tartalom.is_empty() {
+            continue;
+        }
+        if behuzas == 0 {
+            munkakban = tartalom == "jobs:";
+            munkaban = false;
+            continue;
+        }
+        if !munkakban {
+            continue;
+        }
+        if behuzas == 2 && tartalom.ends_with(':') {
+            munkaban = true;
+            continue;
+        }
+        if behuzas == 2 {
+            munkaban = false;
+        }
+        if behuzas == 4 && munkaban {
+            if let Some((kulcs, ertek)) = tartalom.split_once(':') {
+                if kulcs.trim() == "name" {
+                    nevek.push(
+                        ertek
+                            .trim()
+                            .trim_matches(|karakter| karakter == '"' || karakter == '\'')
+                            .to_string(),
+                    );
+                }
+            }
+        }
+    }
+    nevek
+}
+
 #[test]
 fn a_gyoker_kotelezo_fajljai_megvannak() -> Result<(), String> {
     let gyoker = gyoker()?;
@@ -105,15 +147,36 @@ fn a_ci_ellenorzesek_neve_rogzitett() -> Result<(), String> {
         .map_err(|hiba| hiba.to_string())?;
     for nev in ["teszt (ubuntu-latest)", "csomag (windows-latest)"] {
         assert!(
-            ci.contains(nev),
+            ci_munkanevek(&ci).iter().any(|munkanev| munkanev == nev),
             "hiányzó ellenőrzésnév a ci.yml-ben: {nev}"
         );
     }
     let kapu = fs::read_to_string(gyoker.join(".github/workflows/szerzo-kapu.yml"))
         .map_err(|hiba| hiba.to_string())?;
     assert!(
-        kapu.contains("name: szerzo"),
+        ci_munkanevek(&kapu)
+            .iter()
+            .any(|munkanev| munkanev == "szerzo"),
         "a kapu ellenőrzés-neve `szerzo`"
     );
     Ok(())
+}
+
+#[test]
+fn a_ci_megjegyzesben_levo_nev_nem_munkanev() {
+    let yaml = "# jobs:\n#   teszt:\n#     name: teszt (ubuntu-latest)\njobs:\n  ellenorzes:\n    runs-on: ubuntu-latest\n";
+    assert!(ci_munkanevek(yaml).is_empty());
+}
+
+#[test]
+fn a_ci_munkaszintu_idezojeles_nevet_megtalalja() {
+    let yaml =
+        "jobs:\n  ellenorzes:\n    name: \"teszt (ubuntu-latest)\"\n    runs-on: ubuntu-latest\n";
+    assert_eq!(ci_munkanevek(yaml), ["teszt (ubuntu-latest)".to_string()]);
+}
+
+#[test]
+fn a_ci_lepesszintu_nev_nem_munkanev() {
+    let yaml = "jobs:\n  ellenorzes:\n    runs-on: ubuntu-latest\n    steps:\n      - name: teszt (ubuntu-latest)\n        run: cargo test\n";
+    assert!(ci_munkanevek(yaml).is_empty());
 }
