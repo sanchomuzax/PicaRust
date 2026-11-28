@@ -456,6 +456,10 @@ mod tesztek {
             "a felulet fajaban ne legyen mappafa-beolvasas"
         );
         assert!(
+            !forras.contains("pr_scan"),
+            "a felület ne érje el a pr-scan csomagot, átnevezett importtal sem"
+        );
+        assert!(
             !forras.contains("arcnaplo::beolvas"),
             "a felulet fajaban ne legyen arcnaplo-beolvasas"
         );
