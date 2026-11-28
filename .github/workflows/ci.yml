@@ -126,6 +126,56 @@ jobs:
           cargo build --release --workspace --locked
           echo "BUILD_MP=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
 
+      - name: Windows füstpróba
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.Drawing
+          $root = $env:RUNNER_TEMP
+          $ures = Join-Path $root 'picarust-ures-keptar'
+          $ekeztett = Join-Path $root 'Képek próba\árvíztűrő'
+          $hianyzik = Join-Path $root 'picarust-nem-letezo-keptar'
+          foreach ($ut in @($ures, $ekeztett, $hianyzik)) {
+            Remove-Item -LiteralPath $ut -Recurse -Force -ErrorAction SilentlyContinue
+          }
+          [void][IO.Directory]::CreateDirectory($ures)
+          [void][IO.Directory]::CreateDirectory($ekeztett)
+          $bitmap = [System.Drawing.Bitmap]::new(8, 8)
+          try {
+            for ($i = 0; $i -lt 20; $i++) {
+              $kep = Join-Path $ekeztett ('kep-{0:D2}.jpg' -f $i)
+              $bitmap.Save($kep, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+            }
+          } finally {
+            $bitmap.Dispose()
+          }
+          $exe = Join-Path $PWD 'target/release/picarust.exe'
+          function Invoke-Smoke([string]$keptar) {
+            $inditas = [System.Diagnostics.ProcessStartInfo]::new()
+            $inditas.FileName = $exe
+            $inditas.UseShellExecute = $false
+            $inditas.ArgumentList.Add('--gyoker')
+            $inditas.ArgumentList.Add($keptar)
+            $folyamat = [System.Diagnostics.Process]::Start($inditas)
+            if ($null -eq $folyamat) { throw 'A program nem indult el.' }
+            try {
+              Start-Sleep -Seconds 20
+              if ($folyamat.HasExited) { throw 'A program 20 másodperc előtt kilépett.' }
+              if (-not $folyamat.CloseMainWindow()) { throw 'Az ablak nem zárható be szabályosan.' }
+              if (-not $folyamat.WaitForExit(5000)) { throw 'A program nem állt le a bezárás után.' }
+              if ($folyamat.ExitCode -ne 0) { throw "Kilépési kód: $($folyamat.ExitCode)" }
+            } finally {
+              if (-not $folyamat.HasExited) {
+                $folyamat.Kill()
+                $folyamat.WaitForExit()
+              }
+              $folyamat.Dispose()
+            }
+          }
+          Invoke-Smoke $ures
+          Invoke-Smoke $ekeztett
+          Invoke-Smoke $hianyzik
+
       - name: Mérési összefoglaló
         shell: bash
         run: |
