@@ -66,7 +66,7 @@ impl fmt::Display for Hiba {
 
 impl Error for Hiba {}
 
-/// Az index adatbáziskapcsolatát birtokló objektum.
+/// Az index nyitott adatbázisát birtokló objektum.
 pub struct Index {
     kapcsolat: Connection,
 }
