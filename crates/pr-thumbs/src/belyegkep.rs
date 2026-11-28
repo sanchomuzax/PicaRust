@@ -10,8 +10,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use image::codecs::jpeg::JpegEncoder;
 use image::{DynamicImage, RgbImage};
 
-use crate::konyvtar::Foto;
-
 pub const MERET: u32 = 144;
 const MINOSEG: u8 = 85;
 
@@ -34,11 +32,11 @@ impl From<RgbImage> for Pixelek {
 }
 
 /// A gyorstárfájl neve az útvonalból, a méretből és a módosítás idejéből.
-pub fn gyorstar_ut(gyorstar: &Path, foto: &Foto) -> PathBuf {
+pub fn gyorstar_ut(gyorstar: &Path, ut: &Path, meret: u64, mtime_ns: u128) -> PathBuf {
     let mut h = DefaultHasher::new();
-    foto.ut.hash(&mut h);
-    foto.meret.hash(&mut h);
-    foto.mtime_ns.hash(&mut h);
+    ut.hash(&mut h);
+    meret.hash(&mut h);
+    mtime_ns.hash(&mut h);
     gyorstar
         .join("belyegkep")
         .join(format!("{:016x}.jpg", h.finish()))
@@ -83,14 +81,20 @@ pub fn kicsinyit(kep: RgbImage, szel: u32, mag: u32) -> RgbImage {
 }
 
 /// A bélyegkép a gyorstárból; ha nincs meg vagy sérült, elkészíti és elmenti.
-pub fn betolt_vagy_keszit(foto: &Foto, gyorstar: &Path) -> Result<Pixelek, String> {
-    let cel = gyorstar_ut(gyorstar, foto);
+pub fn betolt_vagy_keszit(
+    ut: &Path,
+    meret: u64,
+    mtime_ns: u128,
+    gyorstar: &Path,
+    cache_hiba: impl FnOnce(&str),
+) -> Result<Pixelek, String> {
+    let cel = gyorstar_ut(gyorstar, ut, meret, mtime_ns);
     if let Ok(kep) = image::open(&cel) {
         return Ok(kep.into_rgb8().into());
     }
-    let kicsi = kicsinyit(dekodol(&foto.ut, MERET as u16)?, MERET, MERET);
-    if let Err(e) = ment(&cel, &kicsi) {
-        crate::naplo(&format!("gyorstar-iras sikertelen: {e}"));
+    let kicsi = kicsinyit(dekodol(ut, MERET as u16)?, MERET, MERET);
+    if let Err(hiba) = ment(&cel, &kicsi) {
+        cache_hiba(&format!("gyorstar-iras sikertelen: {hiba}"));
     }
     Ok(kicsi.into())
 }
@@ -130,16 +134,23 @@ mod tesztek {
     }
 
     #[test]
-    fn a_kicsinyites_megtartja_az_aranyt_es_nem_nagyit() {
+    fn a_kicsinyites_megtartja_az_aranyt_es_nem_nagyit() -> Result<(), String> {
         let nagy = kicsinyit(RgbImage::new(400, 300), 144, 144);
         assert_eq!(nagy.dimensions(), (144, 108));
         let kicsi = kicsinyit(RgbImage::new(20, 10), 144, 144);
         assert_eq!(kicsi.dimensions(), (20, 10));
+        Ok(())
     }
 
     #[test]
     fn a_belyegkep_a_gyorstarba_kerul() -> Result<(), String> {
-        let gy = std::env::temp_dir().join(format!("picarust-belyeg-{}", std::process::id()));
+        let munkafa = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .ok_or_else(|| "nem talalhato a munkafa gyokere".to_string())?;
+        let gy = munkafa
+            .join(".tmp")
+            .join(format!("picarust-belyeg-{}", std::process::id()));
         if gy.exists() {
             std::fs::remove_dir_all(&gy).map_err(|e| e.to_string())?;
         }
@@ -147,26 +158,21 @@ mod tesztek {
         let gyorstar = gy.join("felhasznaloi-adat");
         std::fs::create_dir_all(&keptar).map_err(|e| e.to_string())?;
         std::fs::create_dir_all(&gyorstar).map_err(|e| e.to_string())?;
-        let mut fotos = Vec::new();
+        let mut fotok = Vec::new();
         for nev in ["a.jpg", "b.png"] {
             let ut = keptar.join(nev);
             RgbImage::new(1600, 1200)
                 .save(&ut)
                 .map_err(|e| e.to_string())?;
-            let foto = Foto {
-                ut,
-                meret: 1,
-                mtime_ns: 1,
-            };
-            fotos.push(foto);
+            fotok.push(ut);
         }
         irasvedett_konyvtar(&keptar, true)?;
         let eredmenyek = (|| -> Result<Vec<BelyegEredmeny>, String> {
             let mut eredmenyek = Vec::new();
-            for foto in &fotos {
-                let elso = betolt_vagy_keszit(foto, &gyorstar)?;
-                let gyorsitotarban = gyorstar_ut(&gyorstar, foto).is_file();
-                let masodik = betolt_vagy_keszit(foto, &gyorstar)?;
+            for ut in &fotok {
+                let elso = betolt_vagy_keszit(ut, 1, 1, &gyorstar, |_| {})?;
+                let gyorsitotarban = gyorstar_ut(&gyorstar, ut, 1, 1).is_file();
+                let masodik = betolt_vagy_keszit(ut, 1, 1, &gyorstar, |_| {})?;
                 eredmenyek.push(((elso.szel, elso.mag), masodik.rgb.len(), gyorsitotarban));
             }
             Ok(eredmenyek)

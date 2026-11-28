@@ -32,6 +32,9 @@ version = 2
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# A munkaterület saját, nem publikált csomagjai útvonallal hivatkoznak egymásra: ez nem
+# rögzítetlen külső verzió, ezért megengedett.
+allow-wildcard-paths = true
 
 [sources]
 unknown-registry = "deny"
