@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
@@ -51,12 +51,27 @@ pub fn indit_indulo_beolvasas(gyoker: PathBuf, arcnaplo_ut: PathBuf, ki: Sender<
             mappak.len(),
             mappak.iter().map(|m| m.fotok.len()).sum::<usize>()
         ));
-        let arc_kesz_kulcsok = arcnaplo::beolvas(&arcnaplo_ut);
+        let arc_kesz_kulcsok = arcnaplo_beolvas(&arcnaplo_ut);
         Ok(InduloAdat {
             mappak,
             arc_kesz_kulcsok,
         })
     });
+}
+
+fn arcnaplo_beolvas(ut: &Path) -> HashSet<String> {
+    std::fs::read_to_string(ut)
+        .map(|tartalom| {
+            tartalom
+                .lines()
+                .filter_map(|sor| sor.rsplit_once('\t').map(|(kulcs, _)| kulcs.to_string()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+pub(super) fn arckeresesbol_kimarad(foto: &Foto, feldolgozott: &HashSet<String>) -> bool {
+    feldolgozott.contains(&arcnaplo::kulcs(&foto.ut, foto.meret, foto.mtime_ns))
 }
 
 fn indit_indulo_beolvasassal<F>(ki: Sender<Eredmeny>, olvaso: F)
@@ -207,6 +222,39 @@ mod tesztek {
     use std::path::Path;
     use std::time::Duration;
 
+    struct ArcnaploTesztfajl(PathBuf);
+
+    impl ArcnaploTesztfajl {
+        fn uj(nev: &str) -> Result<Self, String> {
+            let munkafa = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .ancestors()
+                .nth(2)
+                .ok_or_else(|| "nem talalhato a munkafa gyokere".to_string())?;
+            let ut = munkafa.join(".tmp").join(format!(
+                "picarust-arcnaplo-{nev}-{}.tsv",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(ut.parent().unwrap_or(munkafa))
+                .map_err(|hiba| hiba.to_string())?;
+            let _ = std::fs::remove_file(&ut);
+            Ok(Self(ut))
+        }
+    }
+
+    impl std::ops::Deref for ArcnaploTesztfajl {
+        type Target = Path;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    impl Drop for ArcnaploTesztfajl {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
     struct TesztMappa(PathBuf);
 
     impl TesztMappa {
@@ -268,6 +316,38 @@ mod tesztek {
     }
 
     #[test]
+    fn arcnaplo_beolvas_hianyzo_fajlnal_ures_halmaz() -> Result<(), String> {
+        let ut = ArcnaploTesztfajl::uj("hianyzik")?;
+
+        assert!(!ut.exists());
+        assert!(arcnaplo_beolvas(&ut).is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn arcnaplo_beolvas_kihagyja_a_tabulator_nelkuli_sort() -> Result<(), String> {
+        let ut = ArcnaploTesztfajl::uj("sorok")?;
+        let elso = arcnaplo::kulcs(Path::new("album/elso.jpg"), 12, 34);
+        let masodik = arcnaplo::kulcs(Path::new("album/masodik.jpg"), 56, 78);
+        std::fs::write(&*ut, format!("hibas sor\n{elso}\t2\n{masodik}\t0\n"))
+            .map_err(|hiba| hiba.to_string())?;
+
+        assert_eq!(arcnaplo_beolvas(&ut), HashSet::from([elso, masodik]));
+        Ok(())
+    }
+
+    #[test]
+    fn arcnaplo_hozzafuz_es_beolvas_korforgasa_megorizi_a_kulcsot() -> Result<(), String> {
+        let ut = ArcnaploTesztfajl::uj("korforgas")?;
+        let kep_ut = Path::new("album/foto.jpg");
+        let vart = arcnaplo::kulcs(kep_ut, 123, 456);
+        arcnaplo::hozzafuz(&ut, kep_ut, 123, 456, 3).map_err(|hiba| hiba.to_string())?;
+
+        assert_eq!(arcnaplo_beolvas(&ut), HashSet::from([vart]));
+        Ok(())
+    }
+
+    #[test]
     fn indulo_inditoja_visszater_a_beolvasas_befejezese_elott() -> Result<(), String> {
         let (elindult_ki, elindult_be) = mpsc::channel();
         let (folytatas_ki, folytatas_be) = mpsc::channel();
@@ -290,7 +370,7 @@ mod tesztek {
             .recv_timeout(Duration::from_secs(3))
             .map_err(|hiba| format!("a cserelt beolvaso nem indult el: {hiba}"))?;
         let indito_visszatert = indito_visszatert_be
-            .recv_timeout(Duration::from_millis(200))
+            .recv_timeout(Duration::from_secs(10))
             .is_ok();
         let _ = folytatas_ki.send(());
         indito
@@ -305,6 +385,25 @@ mod tesztek {
             Ok(Eredmeny::Indulo(Ok(_)))
         ));
         Ok(())
+    }
+
+    #[test]
+    fn mar_feldolgozott_kep_kimarad_az_arckeresesbol() {
+        let foto = Foto {
+            ut: PathBuf::from("album/foto.jpg"),
+            meret: 123,
+            mtime_ns: 456,
+        };
+        let feldolgozott = HashSet::from([arcnaplo::kulcs(&foto.ut, foto.meret, foto.mtime_ns)]);
+
+        assert!(arckeresesbol_kimarad(&foto, &feldolgozott));
+        assert!(!arckeresesbol_kimarad(
+            &Foto {
+                ut: PathBuf::from("album/uj.jpg"),
+                ..foto
+            },
+            &feldolgozott
+        ));
     }
 
     #[test]

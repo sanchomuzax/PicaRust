@@ -38,8 +38,10 @@ fn hibas_kep() -> Image {
 }
 
 pub struct MappaAdat {
+    ut: std::path::PathBuf,
     pub nev: String,
     pub tartomany: Tartomany,
+    teljes_db: usize,
 }
 
 pub struct Allapot {
@@ -74,18 +76,30 @@ impl Allapot {
     }
 
     /// Új mappa a lista végére (a meglévő sorok nem mozdulnak); visszaadja az új képeket.
-    pub fn hozzaad(&mut self, mappa: Mappa) -> Vec<(usize, Foto)> {
-        let tartomany = Tartomany {
-            elso: self.fotok.len(),
-            db: mappa.fotok.len(),
-        };
-        self.mappak.push(MappaAdat {
-            nev: mappa.nev,
-            tartomany,
-        });
+    pub fn hozzaad(&mut self, mappa: Mappa, teljes_db: usize) -> (bool, Vec<(usize, Foto)>) {
+        let elso = self.fotok.len();
+        let folytatas = self
+            .mappak
+            .last()
+            .is_some_and(|utolso| utolso.ut == mappa.ut);
+        if folytatas {
+            if let Some(utolso) = self.mappak.last_mut() {
+                utolso.tartomany.db += mappa.fotok.len();
+            }
+        } else {
+            self.mappak.push(MappaAdat {
+                ut: mappa.ut,
+                nev: mappa.nev,
+                tartomany: Tartomany {
+                    elso,
+                    db: mappa.fotok.len(),
+                },
+                teljes_db,
+            });
+        }
         self.fotok.extend(mappa.fotok.iter().cloned());
         self.sorok = elrendezes::sorok(&self.tartomanyok(), self.oszlop);
-        (tartomany.elso..).zip(mappa.fotok).collect()
+        (!folytatas, (elso..).zip(mappa.fotok).collect())
     }
 
     /// Új oszlopszám; visszaadja, melyik sor legyen felül.
@@ -146,7 +160,7 @@ impl Allapot {
                 let m = &self.mappak[mappa];
                 Sor {
                     fejlec: true,
-                    cim: format!("{} ({})", m.nev, m.tartomany.db).into(),
+                    cim: format!("{} ({})", m.nev, m.teljes_db).into(),
                     cellak: ModelRc::default(),
                 }
             }
@@ -206,5 +220,48 @@ impl Model for RacsModell {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+#[cfg(test)]
+mod tesztek {
+    use super::*;
+    use crate::feladat::Sorban;
+
+    #[test]
+    fn egy_mappa_utemei_egy_fejlec_alatt_maradnak() {
+        let mut allapot = Allapot::uj(4, Arc::new(Sorban::uj()));
+        let (uj_mappa, elso) = allapot.hozzaad(
+            Mappa {
+                ut: "album".into(),
+                nev: "album".to_string(),
+                fotok: vec![Foto {
+                    ut: "album/1.jpg".into(),
+                    meret: 1,
+                    mtime_ns: 0,
+                }],
+            },
+            2,
+        );
+        let (folytatas, masodik) = allapot.hozzaad(
+            Mappa {
+                ut: "album".into(),
+                nev: "album".to_string(),
+                fotok: vec![Foto {
+                    ut: "album/2.jpg".into(),
+                    meret: 2,
+                    mtime_ns: 0,
+                }],
+            },
+            2,
+        );
+
+        assert!(uj_mappa);
+        assert_eq!(elso.len(), 1);
+        assert!(!folytatas);
+        assert_eq!(masodik[0].0, 1);
+        assert_eq!(allapot.mappak.len(), 1);
+        assert_eq!(allapot.mappak[0].teljes_db, 2);
+        assert_eq!(allapot.fotok.len(), 2);
     }
 }
