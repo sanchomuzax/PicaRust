@@ -1,23 +1,11 @@
 //! Mely képeken futott már le az arckeresés (hogy újraindítás után ne fusson újra).
 
-use std::collections::HashSet;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
 
 pub fn kulcs(ut: &Path, meret: u64, mtime_ns: u128) -> String {
     format!("{}\t{meret}\t{mtime_ns}", ut.display())
-}
-
-/// A már feldolgozott képek kulcsai; hiányzó fájlnál üres.
-pub fn beolvas(ut: &Path) -> HashSet<String> {
-    std::fs::read_to_string(ut)
-        .map(|s| {
-            s.lines()
-                .filter_map(|l| l.rsplit_once('\t').map(|(k, _)| k.to_string()))
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 pub fn hozzafuz(
@@ -48,10 +36,12 @@ mod tesztek {
             .join(".tmp")
             .join(format!("picarust-arcok-{}.tsv", std::process::id()));
         let _ = std::fs::remove_file(&ut);
-        assert!(beolvas(&ut).is_empty());
         let kep_ut = Path::new("a b.jpg");
         hozzafuz(&ut, kep_ut, 7, 9, 3).map_err(|e| e.to_string())?;
-        assert!(beolvas(&ut).contains(&kulcs(kep_ut, 7, 9)));
+        let tartalom = std::fs::read_to_string(&ut).map_err(|hiba| hiba.to_string())?;
+        assert!(tartalom
+            .lines()
+            .any(|sor| sor.starts_with(&kulcs(kep_ut, 7, 9))));
         let _ = std::fs::remove_file(&ut);
         Ok(())
     }

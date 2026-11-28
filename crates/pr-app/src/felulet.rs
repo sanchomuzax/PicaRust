@@ -16,11 +16,11 @@ use crate::feladat::Sorban;
 use crate::munkasok::{self, ArcSzamlalo, Eredmeny, Foto, InduloAdat, Mappa, Munka};
 use crate::racsmodell::{kep_slintbe, Allapot, RacsModell};
 use crate::{elrendezes, naplo, AppWindow, MappaElem};
-use pr_faces::arcnaplo;
 
 /// Az indításkori 1000-230 képpontos rácshoz; az első ütem a valódi szélességre igazít.
 const KEZDO_OSZLOP: usize = 4;
 const MAX_MAPPANKENTI_UTEM: usize = 32;
+const MAX_KEPENKENTI_UTEM: usize = 256;
 
 #[derive(Default)]
 struct InduloAllapot {
@@ -58,6 +58,85 @@ impl InduloAllapot {
             .as_ref()
             .map(|hiba| format!("A képtár betöltése nem sikerült: {hiba}"))
     }
+
+    fn sikeres_mappabetoltes(&mut self) {
+        self.hiba = None;
+    }
+
+    fn darabszamos_allapotszoveg(
+        &self,
+        kepek: usize,
+        mappak: usize,
+        varakozo: usize,
+        arc_kesz: usize,
+        arc_osszes: usize,
+    ) -> String {
+        format!(
+            "{kepek} kép, {mappak} mappa   várakozó bélyegkép: {varakozo}   arckeresés: {arc_kesz}/{arc_osszes}"
+        )
+    }
+}
+
+struct UtemezettMappa {
+    mappa: Mappa,
+    teljes_kep_db: usize,
+}
+
+impl UtemezettMappa {
+    fn uj(mappa: Mappa) -> Self {
+        let teljes_kep_db = mappa.fotok.len();
+        Self {
+            mappa,
+            teljes_kep_db,
+        }
+    }
+}
+
+#[derive(Default)]
+struct NyilvantartasEredmeny {
+    uj_fejlecek: Vec<(String, usize)>,
+    uj_munkak: Vec<(usize, Foto)>,
+    arcra_kuldo: Vec<Foto>,
+    uj_sorok: Option<(usize, usize)>,
+}
+
+impl InduloAllapot {
+    fn regisztral_mappakat(
+        &mut self,
+        allapot: &mut Allapot,
+        mappak: Vec<UtemezettMappa>,
+    ) -> NyilvantartasEredmeny {
+        let regi_sorok = allapot.sorok.len();
+        let volt_mappa = !mappak.is_empty();
+        let mut eredmeny = NyilvantartasEredmeny::default();
+        for utemezett in mappak {
+            let UtemezettMappa {
+                mappa,
+                teljes_kep_db,
+            } = utemezett;
+            let nev = mappa.nev.clone();
+            let (uj_mappa, ujak) = allapot.hozzaad(mappa, teljes_kep_db);
+            if uj_mappa {
+                eredmeny.uj_fejlecek.push((nev, teljes_kep_db));
+            }
+            eredmeny.arcra_kuldo.extend(
+                ujak.iter()
+                    .filter(|(_, foto)| {
+                        !munkasok::arckeresesbol_kimarad(foto, &self.arc_kesz_kulcsok)
+                    })
+                    .map(|(_, foto)| foto.clone()),
+            );
+            eredmeny.uj_munkak.extend(ujak);
+        }
+        if volt_mappa {
+            self.sikeres_mappabetoltes();
+        }
+        let uj_sor_db = allapot.sorok.len();
+        if uj_sor_db > regi_sorok {
+            eredmeny.uj_sorok = Some((regi_sorok, uj_sor_db - regi_sorok));
+        }
+        eredmeny
+    }
 }
 
 /// Amit az ablak időzítője tart a kezében.
@@ -70,7 +149,7 @@ struct Kezelo {
     munkak: Arc<Sorban<Munka>>,
     gyoker: PathBuf,
     indulo: InduloAllapot,
-    mappa_sor: VecDeque<Mappa>,
+    mappa_sor: VecDeque<UtemezettMappa>,
     arc_ki: Sender<Foto>,
     arc_szamlalo: Arc<ArcSzamlalo>,
     utolso_allapotsor: Instant,
@@ -78,37 +157,31 @@ struct Kezelo {
 
 impl Kezelo {
     /// Felveszi a mappákat, és sorba teszi a bélyegkép- és arckereső munkát.
-    fn felvesz(&mut self, mappak: Vec<Mappa>) {
-        let regi_sorok = self.allapot.borrow().sorok.len();
-        for mappa in mappak {
+    fn felvesz(&mut self, mappak: Vec<UtemezettMappa>) {
+        let felvetel = self
+            .indulo
+            .regisztral_mappakat(&mut self.allapot.borrow_mut(), mappak);
+        for (nev, teljes_kep_db) in felvetel.uj_fejlecek {
             self.oldalsav.push(MappaElem {
-                nev: mappa.nev.clone().into(),
-                db: mappa.fotok.len() as i32,
+                nev: nev.into(),
+                db: teljes_kep_db as i32,
             });
-            let ujak = self.allapot.borrow_mut().hozzaad(mappa);
-            for (_, foto) in &ujak {
-                if !self.indulo.arc_kesz_kulcsok.contains(&arcnaplo::kulcs(
-                    &foto.ut,
-                    foto.meret,
-                    foto.mtime_ns,
-                )) {
-                    self.arc_szamlalo.osszes.fetch_add(1, Ordering::SeqCst);
-                    // az arckereső szál a program végéig él
-                    if self.arc_ki.send(foto.clone()).is_err() {
-                        naplo("az arckereso szal leallt");
-                    }
-                }
+        }
+        for foto in felvetel.arcra_kuldo {
+            self.arc_szamlalo.osszes.fetch_add(1, Ordering::SeqCst);
+            // az arckereső szál a program végéig él
+            if self.arc_ki.send(foto).is_err() {
+                naplo("az arckereso szal leallt");
             }
-            self.munkak.hatter(ujak.into_iter().map(|(id, foto)| Munka {
+        }
+        self.munkak
+            .hatter(felvetel.uj_munkak.into_iter().map(|(id, foto)| Munka {
                 id,
                 foto,
                 mutat: false,
             }));
-        }
-        let uj_sorok = self.allapot.borrow().sorok.len();
-        if uj_sorok > regi_sorok {
-            self.modell
-                .sorok_hozzaadva(regi_sorok, uj_sorok - regi_sorok);
+        if let Some((regi_sorok, uj_sor_db)) = felvetel.uj_sorok {
+            self.modell.sorok_hozzaadva(regi_sorok, uj_sor_db);
         }
     }
 
@@ -156,7 +229,8 @@ impl Kezelo {
         for sor in erintett {
             self.modell.sor_valtozott(sor);
         }
-        self.mappa_sor.extend(uj_mappak);
+        self.mappa_sor
+            .extend(uj_mappak.into_iter().map(UtemezettMappa::uj));
     }
 
     /// Más ablakszélességnél új oszlopszám, a felül látott tartalom marad felül.
@@ -194,8 +268,9 @@ impl Kezelo {
             let a = self.allapot.borrow();
             (a.fotok.len(), a.mappak.len())
         };
-        let szoveg = format!(
-            "{kepek} kép, {mappak} mappa   várakozó bélyegkép: {}   arckeresés: {}/{}",
+        let szoveg = self.indulo.darabszamos_allapotszoveg(
+            kepek,
+            mappak,
             self.munkak.hossz(),
             self.arc_szamlalo.kesz.load(Ordering::SeqCst),
             self.arc_szamlalo.osszes.load(Ordering::SeqCst),
@@ -215,10 +290,35 @@ fn ismert_almappak(gyoker: &Path, mappak: &[Mappa]) -> HashSet<PathBuf> {
         .collect()
 }
 
-fn kovetkezo_mappa_utem(mappak: &mut VecDeque<Mappa>) -> Vec<Mappa> {
-    (0..MAX_MAPPANKENTI_UTEM)
-        .filter_map(|_| mappak.pop_front())
-        .collect()
+fn kovetkezo_mappa_utem(mappak: &mut VecDeque<UtemezettMappa>) -> Vec<UtemezettMappa> {
+    let mut utem = Vec::new();
+    let mut kep_db = 0;
+    while utem.len() < MAX_MAPPANKENTI_UTEM {
+        let Some(mut kovetkezo) = mappak.pop_front() else {
+            break;
+        };
+        let hatralevo = kovetkezo.mappa.fotok.len();
+        let szabad = MAX_KEPENKENTI_UTEM.saturating_sub(kep_db);
+        if hatralevo > szabad && szabad > 0 {
+            let folytatas = kovetkezo.mappa.fotok.split_off(szabad);
+            mappak.push_front(UtemezettMappa {
+                mappa: Mappa {
+                    ut: kovetkezo.mappa.ut.clone(),
+                    nev: kovetkezo.mappa.nev.clone(),
+                    fotok: folytatas,
+                },
+                teljes_kep_db: kovetkezo.teljes_kep_db,
+            });
+            utem.push(kovetkezo);
+            break;
+        }
+        kep_db += hatralevo;
+        utem.push(kovetkezo);
+        if kep_db >= MAX_KEPENKENTI_UTEM {
+            break;
+        }
+    }
+    utem
 }
 
 pub fn futtat(beallitas: &Beallitas) -> Result<(), slint::PlatformError> {
@@ -320,7 +420,9 @@ fn visszahivasok(app: &AppWindow, allapot: &Rc<RefCell<Allapot>>, ki: &Sender<Er
 #[cfg(test)]
 mod tesztek {
     use super::*;
+    use crate::feladat::Sorban;
     use crate::munkasok::{Foto, InduloAdat, Mappa};
+    use crate::racsmodell::Allapot;
 
     #[test]
     fn felulet_nem_hivja_a_lemezolvasokat_a_felepitesben() {
@@ -357,7 +459,7 @@ mod tesztek {
             nev: "album".to_string(),
             fotok: vec![foto.clone()],
         };
-        let kulcs = arcnaplo::kulcs(&foto.ut, foto.meret, foto.mtime_ns);
+        let kulcs = pr_faces::arcnaplo::kulcs(&foto.ut, foto.meret, foto.mtime_ns);
         let mut allapot = InduloAllapot::default();
 
         let muvelet = allapot.kezeld(
@@ -393,6 +495,54 @@ mod tesztek {
     }
 
     #[test]
+    fn sikertelen_indulas_utan_a_sikeres_mappa_betoltes_darabszamot_mutat() {
+        let gyoker = Path::new("keptar");
+        let mut allapot = InduloAllapot::default();
+        allapot.kezeld(gyoker, Err("teszt hiba".to_string()));
+        let munkak = Arc::new(Sorban::uj());
+        let mut racs = Allapot::uj(4, munkak);
+
+        let ures = allapot.regisztral_mappakat(&mut racs, Vec::new());
+        assert!(ures.arcra_kuldo.is_empty());
+        assert_eq!(
+            allapot.allapotszoveg().as_deref(),
+            Some("A képtár betöltése nem sikerült: teszt hiba")
+        );
+
+        let feldolgozott = Foto {
+            ut: PathBuf::from("keptar/album/elkeszult.jpg"),
+            meret: 1,
+            mtime_ns: 2,
+        };
+        let uj = Foto {
+            ut: PathBuf::from("keptar/album/uj.jpg"),
+            meret: 3,
+            mtime_ns: 4,
+        };
+        allapot.arc_kesz_kulcsok.insert(pr_faces::arcnaplo::kulcs(
+            &feldolgozott.ut,
+            feldolgozott.meret,
+            feldolgozott.mtime_ns,
+        ));
+        let eredmeny = allapot.regisztral_mappakat(
+            &mut racs,
+            vec![UtemezettMappa::uj(Mappa {
+                ut: PathBuf::from("keptar/album"),
+                nev: "album".to_string(),
+                fotok: vec![feldolgozott, uj.clone()],
+            })],
+        );
+
+        assert_eq!(allapot.allapotszoveg(), None);
+        assert_eq!(eredmeny.arcra_kuldo, vec![uj]);
+        assert_eq!((racs.fotok.len(), racs.mappak.len()), (2, 1));
+        assert_eq!(
+            allapot.darabszamos_allapotszoveg(racs.fotok.len(), racs.mappak.len(), 0, 0, 1),
+            "2 kép, 1 mappa   várakozó bélyegkép: 0   arckeresés: 0/1"
+        );
+    }
+
+    #[test]
     fn egy_idozito_utem_legfeljebb_a_nevezett_mennyisegu_mappat_veszi_fel() {
         let mut mappak = (0..MAX_MAPPANKENTI_UTEM + 2)
             .map(|index| Mappa {
@@ -400,11 +550,68 @@ mod tesztek {
                 nev: format!("album-{index}"),
                 fotok: Vec::new(),
             })
+            .map(UtemezettMappa::uj)
             .collect::<std::collections::VecDeque<_>>();
 
         let elso_utem = kovetkezo_mappa_utem(&mut mappak);
 
         assert_eq!(elso_utem.len(), MAX_MAPPANKENTI_UTEM);
         assert_eq!(mappak.len(), 2);
+    }
+
+    #[test]
+    fn egy_idozito_utem_kepszam_alapjan_felosztja_a_nagy_mappat() {
+        fn mappa(nev: &str, kezdo: usize, db: usize) -> Mappa {
+            Mappa {
+                ut: PathBuf::from(nev),
+                nev: nev.to_string(),
+                fotok: (kezdo..kezdo + db)
+                    .map(|index| Foto {
+                        ut: PathBuf::from(format!("{nev}/{index}.jpg")),
+                        meret: index as u64,
+                        mtime_ns: 0,
+                    })
+                    .collect(),
+            }
+        }
+        let mut mappak = std::collections::VecDeque::from([
+            UtemezettMappa::uj(mappa("elso", 0, 200)),
+            UtemezettMappa::uj(mappa("masodik", 200, 100)),
+        ]);
+
+        let elso_utem = kovetkezo_mappa_utem(&mut mappak);
+        let masodik_utem = kovetkezo_mappa_utem(&mut mappak);
+
+        assert_eq!(
+            elso_utem
+                .iter()
+                .map(|m| m.mappa.fotok.len())
+                .collect::<Vec<_>>(),
+            vec![200, 56]
+        );
+        assert_eq!(elso_utem[0].mappa.ut, PathBuf::from("elso"));
+        assert_eq!(elso_utem[1].mappa.ut, PathBuf::from("masodik"));
+        assert_eq!(elso_utem[1].teljes_kep_db, 100);
+        assert_eq!(masodik_utem.len(), 1);
+        assert_eq!(masodik_utem[0].mappa.ut, PathBuf::from("masodik"));
+        assert_eq!(masodik_utem[0].teljes_kep_db, 100);
+        assert_eq!(masodik_utem[0].mappa.fotok.len(), 44);
+        assert!(mappak.is_empty());
+
+        let mut kapott = elso_utem
+            .iter()
+            .chain(masodik_utem.iter())
+            .flat_map(|m| m.mappa.fotok.iter().map(|foto| foto.ut.clone()))
+            .collect::<Vec<_>>();
+        let vart = (0..300)
+            .map(|index| {
+                let nev = if index < 200 { "elso" } else { "masodik" };
+                PathBuf::from(format!("{nev}/{index}.jpg"))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(kapott, vart);
+        kapott.sort();
+        kapott.dedup();
+        assert_eq!(kapott.len(), 300);
     }
 }
