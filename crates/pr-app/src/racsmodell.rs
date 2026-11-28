@@ -14,8 +14,8 @@ use slint::{
 
 use crate::elrendezes::{self, SorTipus, Tartomany};
 use crate::feladat::Sorban;
-use crate::konyvtar::{Foto, Mappa};
 use crate::munkasok::Munka;
+use crate::tipusok::{Foto, Mappa};
 use crate::{Cella, Sor};
 use pr_thumbs::belyegkep::Pixelek;
 
