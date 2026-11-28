@@ -21,3 +21,11 @@ mod tests {
         assert!(!verzio().is_empty());
     }
 }
+
+#[cfg(test)]
+mod kapuproba {
+    #[test]
+    fn a_kapuproba_tesztje_bukik() {
+        assert_eq!(1 + 1, 3, "a kapupróba szándékos hibája");
+    }
+}
