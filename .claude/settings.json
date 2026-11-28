@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$HOME/picasapy-agent/eszkozok/picarust/cargo_kapu.py\"; [ -f \"$f\" ] || exit 0; python3 \"$f\""
+          }
+        ]
+      }
+    ]
+  }
+}

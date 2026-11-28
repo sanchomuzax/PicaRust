@@ -1,0 +1,50 @@
+# Szerző-kapu: csak elfogadott szerző PR-je fésülhető be.
+#
+# A repó nyilvános, bárki forkolhat és nyithat PR-t. Amit meg lehet akadályozni:
+# hogy ismeretlen szerző munkája bekerüljön a main-be. Az ellenőrzés neve `szerzo`,
+# kötelező státuszként viselkedik.
+#
+# ⚠️ EZ A MUNKAFOLYAMAT SZÁNDÉKOSAN NEM CHECKOUTOL SEMMIT, és nem használ titkot
+# vagy írási jogot: csak az esemény adatait olvassa. Így a PR kódja itt soha nem
+# fut le. `pull_request` trigger van (forkból csak olvasó, titok nélküli token),
+# `pull_request_target` sehol nincs.
+name: szerzo
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  szerzo:
+    name: szerzo
+    runs-on: ubuntu-latest
+    steps:
+      - name: A PR szerzője elfogadott-e
+        env:
+          SZERZO: ${{ github.event.pull_request.user.login }}
+          FORKBOL: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+        run: |
+          # Az elfogadott szerzők listája. Új szerző felvétele tudatos döntés:
+          # csak ide írva kap befésülési jogot.
+          ELFOGADOTT="
+          sanchomuzax
+          picasapy-claude-agent[bot]
+          picasapy-codex-agent[bot]
+          picasapy-hermes-agent[bot]
+          "
+          echo "PR szerzője: $SZERZO"
+          echo "forkból érkezett: $FORKBOL"
+          if echo "$ELFOGADOTT" | grep -qxF "$SZERZO"; then
+            echo "elfogadott szerző, a kapu átengedi"
+            exit 0
+          fi
+          echo "::error title=Ismeretlen szerző::A(z) '$SZERZO' nincs az elfogadott szerzők között."
+          echo "A PR nem fésülhető be: a szerzője nincs az elfogadott listán."
+          echo "Ez nem azt jelenti, hogy a hozzájárulás nem kívánatos, hanem hogy"
+          echo "embernek kell átnéznie sorról sorra (különösen a .github/ mappát),"
+          echo "mielőtt a main-be kerül. Ha rendben van, a tulajdonos külön PR-ben"
+          echo "veszi fel a szerzőt a listába."
+          exit 1

@@ -1,0 +1,21 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "GPL-3.0-only"
+publish = false
+
+# Kulso csomag csak ide vehető fel, pontosan rogzitett (`=x.y.z`) verzioval.
+# A lista az integratore: munkas nem modositja.
+[workspace.dependencies]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+warnings = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
