@@ -131,6 +131,13 @@ jobs:
           cargo clippy --workspace --all-targets --locked -- -D warnings
           echo "CLIPPY_MP=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
 
+      - name: Tesztek (idő mérve)
+        shell: bash
+        run: |
+          start=$(date +%s)
+          cargo test --workspace --locked
+          echo "TESZT_MP=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+
       - name: Release build (idő mérve)
         shell: bash
         run: |
@@ -208,6 +215,7 @@ jobs:
           {
             echo "### Windows: mért idők"
             echo "- clippy: ${CLIPPY_MP} mp"
+            echo "- tesztek: ${TESZT_MP} mp"
             echo "- release build: ${BUILD_MP} mp"
             echo "### Windows: indulás és memória (a csomagolt program)"
             cat "$RUNNER_TEMP/picarust-meres.md"
