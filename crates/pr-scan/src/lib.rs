@@ -4,6 +4,9 @@
 //! bejárás között. A képtárba nem ír. A felülettől nem függ.
 #![forbid(unsafe_code)]
 
+pub mod kulonbseg;
+pub use kulonbseg::{kulonbseg, Valtozasok};
+
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
