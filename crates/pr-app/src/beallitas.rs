@@ -137,13 +137,19 @@ mod tesztek {
 
     #[test]
     fn linuxon_az_xdg_adatmappat_hasznalja() -> Result<(), String> {
+        // a szabály abszolút útvonalat kér; ami az egyik rendszeren abszolút, a másikon nem az
+        let xdg = if cfg!(windows) {
+            PathBuf::from(r"C:\adat")
+        } else {
+            PathBuf::from("/adat")
+        };
         let gyorstar = felhasznaloi_adatmappa(
             "linux",
             Some(PathBuf::from("felhasznalo")),
             None,
-            Some(PathBuf::from("/adat")),
+            Some(xdg.clone()),
         )?;
-        assert_eq!(gyorstar, PathBuf::from("/adat/PicaRustProba"));
+        assert_eq!(gyorstar, xdg.join("PicaRustProba"));
         Ok(())
     }
 }
