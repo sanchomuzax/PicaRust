@@ -163,8 +163,17 @@ pub fn indit_mappafigyelo(gyoker: PathBuf, mut ismert: HashSet<PathBuf>, ki: Sen
 #[cfg(test)]
 mod tesztek {
     use super::*;
+    use image::{ImageFormat, Rgb, RgbImage};
     use std::path::Path;
     use std::time::Duration;
+
+    struct IdeiglenesMappa(PathBuf);
+
+    impl Drop for IdeiglenesMappa {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
 
     #[test]
     fn hianyzo_modellnel_a_hattermunka_kereses_nelkul_folytatodik() -> Result<(), String> {
@@ -172,13 +181,37 @@ mod tesztek {
             .ancestors()
             .nth(2)
             .ok_or_else(|| "nem talalhato a munkafa gyokere".to_string())?
-            .join(".tmp");
-        std::fs::create_dir_all(&gyoker).map_err(|hiba| hiba.to_string())?;
-        let azonosito = std::process::id();
-        let naploja = gyoker.join(format!("pr-app-arckereso-{azonosito}.tsv"));
-        if naploja.exists() {
-            std::fs::remove_file(&naploja).map_err(|hiba| hiba.to_string())?;
+            .join(".tmp")
+            .join(format!("pr-app-arckereso-{}", std::process::id()));
+        let _takaritas = IdeiglenesMappa(gyoker.clone());
+        if gyoker.exists() {
+            std::fs::remove_dir_all(&gyoker).map_err(|hiba| hiba.to_string())?;
         }
+        std::fs::create_dir_all(&gyoker).map_err(|hiba| hiba.to_string())?;
+        let kep_ut = gyoker.join("valodi-tesztkep.jpg");
+        RgbImage::from_pixel(400, 300, Rgb([20, 40, 60]))
+            .save_with_format(&kep_ut, ImageFormat::Jpeg)
+            .map_err(|hiba| hiba.to_string())?;
+        let foto = Foto {
+            meret: std::fs::metadata(&kep_ut)
+                .map_err(|hiba| hiba.to_string())?
+                .len(),
+            ut: kep_ut,
+            mtime_ns: 0,
+        };
+        let gyorstar = gyoker.join("gyorstar");
+        let belyeg_ut = belyegkep::gyorstar_ut(&gyorstar, &foto.ut, foto.meret, foto.mtime_ns);
+        let azonosito = std::process::id();
+        let naploja = gyoker.join(format!("arcok-{azonosito}.tsv"));
+
+        let (belyeg_ki, belyeg_be) = mpsc::channel();
+        let sor = Arc::new(Sorban::uj());
+        sor.hatter([Munka {
+            id: 41,
+            foto: foto.clone(),
+            mutat: true,
+        }]);
+        indit_belyegkep_szalak(1, &sor, &belyeg_ki, &gyorstar);
 
         let szamlalo = Arc::new(ArcSzamlalo::default());
         szamlalo.osszes.store(1, Ordering::SeqCst);
@@ -187,14 +220,28 @@ mod tesztek {
             naploja.clone(),
             Arc::clone(&szamlalo),
         );
-        kuldo
-            .send(Foto {
-                ut: gyoker.join("nem-letezo-kep.jpg"),
-                meret: 0,
-                mtime_ns: 0,
-            })
-            .map_err(|hiba| hiba.to_string())?;
+        kuldo.send(foto).map_err(|hiba| hiba.to_string())?;
         drop(kuldo);
+
+        let belyeg = belyeg_be
+            .recv_timeout(Duration::from_secs(3))
+            .map_err(|hiba| format!("a belyegkep-munkas nem adott eredmenyt: {hiba}"))?;
+        match belyeg {
+            Eredmeny::Belyegkep {
+                id: 41,
+                kep: Some(kep),
+            } if (kep.szel, kep.mag) == (144, 108) => {}
+            Eredmeny::Belyegkep { kep: None, .. } => {
+                return Err("a belyegkep-munkas nem keszitett kepet".to_string())
+            }
+            Eredmeny::Belyegkep { kep: Some(kep), .. } => {
+                return Err(format!("varatlan belyegkepmeret: {}x{}", kep.szel, kep.mag))
+            }
+            _ => return Err("a belyegkep-munkas varatlan eredmenyt adott".to_string()),
+        }
+        if !belyeg_ut.is_file() {
+            return Err("a belyegkep-munkas nem mentette a gyorstarba a kepet".to_string());
+        }
 
         let hatarido = Instant::now() + Duration::from_secs(3);
         while szamlalo.kesz.load(Ordering::SeqCst) == 0 && Instant::now() < hatarido {
