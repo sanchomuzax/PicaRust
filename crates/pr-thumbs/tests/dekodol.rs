@@ -37,7 +37,7 @@ fn a_hibas_jpegek_hibat_adnak_es_a_melletti_ep_kep_belyegkepe_elkeszul() -> Resu
         .ok_or_else(|| "a generalt JPEG-bol hianyzik a beolvasasi fejlec".to_string())?;
     let scan_vege = scan_marker + 2;
     if scan_vege >= csonka_adat.len() {
-        return Err("a generalt JPEG-ben nincs csonkolhato beolvasasi fejléc".to_string());
+        return Err("a generalt JPEG tul rovid a vagashoz".to_string());
     }
     csonka_adat.truncate(scan_vege);
     fs::write(&csonka, csonka_adat).map_err(|hiba| hiba.to_string())?;
