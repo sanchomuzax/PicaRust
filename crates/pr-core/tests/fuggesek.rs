@@ -89,7 +89,7 @@ fn fuggoseg_szakasz(fejlec: &str) -> bool {
         .contains("dependencies")
 }
 
-/// A gyökér `[workspace.dependencies]` szakaszának belső aliasai és csomagnevei.
+/// A gyökér `[workspace.dependencies]` szakaszának belső álnevei és csomagnevei.
 fn gyoker_belso_nevek(gyoker_manifest: &str) -> BTreeMap<String, String> {
     let mut nevek = BTreeMap::new();
     let mut szakaszban = false;
