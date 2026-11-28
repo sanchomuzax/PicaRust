@@ -1,0 +1,186 @@
+// PicaRust-próba: mappanézet, oldalsáv és egyképes néző.
+// A méreteket a rust_meres.py a kattintási pontokhoz ismeri: oldalsáv 230 px, sorai 40 px-től
+// 22 px-enként; a rács 230;40-től indul, minden sora (a fejléc is) 160 px, a cellája 160 px.
+import { ListView } from "std-widgets.slint";
+
+export struct Cella {
+    kep: image,
+    van: bool,
+    id: int,
+}
+
+export struct Sor {
+    fejlec: bool,
+    cim: string,
+    cellak: [Cella],
+}
+
+export struct MappaElem {
+    nev: string,
+    db: int,
+}
+
+export component AppWindow inherits Window {
+    title: "PicaRust";
+    preferred-width: 1000px;
+    preferred-height: 680px;
+    min-width: 400px;
+    min-height: 300px;
+    background: #ffffff;
+    default-font-family: "Segoe UI";
+    default-font-size: 12px;
+    forward-focus: billentyuk;
+
+    in property <[Sor]> sorok;
+    in property <[MappaElem]> mappak;
+    in property <int> aktiv-mappa: -1;
+    in property <string> allapot;
+    in property <bool> nezo-nyitva;
+    in property <image> nezo-kep;
+    in property <string> nezo-cim;
+    in-out property <length> gorgetes <=> racs.viewport-y;
+    out property <length> racs-szelesseg: racs.visible-width;
+    out property <length> racs-magassag: racs.visible-height;
+
+    callback mappa-valasztva(int);
+    callback kep-megnyitva(int);
+    callback vissza();
+
+    billentyuk := FocusScope {
+        width: 0px;
+        height: 0px;
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.vissza();
+            }
+            accept
+        }
+    }
+
+    // oldalsáv
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        width: 230px;
+        height: parent.height - 24px;
+        background: #f0f0f0;
+
+        Text {
+            x: 10px;
+            y: 0px;
+            height: 40px;
+            vertical-alignment: center;
+            text: "Mappák";
+            color: #202020;
+        }
+        for mappa[i] in root.mappak: Rectangle {
+            x: 0px;
+            y: 40px + i * 22px;
+            width: 230px;
+            height: 22px;
+            background: i == root.aktiv-mappa ? #26648a : transparent;
+            Text {
+                x: 24px;
+                height: parent.height;
+                vertical-alignment: center;
+                text: mappa.nev + " (" + mappa.db + ")";
+                color: i == root.aktiv-mappa ? #ffffff : #202020;
+            }
+            TouchArea {
+                clicked => { root.mappa-valasztva(i); }
+            }
+        }
+    }
+
+    // felső sáv
+    Rectangle {
+        x: 230px;
+        y: 0px;
+        width: parent.width - 230px;
+        height: 40px;
+        background: #f6f6f6;
+        Text {
+            x: 10px;
+            height: parent.height;
+            vertical-alignment: center;
+            text: "PicaRust-próba";
+            color: #202020;
+        }
+    }
+
+    // rács: csak a látható sorok jönnek létre
+    racs := ListView {
+        x: 230px;
+        y: 40px;
+        width: parent.width - 230px;
+        height: parent.height - 64px;
+
+        for sor in root.sorok: Rectangle {
+            width: parent.width;
+            height: 160px;
+
+            if sor.fejlec: Text {
+                x: 16px;
+                y: 110px;
+                text: sor.cim;
+                font-size: 22px;
+                color: #6b4a3a;
+            }
+            for cella[c] in sor.cellak: Rectangle {
+                x: 8px + c * 160px;
+                y: 8px;
+                width: 144px;
+                height: 144px;
+                // a helyőrző alig üt el a háttértől: a mérő a valódi bélyegképet várja
+                background: #fbfbfb;
+                if cella.van: Image {
+                    width: 144px;
+                    height: 144px;
+                    source: cella.kep;
+                    image-fit: contain;
+                }
+                TouchArea {
+                    double-clicked => { root.kep-megnyitva(cella.id); }
+                }
+            }
+        }
+    }
+
+    // állapotsor
+    Rectangle {
+        x: 0px;
+        y: parent.height - 24px;
+        width: parent.width;
+        height: 24px;
+        background: #e4e4e4;
+        Text {
+            x: 10px;
+            height: parent.height;
+            vertical-alignment: center;
+            text: root.allapot;
+            color: #404040;
+        }
+    }
+
+    // egyképes néző a teljes ablakon
+    if root.nezo-nyitva: Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        background: #202020;
+        TouchArea { }
+        Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.nezo-kep;
+            image-fit: contain;
+        }
+        Text {
+            x: 10px;
+            y: 6px;
+            text: root.nezo-cim;
+            color: #ffffff;
+        }
+    }
+}

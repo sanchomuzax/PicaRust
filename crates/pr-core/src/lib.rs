@@ -1,5 +1,6 @@
 //! A PicaRust magja. Ebben a mérföldkőben csak annyi van benne, hogy a CI-nak
 //! legyen mit fordítania és tesztelnie.
+#![forbid(unsafe_code)]
 
 /// A csomag verzióját adja vissza (a `Cargo.toml`-ból).
 pub fn verzio() -> &'static str {
