@@ -1,0 +1,1637 @@
+# A natív szűrők munkafüggvényei - a hívási térkép
+
+A `picasa-native-filter-registry.md` a **belépési pontokat** adja meg (42
+szűrő → callback). Ez a lap egy réteggel mélyebb: a callbackek **vékony
+burkolók**, amik a csúszkaértékeket kiolvassák a paraméterblokkból, és egy
+közös **munkafüggvényt** hívnak.
+
+Forrás: a 35 callback Ghidra-dekompilálása (12.1.2, Java 21), a nyers C-kód a
+privát agent-repóban: `referencia/dekompilalt/natív-szűrők.c`.
+
+## A burkoló-minta
+
+```c
+void contrast(int param_1, undefined4 param_2) {
+  FUN_0090c2c0(param_2, *(undefined4 *)(param_1 + 0x28), 0, 0x3f800000);
+  return;
+}
+```
+
+- `param_1 + 0x28`, `+0x2c`, `+0x30` - az **1., 2., 3. csúszka** értéke (float)
+- `param_1 + 0x40` - egy **24 bites szín** (a pipetta / fehérpont)
+- `0x3f800000` = `1.0f`
+
+## A közös munkafüggvények - ezek a valódi algoritmusok
+
+| cím | mit csinál (a hívók alapján) | hívók |
+|---|---|---|
+| **`0x0090ac20`** | **Derítőfény (Fill Light)** | `backlight`, `fill`, `autobacklight`, `triple`, `triple2`, `triple3`, `finetune`, `finetune2` - **8 szűrő** |
+| **`0x0090c3b0`** | **szinthúzás (Kiemelések/Árnyékok)** | `triple2`, `triple3`, `autolight`, `finetune`, `finetune2` |
+| **`0x0090eda0`** | **fehérpont / semleges szín** (a pipetta és a szín-varázspálca magja) | `whitept`, `colorfix`, `autocolor`, `finetune`, `finetune2` |
+| **`0x0090ea10`** | **színhőmérséklet** | `colortemp`, `colorfix`, `finetune` |
+| **`0x0090c2c0`** | **kontraszt** | `contrast`, `triple` |
+| **`0x0090c430`** | a `finetune`-család negyedik lépése | `triple2`, `triple3`, `finetune`, `finetune2` |
+| **`0x009db610`** | **hisztogram-elemzés / automatikus szintek** | `enhance`, `autocontrast`, `tint`, `rainbow` |
+| `0x009aabf0` | semleges/„nincs hatás" beállítás (a `0xffffffff` argumentumú ágakban) | 16 szűrő |
+
+### Egyszűrős munkafüggvények
+
+| szűrő | munkafüggvény |
+|---|---|
+| `shadow` (Árnyék és kiemelés) | `0x0090d3e0` (három csúszka) |
+| `blur` (Elhomályosítás) | `0x0090cf60` |
+| `glow` / `glow2` | `0x0090d4b0` |
+| `unsharp` / `unsharp2` | `0x0090c4a0` |
+| `warm` | `0x0090c040` |
+| `sat` | `0x0090e200` + `0x0090b930` |
+| `grain` / `grain2` | `0x0090a2e0` |
+| `dir_sat` | `0x0090dbb0` |
+| `dir_brite` | `0x0090d8b0` |
+| `linblur` | `0x0090de10` |
+| `ansel` | `0x00a3f2f0` + `0x0090e680` |
+
+`sepia` a burkolóban **nem hív semmit** a 0x9x tartományból - vagy beágyazott,
+vagy egy fix mátrix az adatokban.
+
+## Amit ez azonnal megmond
+
+**1. Nyolc munkafüggvény lefedi a készlet nagy részét.** Nem 42 algoritmust
+kell megírni: a `0x90ac20`, `0x90c3b0`, `0x90eda0`, `0x90ea10`, `0x90c2c0`,
+`0x90c430`, `0x9db610` és `0x90d3e0` megvalósításával a `finetune`-család, a
+`triple`-család, az `autolight`, `autocolor`, `autocontrast`, `enhance`,
+`colorfix`, `whitept`, `colortemp`, `contrast`, `backlight`, `fill` és
+`autobacklight` **mind kész**.
+
+**2. A `fill` = `backlight` = `autobacklight` = a `finetune` Derítőfénye.**
+Mind a `0x90ac20`-at hívja. Egy implementáció.
+
+**3. Az `autolight` („Automatikus kontraszt") ugyanazt a szinthúzást hívja
+(`0x90c3b0`), mint a `finetune`.** Ez egybevág a méréssel (#535, #539): az
+automatikák nem külön algoritmusok, hanem **automatikusan megválasztott
+paraméterek** ugyanahhoz a maghoz.
+
+**4. A `0x90eda0` a szín-varázspálca és a pipetta közös magja.** A mérés
+szerint a pálca a `finetune2` p4 mezőjébe ír színt (#551) - a hívási térkép
+ezt megerősíti: `whitept`, `colorfix`, `autocolor`, `finetune`, `finetune2`
+mind ide fut be.
+
+**5. A dekompilált `finetune2` visszaigazolja a mért képletet:**
+
+```c
+fVar2 = 1.0 - *(float *)(param_1 + 0x2c);   // 1 - Kiemelések
+if (fVar2 <= 0.001) fVar2 = 0.001;          // nullaosztás elleni védés
+```
+
+Ez pontosan az `1/(1-h)` nevezője, amit a mérőkészletből vezettünk le - **két
+független úton ugyanaz**.
+
+## Következő lépés
+
+A **munkafüggvények** dekompilálása (a fenti nyolc + az egyszűrősök). Ott van
+a tényleges pixel-matematika; a mostani réteg csak a paraméterátadást
+mutatja.
+
+---
+
+## MEGFEJTVE: `0x0090ac20` - a Derítőfény (Fill Light)
+
+A dekompilált kódból (a nyers C: `referencia/dekompilalt/munkafuggvenyek.c`):
+
+```python
+g = 1.0 / ((1.0 - fill) * 0.7 + 0.3)
+
+# 256 elemu LUT
+for x in range(256):
+    v = ((x * g) / 255.0) ** (1.0 / (g * 0.7 + 0.3))
+    LUT[x] = round(255.0 * min(v, 256.0))
+
+# keppontonkent (BGR sorrendben a memoriaban)
+luma4 = (B + 2*G + R) >> 2            # sulyozott atlag, negyeddel osztva
+w     = 0xff00 - luma4 * round(alpha * 256)     # alpha = 1.0 a hivoban
+out_c = clamp(c + (((LUT[c] - c) * w) >> 16), 0, 255)
+```
+
+**A lényeg a `w` súly:** a LUT-ot nem egyszerűen alkalmazza, hanem a képpont
+**világosságával fordítottan arányos** súllyal keveri be. Sötét képpontnál
+`w ≈ 65280` (teljes hatás), világosnál `w → 0` (semmi hatás). Ezért nem
+írható le egyetlen gamma-görbével - **két hatás van egymáson**: egy
+gamma-jellegű LUT és egy árnyék-súlyozott keverés.
+
+`fill = 0` esetén `g = 1`, a kitevő is 1, tehát a LUT azonosság - a művelet
+**nem csinál semmit**, ahogy kell.
+
+### Ellenőrzés a mérőkészleten
+
+Átlagos csatorna-eltérés a Picasa saját kimenetétől (`referencia/deritofeny/`,
+hat csúszkaállás):
+
+| állás | **binárisból levezetve** | korábbi gamma-közelítés | a mai kódunk |
+|---|---|---|---|
+| 10 % | **0,82** | 1,53 | 0,97 |
+| 25 % | **1,41** | 2,46 | 2,06 |
+| 50 % | **0,93** | 4,71 | 3,64 |
+| 75 % | **4,52** | 9,96 | 5,36 |
+| 100 % | **1,21** | 10,38 | 5,89 |
+
+A JPEG saját zaja kb. 1,0 - vagyis ez **a pontos algoritmus**, nem közelítés.
+(A 75 %-os sor magasabb értéke valószínűleg abból jön, hogy a csúszka kézzel
+lett beállítva, tehát nem pontosan 0,75.)
+
+## A Glimmer-oldal még nyitva
+
+A `glimmer::GlowImageOperation` / `BlurImageOperation` / `AutoFixImageOperation`
+/ `BWImageOperation` vtable-jének **első három** bejegyzése nem a
+képfeldolgozás: destruktor, felszabadítás és az XML-attribútumok beolvasása
+(nyolc egymásba ágyazott `FUN_008f1500` hívás = nyolc attribútum). A tényleges
+`apply` metódus a vtable-ben **hátrébb** van.
+
+Ezért a 255-ös elmosás-korlát (Lomo/Holga) **továbbra is csak méréssel
+igazolt**, binárisan nem. Következő kör: a vtable teljes kiolvasása és a
+helyes slot dekompilálása.
+
+---
+
+# 2. dekompilálási kör (#576) - a tényleges pixel-matematika
+
+**Futás:** 2026-08-13, Ghidra 12.1.2 PUBLIC, `standardLinux32gb` Codespace,
+`Picasa3.exe` SHA-256 `644b7bec89a2e4d57d119d15aa36af1df12a4c3547b692bc0462af35a93ddc96`
+(10 160 456 bájt, PE32/x86, image base `0x00400000`). 21 gyökérfüggvény,
+2 szint mélységű hívás-követés, **95 dekompilált függvény**. A nyers kimenet a
+privát agent-repóban: `referencia/dekompilalt-576/`.
+
+Az alábbi leírásokban a képpuffer szerkezete végig ugyanaz: `+8` = szélesség,
+`+0xc` = magasság, `+4` = sorlépés (pixelben), `+0x10` = adatmutató; a képpont
+**BGRA** bájtsorrendben (`[0]=B, [1]=G, [2]=R`).
+
+## 2.1 A közös segédek
+
+| cím | mi ez | bizonyíték |
+|---|---|---|
+| `0x00c29990` | **`float → int` kerekítő** (MSVC `_ftol2`-szerű), az x87 verem tetejéről | a törzse `ROUND(in_ST0)` és a fél-LSB korrekció |
+| `0x005568e0` | **`pow(x, y)`** | a LUT-építőkben `pow(i/255, 1/γ)` alakban |
+| `0x0040eac0` | **`exp(x)`** (a `0x00c29c6c` burkolója) | a kontraszt-tényezőnél |
+
+> **Fontos helyesbítés.** A #484 rangsor eddig úgy tartotta, hogy a
+> színhőmérséklet-leképezéshez „a `FUN_00c29990` kell". Ez a függvény
+> **nem hordoz információt**: csak lebegőpontos → egész kerekítés. A tényleges
+> paraméter-leképezés a **hívó** oldalán van (ld. 2.3).
+
+## 2.2 A LUT-alkalmazó dithereléssel - `0x0090bc60`
+
+Ez a **közös kimeneti fokozat** a szinthúzáshoz és a kontraszthoz. A LUT
+**257 elemű, 16 bites** (`8.8` fixpont, teljes kitérés `0xFF00`); a 257. elem az
+utolsó másolata (`LUT[256] = LUT[255]`), hogy az interpoláció ne fusson ki.
+
+```c
+r = MT19937_next() & 0xff;              // KÉPPONTONKÉNT EGY minta, mindhárom csatornára
+for c in (R, G, B):
+    lo    = LUT[c];  delta = LUT[c+1] - lo;
+    v     = lo + ((delta * r) >> 8) - (delta >> 1);   // ±delta/2 egyenletes zaj
+    out_c = clamp(v >> 8, 0, 255);
+```
+
+**Két dolog, ami ebből fontos:**
+
+1. **A zaj amplitúdója a görbe helyi meredekségével arányos** (`delta`). Ahol a
+   szinthúzás széthúzza a hisztogramot, ott nagyobb a kvantálási lépés - és
+   pontosan ott ditherel jobban. Ez az, amitől a Picasa szinthúzása **nem
+   sávosodik**.
+2. **Egy véletlen minta jut egy képpontra**, mindhárom csatorna ugyanazt kapja -
+   így a zaj **szürke**, nem színes.
+
+A véletlenszám-forrás **Mersenne Twister (MT19937)**: a temperálás
+(`>>11`, `<<7 & 0xff3a58ad`, `<<15 & 0xffffdf8c`, `>>18`) és a 624 szavas
+újratöltés (`0x26f` határ → `0x00aa2930`) egyértelmű.
+
+> ⛔ **HELYESBÍTÉS (2026-09-10, #2868).** Az itt korábban álló mondat - *„a
+> szinthúzás kimenete **nem determinisztikus** képpont szinten"* - **téves
+> volt**. A zaj képpontonként változik, de **futásról futásra AZONOS**: a
+> generátor vetőmagja determinisztikus.
+>
+> **Mérve:** ez az ág a **`0x00d67f70`** generátort használja
+> (`0x0090bd25 mov esi, 0xd67f70`, index `0x00d67f74`, állapot `0x00d67f7c`) -
+> **nem** ugyanazt, amit a képernyős 16 bites szemcsézés (az a `0x00d6c4a8`;
+> `picasa-megjelenitesi-modok.md` 5.3/b). Mindkettőt ugyanaz a
+> CRT-inicializáló minta magozza, **entrópiaforrás nélkül**: három `rand()`
+> `mag = r3 ^ ((r2 ^ (r1<<12)) << 12)` alakban. A `.CRT$XC` tábla mind a
+> **884** bejegyzése átnézve, közvetlenül és egy szint mélyen - a három
+> magozón kívül **senki** nem fogyaszt `rand()`-ot.
+>
+> Ez az ág a tábla **ELSŐ** magozója (`0xc416b0` → `0x00c32520`), tehát az
+> 1-3. `rand()`-ot kapja; az MSVC alapmagjával (1) ezek `41, 18467, 6334` ⇒
+> **a vetőmagja `0x2D8228BE`**.
+>
+> **Következmény a golden-mérésre:** a pixelpontos összevetés **tűrés nélkül**
+> elvégezhető, ha a mi implementációnk ugyanezt a generátort, vetőmagot és
+> bejárási sorrendet használja. A ±1-es tűrés csak akkor kell, ha ezt nem
+> reprodukáljuk.
+
+## 2.2/b A BEJÁRÁSI SORREND - a bitre egyezés feltétele (2026-09-10, #2874)
+
+**Bizalmi fok: megerősített** a munkafüggvényen belül; **kimondottan nem
+mérve** a keretrendszer csempézése (2.2/b.4).
+
+A #2868 kimérte, hogy a dither **determinisztikus** (generátor `0x00d67f70`,
+vetőmag `0x2D8228BE`). A bitre egyezéshez viszont az is kell, hogy a
+**mintákat ugyanabban a sorrendben** fogyasszuk. Ez a szakasz azt méri ki.
+
+### 2.2/b.1 Két egymásba ágyazott ciklus, sorfolytonosan
+
+```
+0x0090bcc0  mov edi, dword ptr [edx + 4]     ; forrás sorléptetés
+0x0090bcc3  mov ebp, dword ptr [edx + 0x10]  ; forrás adatmutató
+0x0090bcc6  imul edi, eax                    ; × a SOR indexe
+0x0090bcc9  lea edi, [ebp + edi*4]           ; a sor eleje (4 bájt/képpont)
+   …ugyanez a célképre (`[ecx+4]`, `[ecx+0x10]`)
+0x0090bcf0  ⟵ a BELSŐ ciklus eleje
+0x0090be2b  add ebp, 4                       ; forrás += 1 képpont
+0x0090be28  add ecx, 4                       ; cél    += 1 képpont
+0x0090be37  jne 0x90bcf0                     ; amíg a sorból van hátra
+0x0090be4d  add eax, 1                       ; a KÖVETKEZŐ sor
+0x0090be50  cmp eax, dword ptr [esp + 0x18]
+0x0090be58  jb  0x90bcc0
+```
+
+⇒ **külső ciklus = sorok, `0`-tól növekvő** (`0x0090bca8 xor eax, eax`), tehát
+**fentről lefelé**; **belső ciklus = képpontok, `+4` bájtos lépésekkel**, tehát
+**balról jobbra**. **Sorfolytonos (row-major) bejárás.**
+
+### 2.2/b.2 Képpontonként PONTOSAN EGY minta
+
+A generátor-hivatkozások **egyetlen** blokkot alkotnak, és az a **belső**
+ciklus törzsében áll, a három csatorna számítása ELŐTT:
+
+```
+0x0090bd0d  cmp dword ptr [0xd67f74], 0x270   ; kifogyott az állapot?
+0x0090bd25  mov esi, 0xd67f70
+0x0090bd2a  call 0xaa2930                     ; twist
+0x0090bd2f  mov ecx, dword ptr [0xd67f74]
+0x0090bd35  mov eax, dword ptr [ecx*4 + 0xd67f7c]
+0x0090bd3c  add ecx, 1
+0x0090bd3f  mov dword ptr [0xd67f74], ecx
+```
+
+⇒ **soronként nincs extra húzás**, és nincs maradék-kezelés (a belső ciklus
+képpontonként halad, nincs SIMD-blokkosítás).
+
+### 2.2/b.3 A munkafüggvény EGYSZER fut egy téglalapra
+
+A két hívója (`0x0090c3b0` szinthúzás, `0x0090c2c0` kontraszt) **ciklus
+nélkül**, egyszer hívja (`0x0090c401`, illetve a párja), a LUT megépítése
+után. A keretrendszer felőli belépő (`KNOWN_CALLBACK_contrast`, `0x008f8a20`,
+55 bájt) szintén **továbbító** - se ciklus, se szálindítás.
+
+### 2.2/b.4 ⚠️ Amit NEM mértem ki: a keretrendszer csempézése
+
+Hogy a keret **hányszor** és **milyen sorrendben** hívja a visszahívást - egy
+egész képre egyszer, vagy csempénként/sávonként -, az egy szinttel feljebb dől
+el (`0x008f7cf0` és társai), és **nincs kimérve**.
+
+**Ez a bitre egyezés maradék feltétele:** a generátor állapota a hívások közt
+**tovább él**, ezért csempézés esetén a csempe-sorrendet is reprodukálni kell.
+A munkafüggvényen belüli sorrend viszont - a fentiek szerint - rögzített.
+
+## 2.2/c NINCS csempézés és nincs szálindítás a burkolókban (2026-09-10, #2876)
+
+**Bizalmi fok: megerősített** a hét burkolóra; **kimondottan nem mérve** a
+teljes csővezeték párhuzamossága (2.2/c.4).
+
+A 2.2/b kimérte a munkafüggvényen BELÜLI sorrendet, és nyitva hagyta, hogy a
+keret hányszor és milyen sorrendben hívja. Ez a szakasz azt zárja le.
+
+### 2.2/c.1 A hét burkoló - egyikben sincs csempe-ciklus
+
+| burkoló | méret | a szűrő hívása | hátrafelé ugrás | import-hívás |
+|---|---:|---|---:|---:|
+| `FUN_008f7cf0` | 493 b | `0x008f7df0` | 0 | 0 |
+| `FUN_008f7ee0` | 471 b | `0x008f8037` | **1** (ld. 2.2/c.2) | 0 |
+| `FUN_008f80c0` | 468 b | `0x008f8283` | 0 | 0 |
+| `FUN_008f8b90` | 325 b | `0x008f8cb7` | 0 | 0 |
+| `FUN_008f8ce0` | 329 b | `0x008f8e0b` | 0 | 0 |
+| `KNOWN_CALLBACK_contrast` `0x008f8a20` | 55 b | `0x008f8a4c` | 0 | 0 |
+| `FUN_008f8a60` | 292 b | `0x008f8b74` | 0 | 0 |
+
+Az „import-hívás: 0" **két független forrásból** áll: a diszasszemblátumból
+(nincs `call dword ptr [IAT]`) és az index `imports` táblájából (a hét
+függvény egyike sem szerepel `function_address`-ként). A tábla-lekérdezés
+alakja hitelesítve: a `CreateThread`-re négy hívót ad
+(`0x00990a10`, `0x00abb050`, `0x00abb720`, `0x00c0bd82`) - **egyik sem** ezek közül.
+
+### 2.2/c.2 Az egyetlen hátrafelé ugrás EGYSZERI kapcsoló, nem ciklus
+
+```
+0x008f7f24  xor cl, cl          ; a kapcsoló KEZDETBEN 0
+…
+0x008f8023  mov eax, dword ptr [ebp + 0xc]   ; UGYANAZ a képleíró
+0x008f8037  call 0x90c3b0                    ; a szinthúzás
+0x008f803f  mov cl, 1                        ; ⭐ a kapcsoló BEÁLL
+0x008f8041  jmp 0x8f7fca                     ; vissza a közös blokkba
+0x008f7ff0  test cl, cl                      ; …ami most MÁS ágra megy
+```
+
+A `cl`-t a függvény **egyszer** nullázza és **csak 1-re** írja (három helyen:
+`0x008f7f92`, `0x008f7f98`, `0x008f803f`) - **soha nem vissza 0-ra**. ⇒ a
+blokk legfeljebb **kétszer** fut be, és a képleíró (`[ebp+0xc]`) **ugyanaz**;
+a függvényben **nincs** írás rá.
+
+⇒ **ez nem résztéglalapok bejárása**, hanem kétlépcsős menet ugyanazon a képen.
+
+### 2.2/c.3 A generátor GLOBÁLIS, nem szálankénti
+
+A `0x00d67f70` **abszolút** címként szerepel a kódban (`0x0090bd25 mov esi,
+0xd67f70`, index `0x00d67f74`, állapot `0x00d67f7c`) - nincs `fs:` előtag,
+tehát **nem szál-lokális**. Ez azt jelenti: ha két szűrőlánc **egyszerre**
+futna, a mintahúzásaik **összefésülődnének**.
+
+### 2.2/c.4 ⚠️ Amit NEM mértem ki
+
+Hogy a csővezeték futtat-e valaha **két szűrőláncot egyidejűleg**. A hét
+burkoló nem indít szálat, de a felettük lévő szint nincs átnézve.
+
+**A reprodukálhatóság korlátja (#5427):** a `0x2D8228BE` a generátor
+vetőmagja, de a worker elé kerülő állapotot a folyamatban korábban elfogyasztott
+minták is meghatározzák. A mag kiterjesztése sem a NumPy `RandomState` szokásos
+MT19937-kezdőállapota; a natív `0x00aa28f0` eljárást a #5427 vizsgálata írja le
+lent. Ezért a bitre egyezés csak akkor következik a seedből, ha a worker induló
+globális állapota is azonos. Az egy képre és egy szálra vonatkozó korábbi
+feltétel önmagában ehhez nem elég.
+
+## 2.2/d Csökkenő tábla: a `(delta · r)` eltolása ELŐJEL NÉLKÜLI (2026-09-28, 392. kör, #3867)
+
+*Bizonyítottsági fok: **megerősített**, utasításszinten, független újralevezetéssel és golden-méréssel.*
+
+A 2.2 képlete a szorzat eltolását `>>`-nek írja. Mindkét alkalmazóban
+(`0x0090bc60` és a helyben dolgozó testvére, `0x0090be70`) ez **logikai**
+eltolás, a `delta >> 1` és a végső `>> 8` viszont aritmetikai:
+
+```
+0x0090bf7a  imul eax, esi        ; delta · r   (r = minta & 0xff)
+0x0090bf7d  sar  ecx, 1          ; delta >> 1   - előjeles
+0x0090bf7f  shr  eax, 8          ; (delta · r) >> 8 - ELŐJEL NÉLKÜLI
+0x0090bfa8  sar  eax, 8          ; v >> 8       - előjeles
+0x0090bfb1  … clamp(0, 255)      ; előjeles összehasonlítás
+```
+
+(`0x0090bc60`-ban ugyanez: `0x0090bd9a` `imul`, `0x0090bd9f` `shr eax, 8`.)
+
+Növekvő táblánál (`delta ≥ 0`) ez azonos a 2.2 képletével. **Csökkenő
+táblánál** (`delta < 0`, `r > 0`) a szorzat 32 bites előjel nélküli
+eltolása `2²⁴ + ⌊delta·r / 256⌋`-ot ad, a `v >> 8` így 65 536 körül
+jár, és a vágás **255**-öt ír. Csak két eset marad sötét:
+
+- `r = 0` (a képpontok ≈ 1/256-a): a kimenet a tábla értéke, `(lo - (delta >> 1)) >> 8`;
+- `delta = 0`: a tábla vízszintes szakasza, köztük a `LUT[256] = LUT[255]`
+  másolat miatt a **255-ös bemenet** - ez a tábla utolsó értékét kapja.
+
+**Mikor csökken a tábla?** A táblaépítő (`0x0090c1e0`) a skálát
+`1 / (fehér - fekete)`-ként számolja (`0x0090c211` `fsub`, `0x0090c213`
+`fdivp`; egyenlőségnél 1,0), és a kimenetet **előjelesen** vágja
+`[0, 0xFF00]`-ra (`0x0090c287` `jge`, `0x0090c28f` `cmp eax, 0xff00` /
+`jle`). A `finetune`/`finetune2` hívója (`0x008f7cf0`, `0x008f7ee0`) `fekete = Árnyékok`,
+`fehér = max(1 - Kiemelések, 0,001)` értékkel hívja; ha `Árnyékok > 1 -
+Kiemelések`, a skála negatív, és a tábla `LUT[i] = clamp(rint((i/255 - fekete)
+· 65280 / (fehér - fekete)))`, tehát csökkenő. A 684-es készlet `max` soraiban
+(`Árnyékok = 1`, `Kiemelések = 0,5`) `LUT[255] = 0`, a kicsi bemenetek pedig
+`0xFF00`-ra telítődnek.
+
+⇒ A kimenet a képpontok ~255/256-odán **fehér**, a **255-ös bemenet fekete**,
+és szétszórtan (`r = 0`) a tábla invertált értéke látszik. Ez a mechanizmus,
+nem egy „teljes fehér” tábla.
+
+**A véletlen generátor maga szabványos MT19937.** A 2.2 temperálási sora
+(`<<7 & 0xff3a58ad`, `<<15 & 0xffffdf8c`) a maszkolást az eltolás ELŐTT
+végzi (`0x0090bf2e` `and edx, 0xff3a58ad` → `0x0090bf34` `shl edx, 7`);
+eltolva ez `0x9d2c5680`, illetve `0xefc60000`, a szabványos állandók.
+
+**Mérve** (684-es készlet, ΔE a Picasa-exporthoz; a mai lánc, csak a tábla
+és az eltolás a fenti szerint, vetőmag `0x2D8228BE`):
+
+| eset | ma („teljes fehér” tábla) | **natív tábla + logikai eltolás** | zajszint (mi ↔ mi-JPEG95) |
+|---|---:|---:|---:|
+| `finetune` max | 3,665 | **0,632** | 0,262 |
+| `finetune2` max | 3,392 | **0,569** | 0,205 |
+| `finetune` / `finetune2` alap | 0,381 / 0,574 | 0,381 / 0,574 | 0,317 / 0,536 |
+
+A maradék az `r = 0` képpontok **helye**: a Picasa-exportban 960, nálunk
+973 ilyen van (a várt ≈ 1/256-os arány), de csak 3 esik egybe. A vetőmagtól
+számított első 60 millió mintában nincs olyan kezdőpont, amelyből a Picasa
+sötét képpontjai kijönnének; a generátor állapota folyamat-globális
+(2.2/c.3), tehát egy sorozatban exportált kép helyei a vetőmagból nem
+számíthatók ki. A darabszámuk és a mechanizmus igen.
+
+Fejlesztés: #3871.
+
+## 2.3 Szinthúzás (Kiemelések / Árnyékok) - `0x0090c3b0`
+
+Két lépés: LUT-építés (`0x0090c1e0`) + a fenti alkalmazó. Fordított fekete-/fehérpontnál (fekete > fehér) a tábla csökkenő - a viselkedést a 2.2/d írja le (#3867).
+
+```c
+// FUN_0090c1e0(float black, float white, float gamma)
+invG  = 1.0 / gamma;
+scale = (white != black) ? 1.0 / (white - black) : 1.0;
+for i in 0..255:
+    p      = pow(i / 255.0, invG);
+    LUT[i] = clamp(round((p * 65280.0 - black * 65280.0) * scale), 0, 0xFF00);
+```
+
+Vagyis a klasszikus **szint-transzformáció**, ebben a sorrendben:
+**gamma → feketepont eltolás → fehérpont skálázás**, 16 bites pontossággal.
+A `65280 = 255·256` a teljes kitérés.
+
+**Kik hívják és mivel** (2026-08-18, #879): a `triple2` a
+(Feketepont, Fehérpont) párral, a `triple3` és a `finetune`/`finetune2`
+pedig a Kiemelések/Árnyékok párral - mindhárom UGYANEBBEN az alakban:
+
+```
+black = Árnyékok (p3)          white = max(1 - Kiemelések, 0,001)   gamma = 1,0
+```
+
+A `finetune2` callbackjében (`0x008f7ee0`) ez a `0x008f7f7d`-`0x008f7f87`
+veremre pakolásból olvasható ki. **A két csúszka tehát EGYETLEN affin
+leképezés, nem két egymás utáni lépés** - a részletek és a numerikus
+következmények a [`filters-decoded.md`](filters-decoded.md) „A `finetune2`
+SZERKEZETE" szakaszában.
+
+### #5403 - az `autolight` kimeneti kvantálása
+
+Az Auto Contrast callbackje (`0x008f80c0`) a `0x0090c3b0` útján előbb a
+`0x0090c1e0` LUT-építőt, majd a `0x0090bc60` alkalmazót hívja. A LUT 256
+értékét 16 bites 8.8 formában építi: a `0x00cf4200` skálakonstans értéke
+65280 (`0xFF00`), a `0x0090c27f` `fistp`-je egészíti ki az értéket, majd a
+`0x0090c287`-`0x0090c29b` tartomány 0 és `0xFF00` közé vágja. Az alkalmazó
+képpontonként egy MT-mintát vesz (`0x0090bd25`), ezt mindhárom csatornához
+közösen használja, interpolál a szomszédos LUT-elemek között, majd a
+`0x0090bd9f` utáni `>> 8` és a 0-255 vágás adja a kimeneti bájtot.
+Forrás: `bináris (0x008f80c0, 0x0090c3b0, 0x0090c1e0, 0x0090bc60,
+0x00cf4200)`.
+
+PicasaPy ugyanennek a lépésnek a helyi útján 16.16-os egész erősítéssel
+épít közvetlenül 8 bites LUT-ot (a PicasaPy-ban: `src/picasapy/render/ops.py`,
+`_native_levels_lut`), majd `np.rint`-tel bájtra kerekíti és dither nélkül
+alkalmazza (a PicasaPy-ban: `src/picasapy/render/curves.py`, `apply_lut`). Ez a különbség az
+LUT felbontása és a kimeneti kvantálás/dither lépése; nem a hisztogram-
+vágópontok vagy a rétegsorrend eltérése. A natív `fistp` kerekítési módját
+ez a függvényszakasz önmagában nem dönti el, mert a `0x0090c1e0` nem állítja
+be az x87 vezérlőszót: a `0x0090c27f` `fistp` az aktuális vezérlőszó
+kerekítési módját használja. Ez a függvényre korlátozott disassembly-állítás;
+a teljes program minden vezérlőszó-módosításáról nem következik belőle semmi.
+Az utasítás bájtjai `DB 5C 24 14` (`fistp dword ptr [esp+0x14]`). Forrás:
+`bináris (0x0090c1e0, 0x0090c27f)`.
+
+**#5425 QEMU-mérés (2026-10-21).** A natív `0x0090c1e0` közvetlen
+futtatásakor a friss QEMU-folyamat x87 vezérlőszava `0x037f`; pontos félértékes
+LUT-bemenetekkel a `fistp` `0,5 → 0` és `1,5 → 2` eredményt ad, vagyis ebben
+a környezetben párosra kerekít. A bemeneti float32 paraméterek `gamma=1,0`,
+`black=-1/256`; `white=509,99609375` adta az első LUT-elem `0,5` bemenetét,
+`white=169,99609375` pedig az `1,5`-öt. A függvény után a vezérlőszó `0x037f`
+maradt.
+Az irányítást ellenőrző próbákban `0x027f` ugyanezt adta; `0x077f` (lefelé),
+`0x0b7f` (felfelé) és `0x0f7f` (levágás) vezérlőszóval a két félérték
+eredménye rendre `0/1`, `1/2`, illetve `0/1`. Ez igazolja, hogy a függvény
+az aktív módot követi, nem kényszerít feltétel nélkül párosra kerekítést.
+Forrás: `mérés (QEMU, natív 0x0090c1e0, 0x037f/0x027f/0x077f/0x0b7f/0x0f7f)`.
+
+Egy másik, önálló betöltővel és próbasorral végzett QEMU-futtatás az eredeti
+`fistp` után rögzítette a pontos bemenő floatot és a vágás előtti egész
+eredményt. `gamma=1,0` mellett az alábbi első LUT-elemeket mérte:
+
+| `black=white` float32 | FISTP bemenet | FISTP nyers eredmény | LUT[0] a vágás után |
+|---:|---:|---:|---:|
+| -1/512 (`0xbb000000`) | 127,5 | 128 | 128 |
+| -3/512 (`0xbbc00000`) | 382,5 | 382 | 382 |
+| +1/512 (`0x3b000000`) | -127,5 | -128 | 0 |
+| +3/512 (`0x3bc00000`) | -382,5 | -382 | 0 |
+
+A vezérlőszó a harness elején, minden hívás előtt és után, valamint mind az
+1024 `fistp` után `0x037f` maradt; a harness nem állította át. A megfigyelő a
+`0x0090c283`-nál, a változatlan `fistp` után olvasta ki a nyers értéket és a
+bemeneti floatot, majd visszajátszotta az elvett utasításokat. Ez a mérés a
+négy előjeles félértékkel külön is azonosítja a legközelebbi páros módot. A két
+QEMU-út egyezik: a `0x037f` alapállapot párosra kerekít. Az alkalmazáskörnyezet
+tényleges vezérlőszavát ez nem állapítja meg. Forrás: `mérés (független QEMU-
+betöltő, natív 0x0090c1e0 és 0x0090c27f, 4 előjeles félérték; megfigyelő
+0x0090c283)`.
+
+A mai kódon a 684-es autolight alap pár újramérése átlagos ΔE 0,23; ez az alapállapot,
+nem a natív kerekítési maradék. A #5398 k03 mérési naplóban az
+`autolight,sat,HDR` részlánc átlagos ΔE 2,57, így a #5427 `< 2,0` elfogadási pontja
+még nincs teljesítve. A natív alkalmazó továbbra is a 16 bites LUT-elemek
+között interpolál, közös pixelenkénti mintát ad a csatornákhoz, majd jobbra
+tol és vág; ennek teljes PicasaPy-egyezését a kerekítési mérés önmagában nem
+igazolja. Forrás: `mérés (684-es alap pár, mai PicasaPy: átlagos ΔE 0,23)`;
+`mérés (#5398 k03 autolight+sat+HDR: átlagos ΔE 2,57)`; a natív lépéssor:
+`bináris (0x0090bc60, 0x0090bd25, 0x0090bd9f)`.
+
+### #5427 - a natív magkiterjesztés és a 684-es mérőpár (2026-10-21)
+
+A dither-generátor magját a `0x00aa28f0` terjeszti ki 624 szavas állapottá.
+A bináris utasításai szerint `state[0] = seed`, majd `i = 1..623` esetén
+`state[i] = (1664525 * (state[i-1] xor (state[i-1] >> 30)) + i) mod 2^32`;
+a `1664525` szorzó bináris értéke `0x0019660d`. A worker állapotmutatója
+`0x00d67f70`, az indexé `0x00d67f74`, így a generátor folyamat-globális.
+Forrás: `bináris (0x00aa28f0, 0x0090bc60, 0x0090bd25)`.
+
+A 684-es csomagban az `autolight__alap.jpg` mérete 960×640; SHA-256:
+`170510965b768d685ceef017859c51acc6ce848c2d22be192a53ece49096f55e`.
+A csatornánkénti, 3072-es hisztogramküszöb mellett mért szinthatárok
+`low=4`, `high=251`. A `.picasa.ini` szerint a szűrő `autolight=1,`.
+Forrás: `mérés (684-es mérőpár, autolight__alap.jpg és .picasa.ini)`.
+
+A `0x00aa28f0`-t, utána a natív `0x0090c1e0` LUT-építőt és `0x0090bc60`
+alkalmazót közvetlenül futtató QEMU-próba a `0x2D8228BE` binárisból igazolt
+maggal, `0x037f` x87 vezérlőszóval és friss állapottal készült. A natív LUT
+256 vizsgált bejegyzése egyezett a Python 16 bites LUT-tal. A teljes, 614400
+képpontos natív kimenetet az utasításokból külön megírt Python-modell is
+614400/614400 képponton egyezően adta vissza (eltérő csatornabájt: 0).
+Ez a QEMU-harness vezérlőszó-beállítása; a teljes Picasa-folyamat vezérlőszavát
+nem méri.
+Forrás: `mérés (QEMU, 0x00aa28f0 → 0x0090c1e0 → 0x0090bc60; független Python-modell)`;
+mag: `bináris (0x00c32520, 0x00aa28f0)`.
+
+Az átlagos CIE76 ΔE a Picasa-export JPEG-hez képest:
+
+| út | átlagos ΔE | exporttal azonos képpontok |
+|---|---:|---:|
+| jelenlegi 8 bites PicasaPy | 0,229123323268 | 392552 / 614400 |
+| meglévő Python 16 bites út NumPy `RandomState` mintáival | 0,257249513364 | 352339 / 614400 |
+| natív QEMU worker, tiszta magállapotból | 0,257396463954 | 352300 / 614400 |
+
+Forrás: `mérés (684-es mérőpár; CIE76, Picasa-export JPEG; QEMU natív worker)`.
+Az eredmény cáfolja, hogy a 16 bites LUT és a worker lépéssora önmagában
+javítja a mérőpár egyezését: a tiszta magállapotú natív futás ΔE-je nagyobb a
+jelenlegi 8 bites úténál. A helyes natív magkiterjesztés tehát nem oldotta meg
+a különbséget. A mintakészlet leírása szerint 180 beállított képet jelöl ki
+egyetlen exportálásra; az `0x00d67f74` index és a 624 szavas állapot közvetlenül
+az adott kép autolight hívása előtt nincs megmérve. A bemeneti dekódolás és a
+folyamatban előtte elfogyasztott minták hatása nincs egymástól elválasztva.
+Forrás: `mérés (684-es mérőpár, QEMU)`; a köteg leírása: `mérés (OLVASS-EL.txt)`;
+hiányzó hívás előtti állapot: `NINCS MEG`.
+
+**Következmény:** a `0x0090bc60` LUT-interpolációja és pixelenkénti
+mintavételezése QEMU-futtatásban egyezik az utasításszintű modellel, de a 684-es
+export eltérő kimenetének oka nyitott. A következő döntő mérés az eredeti
+exportkörnyezetben az `0x00d67f74` és a `0x00d67f7c` állapotának rögzítése
+közvetlenül a 684-es kép `0x0090bc60` hívása előtt; emellett külön kell
+ellenőrizni a QEMU bemenet és a Picasa által feldolgozott dekódolt pixeladat
+egyezését. A teljes CRT-indítási útvonalat és a 180-képes exportot ez a QEMU
+harness nem futtatta. Forrás: `NINCS MEG (684-es Picasa-hívás előtti RNG-állapot,
+dekóderkimenet)`.
+
+## 2.4 Kontraszt - `0x0090c2c0`
+
+Ugyanaz az alkalmazó, más LUT-építő (`0x0090c100`):
+
+```c
+// FUN_0090c100(float contrast, float brightness, float gamma)
+k = exp(2.0 * contrast);
+for i in 0..255:
+    p      = pow(i / 255.0, 1.0 / gamma);
+    v      = k * ((p * 65280.0 + brightness * 25600.0) - 32768.0) + 32768.0;
+    LUT[i] = clamp(round(v), 0, 0xFF00);
+```
+
+- a **kontraszt a középpont (32768 = 50%) körül** feszít, `exp(2·c)` tényezővel;
+- a **fényerő additív**, `brightness · 25600` (azaz ±1 ≈ ±100 nyolcbites szint);
+- a gamma a kontraszt **előtt** hat.
+
+## 2.5 Színhőmérséklet - `0x0090ea10` *(a #551 hiányzó darabja)*
+
+A hívó (`colortemp` visszahívás, `0x008f8ea0`) így adja át a lánc két
+paraméterét:
+
+```c
+FUN_0090ea10(dst, src, param[0x28], param[0x2c]);   // = a filters= lánc 0. és 1. értéke
+```
+
+A munkafüggvény a két lebegőpontos értéket egész lépéssé alakítja - nevezzük
+**`s`** és **`t`** -, majd:
+
+```c
+t = trunc(CoolToWarm * 256.0);
+s = trunc(WhiteShift * 128.0);
+```
+
+Ez már nem illesztett skála. A binárisban a `t` útja `0x0090ead6` →
+`fmul qword ptr [0x00cf39d8]`, ahol a nyolc bájt
+`00 00 00 00 00 00 70 40` = **256,0**; az `s` útja `0x0090ea5e` →
+`fmul qword ptr [0x00cf3a38]`, ahol
+`00 00 00 00 00 00 60 40` = **128,0**. A közös átalakító
+`0x00c29990` SSE-ágának `cvttsd2si` utasítása (`0x00c299a5`) nulla felé
+csonkol; a tartalék x87-ág ugyanezt korrigálja ki. A két konstans EXE-beli
+fájleltolása rendre `0x008f39d8` és `0x008f3a38`.
+
+Ezután:
+
+```c
+k_down[i] = (i * (256 - s)) >> 8;                 // lekicsinyítés: fejtér a felfelé húzáshoz
+k_up[i]   = clamp((i * (65536 / (256 - s))) >> 8, 0, 255);   // a pontos inverze
+P[i]      = i * (256 - i);                        // KÖZÉPTÓNUS-PARABOLA, max 16384 @ 128
+t_pos     = (t >= 1) ? t : 0;
+
+// képpontonként:
+r = k_down[R];   R' = r + ((P[r] * t)     >> 15);
+g = k_down[G];   G' = g + ((P[g] * t_pos) >> 17);
+b = k_down[B];   B' = b - ((P[b] * t)     >> 15);
+out = (k_up[clamp(R')], k_up[clamp(G')], k_up[clamp(B')]),  alfa = 0xFF
+```
+
+**Amit ez megmond:**
+
+- **`t` a hideg↔meleg tengely**: pozitívnál a vörös nő, a kék csökken, a zöld
+  **negyed súllyal** (`>>17` a `>>15` helyett) és **csak melegítéskor** mozdul.
+- **`s` a „fehérváltás"**: egy globális lekicsinyítés, amit a végén a pontos
+  inverze visszaad. Ez teremt fejteret, hogy a vörös emelése ne vágjon be.
+- A hatás **középtónus-súlyozott**: a fekete és a fehér közelében `P → 0`, tehát
+  ott nem változik semmi. Ezért nem szürkül el a fehér a melegítéstől.
+- A maximális elmozdulás `t·16384/32768 = t/2` szint.
+
+**A `finetune` v1 bekötése (`0x008f7cf0`).** A callback a hőmérsékletet a
+szűrőobjektum `+0x3c` mezőjéből olvassa (`0x008f7e07`), a semleges színt a
+`+0x40` mezőből (`0x008f7e0a`). Ha mindkettő aktív, előbb a semlegesítő
+`0x0090eda0` fut (`0x008f7e39`), utána a `0x0090ea10`. A worker mindkét
+v1-es hívóhelyén a második lebegőpontos argumentum **pontosan 0,0**
+(`fldz`, majd veremre írás: `0x008f7e3e`-`0x008f7e50` és
+`0x008f7e67`-`0x008f7e75`), az első pedig a `+0x3c` hőmérséklet. Vagyis:
+
+```c
+// a v1 színágának sorrendje, a korábbi fény/levels lépések után
+if (neutral_rgb != 0) apply_neutral(dst, src, neutral_rgb);  // 0x0090eda0
+apply_colortemp(dst, src, temperature, 0.0f);                 // 0x0090ea10
+```
+
+**Bizonyítottság:** a teljes worker, a két skála, a nulla felé csonkolás, a
+v1 paraméterátadás és a színág sorrendje **binárisból megerősített**. A
+`filterdesc.xml` ettől függetlenül igazolja a `colortemp` két csúszkájának
+nevét és tartományát: `Cool to Warm [-0.5..0.5]`, `White Shift [0..1]`.
+
+## 2.6 Automatikus szinthúzás / hisztogram-elemzés - `0x009db610` *(a #539 magja)*
+
+```c
+ceiling = flag ? 252 : 255;                       // ← A KÉT ÁG
+
+// 1) hisztogram - 90% × 90%-nyi ablakról, csatornánként külön.
+//    FIGYELEM (#721): a VÍZSZINTES eltolás hiányzik a natív ciklusból -
+//    a sor-mutató a peremmel lép, a soron belül viszont a 0. oszlopról
+//    indul, és a `w*5/100` csak a képpontok DARABJÁHOZ kell.
+for y in [h*5/100 .. h*95/100):
+  for x in [0 .. w*95/100 - w*5/100):        // BALRA igazítva!
+      histR[R]++, histG[G]++, histB[B]++;
+
+// 2) vágási darabszám: a TELJES kép képpontszámának 0,5%-a
+clip = max(1, (w * h) / 200);
+
+// 3) csatornánként: alulról és felülről addig összegzünk, amíg el nem érjük
+black_c = legkisebb i, ahol  sum(hist_c[0..i])   >= clip
+white_c = legnagyobb i, ahol sum(hist_c[i..255]) >= clip
+
+// 4) csatornánkénti lineáris nyújtás, HELYBEN, 16.16 fixponttal
+gain_c = (white_c == black_c) ? 0 : (ceiling << 16) / (white_c - black_c);
+out_c  = clamp(((c - black_c) * gain_c) >> 16, 0, ceiling);
+```
+
+**Négy dolog, amit ez eldönt:**
+
+1. **A vágási pont valóban DARABSZÁM-alapú** (`w·h/200`), nem a hisztogram fix
+   százaléka - a jegy (#539) feltevése helyes.
+2. **A kép pereme kimarad az elemzésből - de nem szimmetrikusan.** Ez eddig
+   ismeretlen volt, és önmagában okoz eltérést: keretes, vignettált vagy sötét
+   szélű képnél a Picasa más fekete-/fehérpontot választ, mint egy teljes képes
+   elemzés. Függőlegesen mindkét oldalon 5% marad ki; **vízszintesen viszont a
+   bal perem BENNE van, és a jobb 10% marad ki** - a mutató-aritmetikából
+   hiányzik az oszlop-eltolás (#721, három egymástól független bizonyítékkal:
+   a #685 rámpa-mérés geometriája, a 12 valódi képpár ΔE-je 2,61 → 2,48, és
+   maga a dekompilátum). *(A darabszám viszont a TELJES képméretből
+   számolódik - tehát a küszöb arányaiban szigorúbb, mint a mintavett terület
+   0,5%-a.)*
+3. **Két ág van: a felső határ 252 vagy 255.** A `252`-es ág enyhébb: nem húzza
+   ki teljesen a fehéret. Ez a legvalószínűbb magyarázata a „Jó napom van" és az
+   „Automatikus kontraszt" eltérő eredményének.
+4. **Nincs gamma és nincs ditherelés** ebben az ágban - tiszta lineáris nyújtás,
+   helyben, a forráspufferen.
+
+**Ami továbbra is nyitott:** a mérésben megfigyelt eset, amikor a Picasa
+**mindhárom csatornára AZONOS** nyújtást futtatott. Ez a függvény **mindig
+csatornánként** dolgozik - az azonos-csatornás viselkedés tehát **egy másik
+ágból** jön (feltehetően a `0x0090c3b0` szinthúzó egyetlen, összevont
+hisztogramból számolt LUT-tal). Ezt külön kell megkeresni.
+
+## 2.7 Az irányított család - `dir_sat`, `dir_brite`, `dir_sharp`, `linblur` *(a #568 magja)*
+
+### A közös váz: lineáris térbeli rámpa
+
+A `dir_brite` (`0x0090d8b0`) explicit módon mutatja a mintát:
+
+```c
+a = clamp(param_3, -1, 1);      // „Balról jobbra”
+b = clamp(param_4, -1, 1);      // „Felülről lefelé”
+lépésX = a / (w/2);   lépésY = b / (h/2);
+// a képpontonkénti súly a bal felső saroktól -a-ról indul és +a-ig nő
+```
+
+**Ezzel a #568-ban felvetett hipotézis megerősítést nyert:** a két paraméter
+tényleg **két tengely menti komponens**, `[-1, 1]` tartományban (a függvény
+maga vágja be), és a súly **lineárisan, a kép közepére szimmetrikusan** változik:
+
+```
+s(x, y) = a · (2x/W - 1) + b · (2y/H - 1)
+```
+
+### `dir_sat` - `0x0090dbb0`
+
+```c
+L = (2*R + 5*G + B) >> 3;               // súlyozott luma: 0,25 R / 0,625 G / 0,125 B
+a = round(s(x,y) * 256);                // ⛔ HELYESBÍTVE: csonk(128·s), ld. lent (#3858)
+if (a < 0) { a += 256; out_c = L + (((c - L) * a) >> 8); }        // telítetlenítés L felé
+else       { out_c = clamp(c + (((c - L) * a) >> 8), 0, 255); }   // telítés L-től el
+```
+
+> **Figyelem:** ez a luma-képlet **NEM azonos** a Derítőfényével
+> (`(B + 2G + R) >> 2`). A Picasa **két különböző luma-súlyozást** használ; a
+> mi implementációnknak szűrőnként a megfelelőt kell alkalmaznia.
+
+### `dir_brite` - `0x0090d8b0`
+
+```c
+// 1) globális előkorrekció, középtónus-parabolával (ugyanaz a P, mint 2.5-ben)
+pre[i] = clamp(i + ((i * (256 - i) * k) >> 16), 0, 255);
+
+// 2) képpontonként, a = |round(s(x,y)*256)|,  u = 256 - a
+v = pre[c];
+if (s >= 0) v ^= 0xff;                         // világosításhoz tükrözés
+v = (((v*v*v) >> 16) * a + u * v) >> 8;        // keverés a KÖBÖS görbével
+if (s >= 0) v ^= 0xff;
+out_c = v;
+```
+
+Vagyis: **köbös tónusgörbe** (sötétítés), és a világosítás ugyanez **invertált
+tartományon**. A rámpa azt szabja meg, hogy képpontonként mennyit keverünk a
+köbös görbéből - 0-nál változatlan, 256-nál teljes köbös.
+
+> **Megvalósítva (#623).** A `dir_sat` és a `dir_brite` a
+> `picasapy.render.directional` modulban él, a `filters=` láncból elérhető
+> (`dir_sat=1,a,b`, `dir_brite=1,a,b` - a natív burkolók a két csúszkát
+> KÖZVETLENÜL adják tovább, a korong csak beállítja őket). A `dir_brite`
+> burkolója a középtónus-parabola erősségét **0**-nak adja, tehát az
+> előkorrekciós LUT azonosság.
+>
+> **A `dir_sharp` és a `linblur` is bekerült** (ugyanabban a jegyben, a
+> lenti 3.2/3.3 alapján): `picasapy.render.directional.apply_dir_sharp`,
+> illetve `picasapy.render.linear_blur.apply_linblur`, a közös elmosó
+> maggal (`picasapy.render.iir_blur`). A `linblur` második pontja a #623
+> kutatási frissítésében tisztázódott (a **kép közepe**), a `dir_sharp`
+> rámpa-horgonya és a `linblur` sugár-leképezése pedig indokolt
+> FELTEVÉSSEL fut - ld. a két `apply_*` docstringjét és a
+> `filters-decoded.md` státusz-tábláját. A kalibráció a #317-ben fut.
+
+### A súly szorzója 128, csonkolva - kiolvasva (2026-09-28, 391. kör, #3858)
+
+*Bizonyítottsági fok: **megerősített**, utasításszinten, független újralevezetéssel és golden-méréssel. A fenti `round(s·256)` és a 3.2-es `dir_sharp`-horgony (`round((|a|+|b|)·256)`) HELYESBÍTVE.*
+
+A három mag (`dir_brite` `0x0090d8b0`, `dir_sat` `0x0090dbb0`, `dir_sharp`
+`0x0090d600`) ugyanúgy képezi a súlyt:
+
+1. **Rámpa.** `a`, `b` `[-1, 1]`-re vágva (`[0xcf3ed0]` = -1,0, `fld1`). Az
+   x-akkumulátor `-a`-ról indul, lépése `a / (W >> 1)`; az y ugyanígy `-b`-ről,
+   `b / (H >> 1)` lépéssel (`0x0090d998`-`0x0090d9d9`). Mindkét akkumulátor
+   **float32**, lépésenként visszaírva (`0x0090db3c`, `0x0090db82`). `W`, `H` a
+   cél és a forrás méretének minimuma (`0x0090d8e3`-`0x0090d8fd`).
+2. **Súly:** `w = csonk(128 · (x + y))` (`0x0090da70`-`0x0090da7a`;
+   `[0xcf3a38]` = 128,0 double; `0x00c29990`). A súly tehát legfeljebb
+   `128 · (|a| + |b|) ≤ 256`, vágás nélkül.
+3. **`dir_brite`:** `w > 0` → világosítás (a csatornák `^ 0xff`-fel tükrözve),
+   különben `A = -w` sötétítés (`0x0090da7f`-`0x0090dac1`); a keverés
+   `((v³ >> 16) · A + (256 - A) · v) >> 8` (`0x0090dac3`-`0x0090db11`). A 0-s
+   súly a sötétítő ágra esik, de ott azonosság.
+4. **`dir_sat`:** `L = (2R + 5G + B) >> 3` (`0x0090dd04`-`0x0090dd0d`);
+   `w < 0` → `L + (((c - L)·(w + 256)) >> 8)`, különben
+   `clamp(c + (((c - L)·w) >> 8))` (`0x0090dd10`-`0x0090dd91`), a fenti képlet
+   szerint, csak a súly más.
+5. **`dir_sharp`:** a horgony `K = csonk(128 · (|a| + |b|))` (`0x0090d6b7`-`0x0090d6d9`,
+   `0x0049f5c0` = `fabs`), a képpontsúly `w = csonk(-128 · (x + y))`
+   (`[0xcf3d58]` = -128,0), és `amount = (K - w) · 2` (`0x0090d7a6`-`0x0090d7ae`).
+   Az élesítés tehát a rámpa **pozitív** sarkában a legerősebb (`2·2K`), a
+   negatívban nulla; `amount > 0` esetén
+   `clamp(c + (((c - elmosott) · amount) >> 8))` (`0x0090d7b4`-`0x0090d829`).
+
+**Számpélda** (960 × 640, `a = b = 0,5`): a bal felső képpontban
+`x + y = -1,0` → `w = -128`, a `dir_brite` fele erővel sötétít; a mi
+`round(s·256)`-unk itt -256-ot, teljes köbös görbét adott.
+
+**Mérve** (684-es készlet, `a = b = 0,5`, ΔE a Picasa-exporthoz; a
+`dir_sharp` elmosása a mai IIR, `min(W, H) >> 3` sugárral):
+
+| eset | ma | **natív súly** | zajszint (mi ↔ mi-JPEG95) |
+|---|---:|---:|---:|
+| `dir_brite` alap | 4,281 | **0,187** | 0,152 |
+| `dir_sat` alap | 1,851 | **0,184** | 0,151 |
+| `dir_sharp` alap | 5,198 | **0,384** | 0,351 |
+
+**Megvalósítva (#3859):** a PicasaPy-ban: `render/directional.py` - `directional_weight`
+(`dir_brite`, `dir_sat`) és `dir_sharp_amount`; a mi kódunk a fenti
+„natív súly” oszlopot adja (0,187 / 0,184 / 0,384), a golden-teszt
+a PicasaPy-ban: `tests/render/test_directional.py` → `TestDirGolden3859`.
+
+## 2.8 Melegítés (`warm` / „Melegítés") - beégetett tábla, MEGVALÓSÍTVA (#611)
+
+A `0x0090c040` nem számol: egy **256 × 4 bájtos, beégetett táblát** olvas
+(`0x00d33b70`, `.data`), amelyben csatornánként külön leképezés van
+(`R = bájt2`, `G = bájt1`, `B = bájt0`).
+
+A táblát a helyi binárisból kinyertem (PE-szakasztábla szerinti fájloffszet
+`0x933b70`), és **teljes egészében rögzítettük**:
+`referencia/dekompilalt-576/warmify-lut.csv` (privát repó).
+
+| be | R | G | B | R-G | R-B |
+|---:|---:|---:|---:|---:|---:|
+| 0 | 0 | 0 | 0 | 0 | 0 |
+| 32 | 41 | 29 | 21 | +12 | +20 |
+| 64 | 79 | 60 | 44 | +19 | +35 |
+| **96** | 112 | 88 | 69 | +24 | **+43** |
+| 128 | 139 | 113 | 97 | +26 | +42 |
+| 160 | 163 | 138 | 128 | +25 | +35 |
+| 192 | 187 | 168 | 162 | +19 | +25 |
+| 224 | 214 | 200 | 198 | +14 | +16 |
+| 255 | 242 | 232 | 234 | +10 | +8 |
+
+Mindhárom görbe (gyengén, nem szigorúan) monoton nő - a fenti 32-es
+mintavételezésen ez szigorúnak látszik, de a teljes 256 elemű táblában 8
+bites kvantálás miatt csatornánként néhány szomszédos bemenet ugyanarra a
+kimenetre képez, csökkenés viszont sehol nincs. A hatás a **negyed- és
+középtónusban a legerősebb** (max `R-B = +43` a 96 körül), a szélek felé
+elhal, és a fehérpontot enyhén **lehúzza** (255 → 242/232/234). Ez a
+„bőrtónus-javítás", amit a buboréksúgó ígér (*„Improves skintones by
+boosting warm tones"*).
+
+**Ez a szűrő 100%-ban reprodukálható** - nem kell modellezni, a tábla maga a
+specifikáció. **#611: megvalósítva** - a tábla beágyazva a
+a PicasaPy-ban: `src/picasapy/render/warmify_lut.py` modulban, alkalmazása a
+`picasapy.render.color.apply_warm`-ban.
+
+## 2.9 Ami ebben a körben NEM oldódott meg
+
+| kérdés | miért |
+|---|---|
+| a `sepia` mátrixa | a burkoló tényleg nem hív semmit a `0x9x` tartományból; külön kell megkeresni |
+| az azonos-csatornás auto-szinthúzás ága | ld. 2.6 - másik függvényben lesz |
+| a `dir_sharp` konvolúciós magja | a hívási lánc mélyebb, mint 2 szint |
+| a `glow` / `blur` sugár-kezelése | nagy függvények, külön kör kell rájuk |
+| a `s` és `t` ×256-os skálázása (2.5) | egyetlen méréssel igazolható |
+
+---
+
+# 3. dekompilálási kör (#612) - a maradék öt kérdés
+
+**Futás:** 2026-08-13, ugyanaz a környezet és bináris, mint a 2. körnél. 15 gyökér,
+**4 szint** mélységű követés, `MAX_CHILD_BYTES = 20000`, **139 dekompilált
+függvény**. Nyers kimenet: `referencia/dekompilalt-612/` (privát repó).
+
+## 3.1 MEGOLDVA: a három automatikus ág szétválasztása
+
+A #576-ban nyitva maradt, hogy a mérésben látott **azonos-csatornás** szinthúzás
+honnan jön. A válasz: **három különböző szűrő van, három különböző viselkedéssel.**
+
+| szűrő | felületi név | mit hív | eredmény |
+|---|---|---|---|
+| **`autolight`** (`0x008f80c0`) | „Automatikus kontraszt" (1 kattintás) | a **kézi** szinthúzót (`0x0090c3b0`) | **EGY közös LUT mindhárom csatornára** → a színegyensúly nem változik |
+| **`autocontrast`** (`0x008f89d0`) | „Automatikus kontraszt" | `0x009db610`, **flag = 0** | **csatornánként külön** nyújtás, felső határ **255** |
+| **`enhance`** (`0x008f8840`) | „Jó napom van" | `0x009db610`, **flag = a `CarefulEnhance` beállítás** | csatornánként, felső határ **252 vagy 255** |
+
+### `autolight` - az azonos-csatornás ág
+
+```c
+FUN_00a4bfd0(0.005f, &white, &black);      // 0x3ba3d70a = 0.005 → 0,5% levágás
+if (black == white) black += 1;
+b = black / 255.0;  w = white / 255.0;
+if (w <= 0.001) w = 0.001;
+else if (w == 1.0 && b == 0.0) return;     // már teljes a kitérés: nincs teendő
+FUN_0090c3b0(dst, b, w, /*gamma=*/1.0f);   // EGY LUT, mind a három csatornára
+```
+
+Vagyis a fekete- és fehérpont **egyetlen, összevont statisztikából** jön (nem
+csatornánként), a gamma **pontosan 1.0**, és a kimenet a **ditherelő**
+LUT-alkalmazón megy át (#576 2.2).
+
+> **Ez zárja le a #539 nyitott kérdését.** A mérésben látott két viselkedés nem
+> ágválasztás egy függvényen belül, hanem **két külön szűrő**: `autolight` az
+> azonos-csatornás, `autocontrast` a csatornánkénti.
+
+### `enhance` - a „Jó napom van" a rejtett beállítástól függ
+
+```c
+FUN_00407a20(&tmp, "Preferences", "CarefulEnhance");   // beolvassa a beállítást
+FUN_009aabf0(img, -1, -1, -1, -1);
+flag = FUN_004019b0(-1.0f);                            // a beállítás értéke (alap: -1.0)
+FUN_009db610(img, flag);                               // ez adja a 252/255 felső határt
+```
+
+> ⚠️ **Ez közvetlenül érinti a golden-mérést (#317).** A „Jó napom van"
+> eredménye **függ a felhasználó gépén beállított `CarefulEnhance` értéktől**.
+> Ha az eltér, a mi kimenetünk sosem fog egyezni - nem a mi hibánkból. A mérés
+> előtt ezt tisztázni kell.
+
+## 3.2 `dir_sharp` - irányított **unsharp mask**, nem konvolúció
+
+A `0x0090d600` **három** képpuffert kap: cél, forrás, és egy **harmadik, előre
+elmosott** változat.
+
+```c
+a = clamp(param_4, -1, 1);   b = clamp(param_5, -1, 1);      // a két tengely
+k = round(...);                                              // globális szint
+// képpontonként:
+amount = (k - round(rámpa(x,y))) * 2;
+if (amount > 0)
+    out_c = clamp(c + (((c - blurred_c) * amount) >> 8), 0, 255);
+```
+
+Vagyis **klasszikus unsharp mask** (`éles = eredeti + a·(eredeti - elmosott)`),
+ahol az `a` erősség **képpontonként** jön a lineáris rámpából (#576 2.7).
+
+**Nincs konvolúciós mag ebben a függvényben** - az elmosás külön menetben
+készül. A megvalósításunkhoz tehát: elmosás → irányított unsharp-összevonás.
+
+> **Megvalósítva (#623) - az elmosás sugarával együtt.** A burkoló
+> (`0x008f9090`) így készíti elő a harmadik puffert:
+>
+> ```c
+> uVar1 = min(szélesség, magasság) >> 3;
+> if (uVar1 == 0) uVar1 = 1;
+> FUN_009dd0d0(&másolat, (float)uVar1, (float)uVar1, ...);   // a KÖZÖS elmosó
+> ```
+>
+> Vagyis a sugár a **rövidebb oldal nyolcada** - nagyon nagy sugár, tehát ez
+> **helyi kontraszt** („clarity") jellegű hatás, nem finom élesítés.
+>
+> A globális `k` horgony a burkolóban két `ABS` hívás (`0x0049f5c0`) UTÁN
+> áll össze az x87-veremen, ezért a dekompilátum nem őrizte meg. A
+> megvalósítás `k = round((|a| + |b|) · 256)`-tal fut: pontosan ehhez kell a
+> két `ABS` (a rámpa maximuma `|a| + |b|`), így az `amount` a képen
+> nemnegatív, a rámpa legpozitívabb sarkában nullára fut ki, és `a = b = 0`
+> mellett a kép változatlan. **Erős következtetés, nem mérés** - a
+> kalibráció a #317-ben.
+>
+> ⛔ **HELYESBÍTVE (#3858):** kiolvasva `K = csonk(128·(|a|+|b|))`, a
+> képpontsúly `csonk(-128·(x+y))`, tehát az élesítés a rámpa **pozitív**
+> sarkában a legerősebb - ld. 2.7, „A súly szorzója 128, csonkolva”.
+
+## 3.3 `linblur` - köbös B-spline súlytábla + csomagolt keverés
+
+A `0x0090de10` egy **384 elemű súlytáblát** épít explicit köbös polinomokból
+(a `t` 0-tól 1,5-ig lép, 1/256-os lépésekben):
+
+```
+|t| > 1.5           → f = 0
+t < -1.5            → f = 1
+-0.5 < t <= 0.5     → f = 1/2 - (3t/4 - t³/3)
+t <= -0.5           → f = -t³/6 - 3t²/4 - 9t/8 + 7/16
+t > 0.5             → f = 9/16 - (9t/8 + (t³/6 - 3t²/4))
+tábla[i] = round((1 - 2f) · 255.9999)
+```
+
+Az 1/6, 3/4, 9/8, 7/16, 9/16 együtthatók a **köbös B-spline** szakaszai - a
+tábla tehát egy sima, -1…+1 tartományú átmenet-súly.
+
+A keverés **csomagolt aritmetikával** megy (`x >> 8 & 0x00ff00ff` és
+`x & 0x00ff00ff`), azaz **két csatorna egyszerre** egy 32 bites regiszterben -
+korabeli SIMD-helyettesítő.
+
+```c
+idx   = akkumulátor >> 8;            // ±0x180 közé vágva
+w     = (idx < 0) ? -tábla[-idx] : tábla[idx];
+alpha = (w + 255) / 2;
+out   = lerp(cél, forrás, alpha);    // csomagoltan, két csatornánként
+```
+
+> **Megvalósítva (#623).** A „cél" a **helyben elmosott** puffer, a „forrás"
+> a nyers, éles kép - a burkoló a közös elmosó magot (`0x009dd0d0`)
+> **kétszer egymás után** futtatja rá. Két részlet a megvalósításban
+> FELTEVÉS (a docstring is kimondja):
+>
+> 1. ⭐ **LEZÁRVA (2026-09-09, #2736): a „Mennyiség" NEM hat az elmosásra.**
+>    A mérőszett három `linblur`-referenciája ugyanarról a képről készült, a
+>    láncuk csak a negyedik értékben tér el (`2,0` / `10,0` / `0,0`), és a
+>    valódi Picasa három kimenete **bitre azonos** (max eltérés 0), miközben
+>    a forrástól mindhárom eltér (átlag 12,21) - a szűrő tehát lefutott.
+>    A binárisban ugyanez: a burkoló (`0x008f99c0`) EGYETLEN lebegőpontos
+>    argumentumot ad a magnak (`fstp dword [esp]` a `call 0x0090de10`
+>    előtt), a mag pedig azt adja tovább mindkét tengelyre a közös
+>    elmosónak (`0x0090dec6`, `0x0090def6` → `0x009dd0d0`); a negyedik
+>    lánc-érték ebbe a láncba nem kerül be. A burkoló ugyanitt kiolvasva:
+>    a korong `trunc(0,5 · méret · (1 + p))`, a két konstans
+>    `[0x00c72150] = 0,5` és `[0x00cf3ac0] = 2³²` (előjel-fixup) - a #2710
+>    képlete tehát cím-szinten is igazolt.
+>
+>    A sugár mért értéke a mi `iir_blur`-paraméterezésünkben **1,5**: a ΔE a
+>    valódi exporttól 13,147 / 17,849 / 6,814 helyett mindháromra **0,279**.
+>    ⛔ A hatókör: EGY korong-álláson (`0,5; 0,5`) mérve - hogy a sugár
+>    függ-e a korong helyétől, az NINCS mérve (második referencia-pont:
+>    #2772), ezért a kód konstanst használ, nem képletet.
+> 2. **A súlytábla utolsó rekeszei.** A `round((1 - 2f) · 255,9999)` egy
+>    **bájtba** kerül; `f → 0` közelében (`i ≥ 338`) ez 256 lenne, ami 0-ra
+>    fordul körbe - a teljesen ÉLES tartomány egy sávjában 50%-os homályt
+>    adna. A 255,9999-es szorzó a **csonkolás** klasszikus idiómája, ezért a
+>    megvalósítás 255-re vág. Referencia-export döntheti el.
+
+## 3.4 A `puck` vezérlő két közös segítője
+
+A sugaras és irányított család `cb2`/`cb3` visszahívásai **nem képfeldolgozók**,
+hanem a felületi korong (`puck`) kezelői:
+
+| cím | mit csinál |
+|---|---|
+| `0x008f9bf0` (cb2) | a korong `(x, y)` helyét **2×3 affin mátrixon** viszi át (`p+0x6c`…`p+0x80`), majd a `+0x34`/`+0x38` mezőbe írja - így a korong a **vágott/forgatott** képen is a helyén marad |
+| `0x008f9cf0` (cb3) | a **sugár**: `min(szélesség, magasság) / 2 · (paraméter + 1)` |
+
+Vagyis a sugaras effektek (`radblur`, `radsat`, `radtint`) hatósugara **a kép
+rövidebb oldalához kötött**, nem abszolút képpontban - ezért néz ki ugyanúgy
+kicsi és nagy képen.
+
+## 3.5 NEGATÍV EREDMÉNY: a `sepia` magja nem dekompilálható így
+
+A `sepia` burkolója (`0x008f8950`) **valóban hív** egy címet: `0x0090a120`.
+A #576-beli megállapítás („nem hív semmit a `0x9x` tartományból") **téves volt**.
+
+A Ghidra viszont **nem hozott létre függvényt** ezen a címen: az index
+`CALL_TARGET_0090a120` néven, **0 mérettel** ismeri, a `.text` szakaszban. Ez
+azt jelenti, hogy az autoanalízis a hívási célt felismerte, de a törzset nem
+diszasszemblálta.
+
+**A következő kör teendője:** a szkriptben `disassemble(addr)` +
+`createFunction(addr, null)` hívással kikényszeríteni, és csak utána
+dekompilálni. Ez néhány sor a meglévő szkriptben.
+
+## 3.6 Amit ez a kör NEM ért el
+
+- a `glow` és a `blur` sugár-kezelése: a függvények nagyok, a 4 szintű követés
+  a peremüket érte el, de a mag-ciklusuk külön elemzést kíván;
+- a `radblur`/`radsat` **pixelműveletei** (a burkolók és a `puck`-kezelés
+  megvan, a magok nem);
+- a `sepia` mátrixa (ld. 3.5).
+
+---
+
+# 4. dekompilálási kör (#617) - a `sepia` MEGFEJTVE
+
+**Futás:** 2026-08-13, ugyanaz a környezet és bináris. 6 gyökér, 6 szint
+mélység, **137 dekompilált függvény**. Nyers kimenet:
+`referencia/dekompilalt-617/` (privát repó).
+
+## 4.1 A `sepia` - a kikényszerített diszasszemblálás bevált
+
+A #612-ben rögzített negatív eredmény oka az volt, hogy a Ghidra a
+`0x0090a120` címen **nem hozott létre függvényt** (csak hívási célként ismerte).
+A szkriptbe tett `disassemble(addr)` + `createFunction(addr, null)` megoldotta:
+a mag **434 bájt**, és teljesen kibomlott.
+
+### A teljes algoritmus
+
+```c
+// képpontonként, BGRA pufferben:
+
+// 1) szürkeárnyalat - ITU-R BT.601 egészaritmetikával
+gray = (77*R + 151*G + 28*B) >> 8;          // 0x4d, 0x97, 0x1c - összegük pontosan 256
+
+// 2) halványítás: invertálás → 218/256 szorzás → visszainvertálás
+base = 255 - (((255 - gray) * 218) >> 8);    // 0xda = 218
+                                             // g=0 → base=38  (a feketék megemelve)
+                                             // g=255 → base=255
+
+// 3) színezés OVERLAY-keveréssel, fix tintával
+//    tint = (R,G,B) = (0x9b, 0x7d, 0x63) = (155, 125, 99)
+for c in (R, G, B):
+    if (base < 128)  out_c = (2 * base * tint_c) >> 8;                       // multiply
+    else             out_c = 255 - ((2 * (255 - base) * (255 - tint_c)) >> 8); // screen
+alfa = 0xFF
+```
+
+A binárisban a 3. lépés **ágmentesen** van megírva: egy `(v >> 7) & 0x010101`
+maszk állítja elő csatornánként a 0x00/0xff választót, és az XOR-ok végzik a
+feltételes invertálást. Ez a klasszikus **Overlay** keverés, elágazás nélkül.
+
+**Mivel a `base` mindhárom csatornán ugyanaz (szürkeárnyalat), a szépia egyetlen
+256 → RGB leképezés.** A teljes tábla kiszámolva:
+`referencia/dekompilalt-617/sepia-lut.csv`.
+
+| gray | base | R | G | B |
+|---:|---:|---:|---:|---:|
+| 0 | 38 | 46 | 37 | 29 |
+| 64 | 93 | 112 | 90 | 71 |
+| 128 | 147 | 171 | 146 | 124 |
+| 192 | 202 | 214 | 202 | 191 |
+| 255 | 255 | 255 | 255 | 255 |
+
+### Ellenőrzés a felhasználó referencia-exportján
+
+A visszafejtett képletet ráengedtem az eredeti képre, és összevetettem a
+windowsos Picasából exportált szépia változattal (`referencia/sepia/`):
+
+| mérőszám | érték |
+|---|---|
+| átlagos abszolút hiba (R, G, B) | **0,92 / 0,60 / 1,07** |
+| a képpontok **±1**-en belül | **82,6%** |
+| a képpontok **±2**-n belül | **95,5%** |
+
+A maradék eltérés a **JPEG-újrakódolásból** ered (a referencia is, a bemenet is
+JPEG). A képlet gyakorlatilag pontos.
+
+> **Módszertani tanulság:** a szépiát „egyetlen méréssel is meg lehetne fogni"
+> - de a mérés **közelítés**, a visszafejtés **maga a képlet**. A kettő együtt
+> a legerősebb: a dekompilálás adta a pontos egészaritmetikát, a mérés pedig
+> **igazolta**.
+
+## 4.2 A `glow`, a `blur` és a sugaras család - kézi elemzéssel MEGFEJTVE
+
+A #617 első jelentésében azt írtam, hogy ezek „nem bomlottak ki" a mélységi
+követéssel. Ez **nem a kód hibája volt, hanem a módszeré**: a függvények
+kibomlottak, csak MMX-es, csomagolt aritmetikájú kódként, amit soronként kell
+olvasni. Az alábbi az eredmény.
+
+### 4.2.1 A közös elmosó mag - `0x009dd0d0`
+
+Ez a Picasa **általános elmosója**; a `glow` és a sugaras család egyaránt ezt hívja.
+
+```c
+FUN_009dd0d0(kep, blurX, blurY, x0, y0, x1, y1);
+```
+
+**Nem konvolúció, hanem elsőrendű IIR (exponenciális) szűrő, oda-vissza futtatva.**
+
+```
+állapot s: négy 16 bites sáv (BGRA), 9.7 fixpontban  (érték << 7)
+együttható k: 16 bites, pow(...) eredménye egészre kerekítve
+
+előre:   s += ((x[i]   - s) · k) >> 16 ;   y[i] = s >> 7   (0..255-re vágva)
+vissza:  s += ((y[i]   - s) · k) >> 16 ;   y[i] = s >> 7
+```
+
+- a szorzás **`pmulhw`** (előjeles 16×16 → felső 16 bit), tehát az együttható
+  `α = k / 65536`, és mivel `k` előjeles 16 bites, **`α < 0,5`**;
+- **két menet tengelyenként** (előre + vissza) → fázistorzítás-mentes, szimmetrikus
+  átvitel, ami két elsőrendű szűrőből közel Gauss-alakot ad;
+- **vízszintes menet soronként**, **függőleges menet egyszerre négy oszlopon**
+  (MMX);
+- a művelet **O(1) képpontonként**, a sugártól függetlenül - ezért volt a Picasa
+  elmosása interaktív már 2005-ben.
+
+**Ami nem derül ki:** a `k = round(pow(a, b))` kifejezés két argumentuma az FPU
+veremben van, a dekompilátor nem látja. Vagyis a **sugár → α leképezés** még
+hiányzik - **egyetlen méréssel** meghatározható (egy éles lépcső elmosása ismert
+sugárral, majd α illesztése).
+
+> **Megmérve (4.2.5) és megvalósítva (#623):** `picasapy.render.iir_blur`.
+> Ez a modul a `dir_sharp`, a `linblur`, és **#668 óta a `glow`/`glow2` és a
+> `radblur` közös elmosója is** - az átállítás mind a 12 golden-páron javított
+> (átlagos ΔE 1,74…11,88 helyett 0,09…1,19). A `glow` négyzetre emelő
+> előgörbéje és a `radblur` két illesztett skalárja a
+> `docs/specs/filters-decoded.md` „#668" szakaszában. A `radsat` továbbra is
+> a régi közelítésen fut: nincs hozzá mért kimenet.
+
+### 4.2.2 `glow` - `0x0090d4b0`
+
+Nem saját pixelművelet, hanem **összeállítás**:
+
+```c
+a = clamp(|round(param)|, 0, 256);
+FUN_009aabf0(kep, ...);              // alfa előkészítés
+FUN_00aa40a0(0.5f, 0);               // 0.5-ös arány beállítása
+FUN_009dd0d0(...);                   // ELMOSÁS (4.3.1)
+FUN_009ac3f0(kep, 256 - a, forras);  // visszakeverés az eredetivel, súly = 256 - a
+FUN_009a99c0(...);                   // alfa visszaállítás
+```
+
+Vagyis **glow = elmosás + visszakeverés az eredetivel**, ahol a csúszka a
+keverési arányt adja (`256 - a`).
+
+### 4.2.3 `blur` („Elhomályosítás", Küszöbérték) - NEM Gauss-elmosás
+
+Ez a legmeglepőbb eredmény: a `0x0090cf60` **élmegőrző, többléptékű simítás**.
+
+```c
+// 1) (szélesség+1) × (magasság+1) méretű, 2 bit/cella navigációs rács
+//    (RTTI: CGrNavT<unsigned_short,1>, CGrNavT<unsigned_long,1>)
+//    a peremek előre bejelölve: 0x5555 (függőleges) / 0xaaaa (vízszintes)
+
+// 2) HÁROM lépték: 1, 2, 4
+for n in (1, 2, 4):
+    // élek jelölése: ahol a szomszédos képpontok színkülönbsége nagy
+    for minden vízszintes és függőleges szomszédpár:
+        d² = ΔR² + ΔG² + ΔB²
+        if (d² > kuszob / n²)  jelöld be az élt a rácsban   // ezt nem szabad átlépni
+    // simítás a régiókon belül, csatornánként (maszk 1, 2, 4 = B, G, R)
+
+// 3) végül halványítás:
+if (fade != 1.0)  kimenet = keveres(eredeti, simitott, round(fade*256));
+```
+
+Vagyis: **a küszöbnél nagyobb színugrások „falak"**, és a simítás csak azokon
+belül dolgozik - **anizotróp / bilaterális jellegű simítás**, három léptéken.
+A küszöb `n²`-tel osztódik, mert a különbségek `n × n` blokkokra összegződnek.
+
+> ⚠️ **Ha ezt Gauss-elmosásként valósítanánk meg, alapvetően más eredményt adna.**
+> A `blur` a Picasában **megőrzi az éleket** - ezért van egyáltalán
+> „Küszöbérték" csúszkája.
+
+#### A két véglet MEGMÉRVE (2026-08-24, #1142)
+
+A `PicasaPy merokit-2` szett (960×640-es tesztábra, eredeti Picasa-export
+`export-202608151438`) három küszöbállást tartalmaz. A számok a forrástól
+vett átlagos abszolút eltérések; a szett JPEG-zajszintje **0,240**:
+
+| lánc | eltérés | mit ad |
+|---|---|---|
+| `blur=1;` (alapérték, 0,1) | 0,240 | a FORRÁST |
+| `blur=1,0.500000;` (a csúszka teteje) | 0,562 | a forrást (σ ≤ 0,3) |
+| `blur=1,2.000000;` (a tartományon KÍVÜL) | 17,317 | **teljes elmosást** |
+
+A 2,0-s kimenetre a legjobb illesztés **σ = 4,00 szórású Gauss-elmosás**,
+0,552 maradékkal - a tesztábra fekete-fehér csíkjai is teljesen
+összemosódnak, tehát ott már **egyetlen fal sincs**. Ez a fenti
+dekompilátum két végállapota: a küszöb alatt minden szomszédpár fal (semmi
+nem simul), fölötte egy sem (a teljes, „szabad" simítás fut le).
+
+**A szabad simítás sugara a paramétertől FÜGGETLEN** - ez is a küszöb-
+értelmezést erősíti. A dokumentált háromléptékű `[1,2,1]` (n = 1, 2, 4)
+dilatált lánc σ ≈ 3,24-et adna, a mérés σ = 4,00-et: a per-lépték simítás
+pontos alakja tehát még nem stimmel, csak a végeredmény van kimérve.
+
+> ⛳ **MEGVÁLASZOLVA (2026-09-22, #3482):** a küszöb → falképzés leképezése kiolvasva és bitre szimulálva (`filters-decoded.md`, „A `blur` TELJES lánca bitre szimulálva”): a jelölő a SZOMSZÉDOS párt hasonlítja `K/n²`-hez, és valódi tartalmon a szűrő a csúszka tartományában is simít - a lenti „tétlen” olvasat a kétszínű tesztábrák sajátja. A modellünk cseréje: #3493.
+>
+> ~~**Ami NYITVA marad:**~~ *(elavult)* a `küszöb` → falképzés leképezése a 0,5 és a 2,0
+> közötti sávban. Erre nincs mérési pontunk, és a szabadon választott
+> küszöbskála pontosan az a fajta paraméter, ami elnyeli a hibát. A
+> PicasaPy modellje (a PicasaPy-ban: `src/picasapy/render/blur.py`) ezért a váltást a
+> csúszka tetejére (0,5) teszi - az a legnagyobb mérten tétlen érték, és
+> egyben a `filterdesc.xml` felső korlátja, tehát minden felületről
+> elérhető érték a mért, tétlen ágon marad.
+>
+> **Következmény a felületre:** a `blur` a saját csúszkatartományában
+> mérten HATÁSTALAN, ezért a PicasaPy „Régi effektek" fülén szürke marad
+> (`chain.UI_INERT_RANGE_OPS`), miközben a LÁNCBÓL renderel - idegen vagy
+> kézzel szerkesztett `.picasa.ini`-ben állhat tartományon kívüli érték.
+
+### 4.2.4 `radblur` / `radsat` - a sugaras maszk
+
+A burkoló (`0x008f8520`) két lépést végez:
+
+```c
+// 1) elmosás - UGYANAZZAL a maggal (4.3.1)
+sugar = szelesseg * 0.01 * Amount + 0.001 + szelesseg * 0.01;
+      // = szelesseg/100 · (Amount + 1) + 0.001
+FUN_009dd0d0(kep, sugar, sugar, ...);
+
+// 2) sugaras keverés
+FUN_0090b050(&rect, cel, puckX, puckY, Size, Sharpness, ...);
+```
+
+**Az elmosás sugara a kép szélességének századához kötött** - ezért néz ki
+ugyanúgy kicsi és nagy képen. (Ugyanaz az elv, mint a `puck` sugaránál,
+#612 3.4.)
+
+#### A sugaras maszk - `0x0090b050`
+
+```c
+cx = round(szelesseg * puckX);   cy = round(magassag * puckY);
+// 1024 elemű, bájtos súlytábla, a NÉGYZETES távolsággal indexelve (nincs gyökvonás!)
+for y, x:
+    idx = (dx² + dy²) >> shift;
+    if (idx < 1024)  kimenet = alap + (masik - alap) * tabla[idx] / 256;   // csomagolt
+    else             kimenet = alap;                                        // érintetlen
+```
+
+#### A súlytábla - `0x0090aeb0`
+
+```c
+r  = min(szelesseg, magassag) / 2 * (Size + 1.0);
+r2 = r*r;  shift = 0;
+while (r2 > 1024) { r2 *= 0.5; shift++; }      // a négyzetes távolság léptéke
+
+for i in 0..1023:
+    d = sqrt( (i/1024) * (1024/r2) );                    // normalizált sugár
+    v = clamp( 0.5 + (d - 0.5) / (1 - Sharpness*0.99), 0, 1 );
+    u = 1 - v;
+    tabla[i] = round( (3 - 2u) * u * u * 255 );          // SMOOTHSTEP
+```
+
+- a **`Sharpness`** (a „Élesség"/„Lágy perem" csúszka) az átmenet meredekségét
+  adja: 0-nál lineáris, 1 felé `1/(1-0,99) = 100`-szoros meredekség, azaz éles
+  körvonal;
+- az átmenet **smoothstep** (`3u² - 2u³`), nem lineáris - ez adja a lágy peremet;
+- a **négyzetes távolsággal indexelt tábla** miatt nincs gyökvonás a
+  képpont-ciklusban.
+
+**Amit nem lehet ebből eldönteni:** hogy a súly a *közép* vagy a *perem* felé
+mutat-e az elmosott képre - ez a hívó oldalán dől el (melyik puffer az „alap"
+és melyik a „másik"). A `radblur` („Lágy fókusz") és a `radsat` („Fókuszos FF")
+ugyanezt a maszkot használja, ellentétes irányban.
+
+### 4.2.5/b ⭐⭐ A `pow` KÉT ARGUMENTUMA KIOLVASVA (2026-09-09, #2773)
+
+A 4.2.5 mérése azért kellett, mert „a `k = round(pow(a, b))` két argumentuma
+az FPU-veremben van, a dekompilátor nem látja". **A diszasszemblátumban
+mindkettő ott van** (`eszkozok/pe_dis.py`, `0x009dd0d0` prológusa):
+
+```
+0x009dd177  fld1                          ; 1
+0x009dd17c  fdivrp st(1)                  ; 1/R
+0x009dd17e  fld qword [0x00c7dd30]        ; = 0.1      ← az ALAP
+0x009dd186  call 0x00c0b410               ; pow(0.1, 1/R)
+0x009dd18b  fld1 ; fsubrp st(2)           ; 1 - pow
+0x009dd199  fmul qword [0x00cf3ff0]       ; = 32767.0  ← a SZORZÓ
+0x009dd19f  call 0x00c29990               ; __ftol → CSONKOL
+0x009dd1a4  fdiv dword [ebp + 0x10]       ; és ugyanez a MÁSODIK tengelyre
+```
+
+```
+k = trunc((1 - 0,1^(1/R)) · 32767)
+```
+
+⇒ az `R` **nem az e-hajtási, hanem a TIZEDELÉSI távolság**: `R` képpont alatt
+esik a maradék a tizedére. A `pmulhw` osztója továbbra is 65536, tehát az egy
+lépésben átvett arány `α = k/65536 < 0,5` - ahogy a 4.2.1 is írja.
+
+#### Miért nem mondott ellent a 4.2.5 mérése
+
+A natív alakból visszaszámolt e-hajtási hossz:
+
+| `R = 250^t` | `k` (natív) | `L` a natív alakból | `L/R` | mért `L` | mért `L/R` |
+|---:|---:|---:|---:|---:|---:|
+| 3,98 | 14 403 | 4,03 | 1,013 | 4,43 | 1,114 |
+| 15,81 | 4 440 | 14,25 | 0,902 | 15,29 | 0,967 |
+| 62,87 | 1 178 | 55,13 | 0,877 | 65,37 | 1,040 |
+| 250,00 | 300 | 217,95 | 0,872 | 216,04 | 0,864 |
+
+A mérés szórása (±0,092 a `L/R`-en) **nagyobb, mint a két alak közti
+eltérés**, ezért a mérés nem tudta eldönteni - az illesztett `exp(-1/R)`
+ugyanolyan jól leírta a négy pontot. A diszasszemblátum viszont eldönti:
+a bináris a `0,1`-es alapot és a 32767-es szorzót használja.
+
+#### A hívónkénti hatás (ΔE a valódi exporttól, a PicasaPy-ban: `tools/golden`)
+
+| eset | illesztett alak | **natív alak** |
+|---|---:|---:|
+| `glow` / `glow2` alap | 0,449 | **0,373** |
+| `glow` / `glow2` max | 1,386 | **0,575** |
+| `glow` / `glow2` min | 0,174 | 0,174 |
+| `dir_sharp` alap | 5,444 | **5,260** |
+| `radblur` min | 4,541 | **0,326** |
+| `radblur` alap | 0,392 | 0,645 |
+| `radblur` max | 0,350 | 0,552 |
+| `linblur` ×3 | 0,279 | **0,241** (a sugár 1,5 → 0,5, #2736/#2773) |
+| `radsat` ×3 | 5,854 / 4,194 / 3,708 | változatlan |
+
+⚠️ **A `radblur` két esete romlott** (0,39 → 0,65 és 0,35 → 0,55, mindkettő
+jóval 1,0 alatt, tehát láthatatlan), miközben a harmadik nagyságrendet
+javult. Ez NEM a sugár-képlet hibája: a `radblur` burkolójának
+sugár-számítása szintén kiolvasva (`0x008f85b0`-`0x008f8605`,
+`[0x00cf40b8] = 0,01`, `[0x00cf3db0] = 0,001`):
+
+```
+R = szélesség·0,01 · Mennyiség + 0,001 + szélesség·0,01
+```
+
+- pontosan a 4.2.4-ben leírt és nálunk megvalósított alak. Mivel **mindkét
+képlet cím-szintű**, a `radblur` maradék ΔE-je máshonnan jön (a saját
+maszk-közelítéseiből), és azt a szabad paraméter korábban elnyelte. A
+`radsat` 4-6-os ΔE-je szintén nem ebből fakad (az együttható-váltás nem
+mozdítja).
+
+### 4.2.5 A sugár → együttható leképezés - MEGMÉRVE (2026-08-13)
+
+A #576/#617 körökben a szerkezet megvolt, de a `k = round(pow(a, b))` két
+argumentuma az FPU-veremben van, a dekompilátor nem látja. **Méréssel
+meghatároztuk.**
+
+**Mérés:** szintetikus éles éllépcső (800×512, bal fekete / jobb fehér), a
+windowsos Picasa **Ragyogás** effektje, Intenzitás maximumon, a **Sugár**
+csúszka öt állásában (0 / 25 / 50 / 75 / 100%), veszteségmentes bemenet,
+maximális minőségű JPEG-export. A profilokat 512 sor átlagolásával nyertük ki.
+
+#### A mért lecsengés
+
+A ragyogás **világosító** keverés: a fehér oldal 255 marad, a sötét oldalra
+szivárog a fény. A sötét oldali profil **tiszta exponenciális** (illesztési
+relatív hiba 0,7-2,6%), ami a kétmenetes elsőrendű IIR-re jellemző:
+
+| csúszka | e-hajtási táv. `L` (képpont) | `r` | `α = 1-r` | `k = α·65536` |
+|---:|---:|---:|---:|---:|
+| 0% | 1,78 | 0,5698 | 0,4302 | 28 192 |
+| 25% | 4,43 | 0,7979 | 0,2022 | 13 248 |
+| 50% | 15,29 | 0,9367 | 0,0633 | 4 148 |
+| 75% | 65,37 | 0,9848 | 0,0152 | 995 |
+| 100% | 216,04 | 0,9954 | 0,0046 | 303 |
+
+#### A leképezés
+
+A `filterdesc.xml` szerint a Sugár csúszka **logaritmikus**, `<log>250.0</log>`,
+azaz a paraméter `R(t) = 250^t`, ahol `t ∈ [0,1]` a csúszka állása. Ezzel:
+
+| csúszka | `R = 250^t` | mért `L` | **`L / R`** |
+|---:|---:|---:|---:|
+| 25% | 3,98 | 4,43 | 1,114 |
+| 50% | 15,81 | 15,29 | 0,967 |
+| 75% | 62,87 | 65,37 | 1,040 |
+| 100% | 250,00 | 216,04 | 0,864 |
+
+**Átlag 0,996, szórás 0,092 - vagyis `L = R`.**
+
+> **Az e-hajtási távolság PONTOSAN a Sugár paraméter, képpontban.**
+> ```
+> r = exp(-1/R)
+> k = round(65536 · (1 - r))        ← ez megy a pmulhw-ba
+> ```
+> Ez összefér a dekompilált `pow` hívással: `exp(-1/R) = pow(e, -1/R)`.
+
+⛔ **EZT A KÖVETKEZTETÉST A 4.2.5/b FELÜLÍRTA (2026-09-09, #2773):** a `pow`
+két argumentuma kiolvasható a diszasszemblátumból (`0,1` és `32767`), és a
+mérés szórása nem tudta a két alakot szétválasztani. A fenti mérés
+érvényes, a belőle vont KÉPLET nem - a kód a natív alakot használja.
+
+#### Végponttól végpontig igazolás
+
+A fenti `k`-val leszimulálva a kétmenetes IIR-t az eredeti képre, és
+összevetve az exportált JPEG-gel:
+
+| csúszka | `k` | keverési súly | **átlagos hiba** | max |
+|---:|---:|---:|---:|---:|
+| 25% | 14 572 | 1,13 | **1,15 szint** | 2,0 |
+| 50% | 4 017 | 0,96 | **0,77 szint** | 2,1 |
+| 75% | 1 034 | 1,01 | **0,63 szint** | 2,0 |
+
+A hiba **JPEG-zaj nagyságrendű**. A keverési súly ~1,0, azaz a sötét oldalon a
+kimenet a puszta elmosott érték - a Ragyogás világosító keverése.
+
+*(A 0%-os és 100%-os pont kimaradt a leképezés-illesztésből: a 0%-nál az él
+túl éles a megbízható illesztéshez, a 100%-nál a 250 képpontos sugár nem fér
+el a 400 képpontos félképen. Mindkét eltérés mérési korlát, nem modellhiba.)*
+
+#### ⚠️ A sugár ABSZOLÚT, nem a képmérethez kötött
+
+Ellenőrző mérés ugyanezzel a beállítással **1600 képpont széles** képen:
+
+| kép | mért `L` |
+|---|---:|
+| 800 px | 15,29 |
+| 1600 px | 14,46 |
+
+Az arány **0,945 ≈ 1,0** (nem 2,0). Vagyis a `glow` sugara **képpontban
+abszolút** - **ellentétben a `radblur`-rel**, amelynek a burkolója
+explicit módon a képszélességből számol (`szelesseg/100 · (Amount+1)`, ld.
+4.2.4). A két effekt tehát **eltérően skálázódik**, és ezt a mi
+megvalósításunknak is követnie kell.
+
+**Ezzel a Picasa összes natív szűrőjének pixel-matematikája megvan.**
+
+---
+
+# 5. A burkolók bekötése - nyolc szűrő megvalósítva (#687)
+
+A #685 mérőszettje (178 kép, egyetlen valódi Picasa 3.9-export) kimutatta,
+hogy **nyolc olyan szűrőt hagytunk némán ki, amit az eredeti ténylegesen
+végrehajt**. A munkafüggvények ekkorra már megvoltak (2.3-2.6); ami hiányzott,
+az a **burkolók** paraméter-leképezése. Ezt a
+`referencia/dekompilalt/natív-szűrők.c` adta meg, szűrőnként pár sorban.
+
+## 5.1 A burkolók, betű szerint
+
+| szűrő | burkoló | mit hív, mivel |
+|---|---|---|
+| `contrast` | `0x008f8a20` | `FUN_0090c2c0(kép, csúszka0, 0, 1.0f)` - fényerő 0, gamma 1 |
+| `backlight` | `0x008f8970` | `FUN_0090ac20(cél, forrás, csúszka0, 1.0f)` - **bájtra a `fill` hívása** |
+| `colortemp` | `0x008f8ea0` | `FUN_0090ea10(cél, forrás, csúszka0, csúszka1)` |
+| `gamma` | `0x008f8e30` | `exp(csúszka0)` (`0x0040eac0`), és ezt adja **gammaként** a LUT-építőnek |
+| `autocontrast` | `0x008f89d0` | `FUN_009db610`, **flag = 0** (ld. 3.1) |
+| `triple` | `0x008f8a60` | Derítőfény(csúszka2) → kontraszt(**csúszka1** = kontraszt, **csúszka0** = fényerő) |
+| `triple2` | `0x008f8b90` | Derítőfény(csúszka0) → szinthúzás(fekete = csúszka1, fehér = csúszka2) |
+| `triple3` | `0x008f8ce0` | Derítőfény(csúszka0) → szinthúzás(fekete = csúszka2, **fehér = 1 - csúszka1**) |
+
+Három részlet, ami a mérésben látszik is:
+
+1. **A `triple2`/`triple3` fehérpontján nullaosztás-védés van**
+   (`if (w <= 0.001) w = 0.001;`). Ezért ad a `triple2=1,0,0,0` (fehérpont 0)
+   szinte teljesen fehér képet, nem azonosságot - a mérésben ΔE 51,5.
+2. **Mindkettőnek van „nincs teendő" ága**: `fehér == 1 && fekete == 0` esetén
+   a szinthúzás kimarad, Derítőfény 0-nál az is.
+3. **A `0x0090c430` és a `0x0090c340`** ugyanaz a két LUT-építő, csak a
+   HELYBEN dolgozó alkalmazóval (`0x0090be70`) - a Derítőfény utáni második
+   lépéshez. Nincs bennük külön matematika.
+
+## 5.2 MEGOLDVA: a `colortemp` két skálája (a 2.5 korábbi nyitott kérdése)
+
+A 2.5 pont a `s` és `t` ×256-os skálázását „erős következtetésként" jelölte.
+A mérőszett három `colortemp` esete eldöntötte - a rácskeresés optimuma
+mindhárom képen tiszta:
+
+| eset | Hideg↔meleg | Fehérváltás | illesztett `t` | illesztett `s` | ΔE |
+|---|---:|---:|---:|---:|---:|
+| alap | 0,125 | 0,5 | 32 | 64 | **0,89** |
+| max | 0,5 | 1,0 | 128 | 128 | **1,30** |
+| min | -0,5 | 0,0 | -128 | 0 | **0,63** |
+
+```
+t = trunc(HidegMeleg  · 256)
+s = trunc(Fehérváltás · 128)
+```
+
+A ×128 azért fontos, mert a ×256 a csúszka felső állásán `256 - s = 0`-t adna,
+azaz nullaosztást - a fele viszont pont értelmes marad. A 2026-08-16-i mérés
+helyesen találta meg a két skálát, de a kerekítést nem tudta eldönteni. A
+2026-09-12-i célzott disassembly ezt lezárta: `0x0090ead6` a
+`0x00cf39d8`-on álló **256,0**-val, `0x0090ea5e` a `0x00cf3a38`-on álló
+**128,0**-val szoroz, a `0x00c29990` pedig **nulla felé csonkol**. A fenti
+táblázat ettől független dinamikus kontroll: az érintetlen kép ΔE-je a három
+esetben 11,7 / 55,3 / 26,3, vagyis a modell két nagyságrenddel pontosabb.
+
+## 5.3 MEGOLDVA: a `gamma` kitevőjének iránya
+
+A burkoló `exp(csúszka)`-t számol, de a dekompilátumból nem derül ki, hogy ez
+a kitevő vagy annak reciproka. A mérés egyértelmű (súlyozott átlagos
+csatorna-hiba a mért görbéhez):
+
+| csúszka | `pow(i/255, exp(-szint))` | `pow(i/255, exp(+szint))` |
+|---:|---:|---:|
+| +0,1618 | **0,54** | 8,3 |
+| +1,0 | **0,50** | 45,7 |
+| -1,0 | **0,44** | 45,3 |
+
+Vagyis a burkoló által számolt `exp(szint)` a **gamma**, és a LUT-építő
+`1/gamma`-val emel hatványra - pozitív csúszka világosít. ⛔ A tábla nem a 2.3-as szinthúzóé, hanem a `0x00aa40a0`-é (ld. 5.3/b, #3937).
+
+
+## 5.3/b ⛳ A `gamma` NEM a szinthúzón fut: 8 bites gamma-tábla (`0x00aa40a0`), kerekítve, dither nélkül (2026-09-28, 405. kör, #3937)
+
+*Bizonyítottsági fok: **megerősített**, utasításszinten, és a Picasa-exporttal bitre egyezik. Független újralevezetés (#3937): EGYEZIK, a saját emulációja is bitpontos. Az 5.3 iránya (`exp(+szint)` a gamma, a kitevő `1/gamma`) áll; a „LUT-építő” azonban NEM a 2.3-as szinthúzó.*
+
+A burkoló (`0x008f8e30`) a képet a célba másolja (`0x008f8e5b` → `0x009aabf0`), a csúszkából `g = f32(exp(szint))`-et számol (`0x008f8e76` → `0x0040eac0`), és a **`0x00aa40a0`**-t hívja `(g, 0)` argumentummal (`0x008f8e83`) - ugyanazt a gamma-tábla építőt, amelyet a régi `glow` előgörbéje is használ (ld. `filters-decoded.md`, „A `glow` egész aritmetikája”).
+
+A `0x00aa40a0`:
+
+```
+invG = f32(1 / g)                                         ; 0x00aa40f3-0x00aa40f9
+LUT[i] = rint( f32( pow( f32(i · (1/255)), invG ) · 255 ) ) ; i = 0 … 255, fistp legközelebbire
+ki_c = LUT[be_c]                                          ; csatornánként, az alfa marad
+```
+
+- `[0xcf4138]` = 1/255 (double), `[0xcf39d0]` = 255,0, a hatványozó a `0x005568e0`, a tárolás `fstp dword` (float32) a `fistp` előtt (`0x00aa413b`-`0x00aa4143`);
+- **8 bites tábla, dither NINCS** (`0x00aa4195`-`0x00aa41b9` egyszerű táblázatos csere) - szemben a 2.2-es 16 bites, ditheres alkalmazóval;
+- két különleges ág: `g = 0` → a statikusan előre kitöltött `0xd32bd0` tábla; `g = 2,2` (`[0xcf3d18]`) → a lustán épített `0xd32cd0` gyorsítótár (az első bájt `0xff` = még nincs kész, `0x00aa40ee`). Minden más `g` helyi táblát épít, minden hívásnál újra. A `gamma` burkolónál egyik ág sem futhat: `exp(szint) > 0`, és a float32 `g` sosem egyenlő a double 2,2-vel.
+
+**Mérve** (684-es mérőkészlet; a kimenetünket a Picasa-export saját kvantálótábláival tömörítve):
+
+| állás | a mai kód (16 bites szinthúzó + dither) | **8 bites tábla (`0x00aa40a0`)** |
+|---|---:|---:|
+| alap (0,1618) | 0,271 | **0,000** |
+| max (1,0) | 0,259 | **0,000** |
+| min (-1,0) | 0,222 | **0,000** |
+
+A mai kód a bemeneti szintek kb. felén eggyel alacsonyabbat ad (a 16 bites tábla `v >> 8`-a lefelé csonkol, a natív 8 bites tábla kerekít). Tömörítés nélkül a mai kód 0,30-0,35-öt, a 8 bites tábla 0,15-0,17-et ad - ez utóbbi pontosan a zajszint.
+
+**✅ Megvalósítva (#3939):** a PicasaPy-ban: `render/native_tone.py::apply_gamma` → `native_gamma_lut` (a `0x00aa40a0` 8 bites tábla, dither nélkül) - a régi Ragyogás-előgörbével (a PicasaPy-ban: `render/effects.py::glow_gamma_lut`, `g = 0,5`) közösített segédfüggvény. A 684-es mérőkészleten, a kimenetet a Picasa-export saját JPEG-kvantálótábláival (és 4:4:4 mintavételezésével) tömörítve: `gamma__alap` ΔE **0,0000**, `gamma__max` **0,0000**, `gamma__min` **0,0000** - a korábbi (szinthúzón futó) modell ugyanígy mérve 0,2715 / 0,2592 / 0,2220 volt.
+
+## 5.4 MEGOLDVA: az `shadow` súly-skálája
+
+A `shadow` munkafüggvénye (`0x0090d3e0`) **három** elmosás-menetet futtat
+(`0x009dd0d0` ×3), majd a `0x0090d170` magot hívja. A mag dekompilált: a
+képpont SAJÁT és az ELMOSOTT kép világosságából (`L = 2R + 5G + B + 4`)
+számol súlyt, külön árnyék- és csúcsfény-ággal, a felezőponton (`0x400`)
+kapuzva. A két százalék-csúszka egészre skálázása viszont ismét az
+x87-veremen megy át - a mérés adta meg:
+
+| szorzó | „alap" (0,5/0,5) | „max" (1,0/1,0) |
+|---:|---:|---:|
+| ×128 | 2,9 | 5,6 |
+| **×256** | **0,52** | **0,53** |
+| ×384 | 2,75 | 5,11 |
+| ×512 | 4,0 | 7,4 |
+
+*(átlagos abszolút csatorna-eltérés; az érintetlen kép 5,61 és 11,25)*
+
+Vagyis **`súly = round(csúszka · 256)`**, ugyanaz a szorzó, mint a
+`colortemp` hideg↔meleg tengelyén. Végponttól végpontig a modell ΔE-je
+**0,58** és **0,59** a valódi Picasa-kimenethez.
+
+**Ami KÖZELÍTÉS marad: a Sugár csúszka leképezése.** A `filterdesc.xml`
+logaritmikusnak jelöli (`<log>250.0</log>`), de a mérés ezt **kizárja**: a 16
+képpontos és afölötti sugarak 5-10-szer rosszabbul illeszkednek. A tárolt
+értéket vesszük sugárnak (a `glow` mért mintája szerint, 4.2.5) - a szett két
+esete (0,5 és 1,0 tárolt sugár) viszont **ugyanott, egy közös ~1,6 képpontos
+optimum körül** illeszkedik legjobban, tehát a mérés a pontos leképezést nem
+dönti el. A különbség (ΔE 0,58 vs 0,27) a JPEG-zaj alatt van. A kalibráció a
+#317-ben fut.
+
+## 5.5 Ami nyitva maradt
+
+- **`triple`** - a bekötése a dekompilált burkolóból egyértelmű, de a
+  mérőszett egyetlen esete paraméter nélküli (`triple=1,`), tehát azonosság:
+  a leképezés **méréssel nincs igazolva**.
+- **`autocontrast`** - a modell a már meglévő csatornánkénti szinthúzás
+  (ugyanaz a natív mag, mint az `enhance`-é: a mérőszetten a Picasa bájtra
+  ugyanazt adta a kettőre). A mért illeszkedés **KÖZELÍTŐ** (ΔE 3,48 az
+  érintetlen 4,05-höz képest): a vágópontjaink nem pontosan azok, amiket a
+  Picasa választ. Ez viszont az `enhance` régi, önálló hiánya - nem a #687
+  hozta.
+- **`blur`, `colorfix`, `whitept`** - a mérőszetten maga a Picasa sem
+  változtatott velük (ΔE ≤ 1,0). Ez NEM bizonyítja, hogy halottak: mindhármuk
+  natív magja megvan (`0x0090cf60`, illetve `0x0090eda0`), és a `colorfix`/
+  `whitept` PIPETTA-színt vár, amit a szett a lánc végére írt - lehet, hogy
+  csak a paraméter-alak nem az, amit a Picasa olvas. A PicasaPy-ban: `chain.py` ezért külön
+  jelöli őket (`MEASURED_IDLE_OPS`), és mást mond róluk, mint a valóban
+  halott `focalpixelate`-ről.

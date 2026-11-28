@@ -1,0 +1,1048 @@
+# Picasa 3.9 - erőforrás- és formátum-leltár (gombok, web-export, runtime, plugin-ök)
+
+> Forrás: eredeti Picasa 3.9 (Windows, 2015-ös build) programmappa, kizárólag
+> olvasva. A dokumentum **nem** tárgyalja a `.fen` dialógusfájlokat és az
+> `.exe`-ből kinyert stringeket - azokat külön ügynökök dokumentálják.
+
+---
+
+## 1. Gombcsomagok - a `buttons/*.pbz` formátum
+
+### 1.1 Csomagformátum: PBZ = ZIP
+
+A `buttons/` mappában két fájl van: `core-lh2.pbz` és `geotag.pbz`. Mindkettő
+egy **közönséges ZIP-archívum** (átnevezve `.pbz` kiterjesztésre - Python
+`zipfile` modullal simán megnyitható, jelszó és tömörítés-trükk nélkül).
+
+A ZIP-en belül **`.pbf` fájlok** vannak, egyenként egy gombot leírva.
+A fájlnév minden esetben egy **GUID** (pl. `{0B3F3356-4FA1-48ca-B972-2B7D20AC6FBF}.pbf`),
+tehát a fájlnév maga nem hordoz jelentést - a gomb azonosítója a `.pbf` XML
+tartalmán belüli `id` attribútum.
+
+- `core-lh2.pbz` → 9 db `.pbf` fájl (az alap kimeneti sáv gombjai)
+- `geotag.pbz` → 1 db `.pbf` **+ 1 db azonos nevű `.psd`** (a gomb ikonja!)
+
+### 1.2 A `.pbf` fájl: sima XML
+
+*Forrás: `outputlayout.tre:95` (`outputlayout/blogger_icon`).*
+
+A `.pbf` fájlok **nem bináris formátumok**, hanem UTF-8 (néha BOM-mal) kódolt,
+CRLF sortörésű XML dokumentumok. Gyökérelem: `<buttons format="1" version="1">`,
+benne egyetlen `<button>` elemmel.
+
+```xml
+<?xml version="1.0" encoding="utf-8" ?>
+<buttons format="1" version="1">
+  <button id="custombutton/blogger" type="dynamic">
+    <placement>6.0</placement>
+    <icon name="outputlayout/blogger_icon" src="runtime"/>
+    <label>BlogThis!</label>
+    <tooltip>Post photos to your blog via Blogger</tooltip>
+    <tooltip_da>Indsæt billeder i din blog med Blogger</tooltip_da>
+    <!-- ... egy <tooltip_XX> elem nyelvenként (da, de, en-gb, es, fi, fr,
+         it, ja, ko, nl, no, pl, pt-br, ru, sv, tr, zh-cn, zh-tw) ... -->
+    <action verb="hybrid">
+      <param name="url" value="https://photos.blogger.com/picasa-post.g"/>
+    </action>
+  </button>
+</buttons>
+```
+
+**Mezők:**
+
+| Elem/attribútum | Jelentés |
+|---|---|
+| `<button id="...">` | A gomb egyedi azonosítója. Kétféle névtér látható: `outputlayout/<name>` (beépített, "statikus" Picasa-gombok - a natív exe-kód rendeli hozzá a viselkedést) és `custombutton/<name>` (bővítmény-gombok, saját `action`-nel). |
+| `type="static"` | A gomb viselkedését a Picasa natív kódja implementálja (nincs `<action>` elem); a `.pbf` csak az elhelyezést/felirat felülbírálását adja meg. |
+| `type="dynamic"` | A gomb viselkedését a `.pbf`-ben deklarált `<action>` írja le - nincs natív kód mögötte. |
+| `<placement>N.0</placement>` | Balról jobbra sorrend a gombsávban (lebegőpontos szám - a `.0` arra utal, hogy törtértékek is elférnének két gomb közé beszúráshoz). |
+| `<label>` | A gomb felirata (nyelvfüggetlen alap - a tényleges lokalizált felirat valószínűleg az `.exe` string-táblájából jön, ha a `<label>` hiányzik). |
+| `<icon name="..." src="...">` | Az ikon forrása. `src="runtime"` esetén az ikon a `runtime/` mappa `respack.yt` erőforráscsomagjában él, `name` az ottani logikai ikonnév (pl. `outputlayout/blogger_icon`). `src="pbz"` esetén az ikon **magában a PBZ-ben** van, `{GUID}.psd` néven, ahol a GUID megegyezik a gomb saját `.pbf`-jének fájlnevével - ez a `geotag.pbz` esetében látszik. |
+| `<tooltip>` / `<tooltip_XX>` | Angol alap tooltip + nyelvkód-szuffixált (BCP-47-szerű, kisbetűs, pl. `pt-br`, `zh-cn`) fordítások, mind ugyanabban a `.pbf`-ben - tehát a PBZ-formátum saját magában hordozza az i18n-t, nem külön nyelvi fájlokban. |
+| `<action verb="...">` | A dinamikus gomb művelete. Megfigyelt `verb` értékek: `"hybrid"` (böngészőben/beépített webnézetben megnyitandó URL - lásd `<param name="url" value="...">`) és `"geolocate"` (belső parancs, nincs paramétere - a natív Google Earth/térkép integrációt indítja). |
+| `<param name="..." value="...">` | Az `action` tetszőleges számú kulcs-érték paramétere. |
+### 1.3 Ikonformátum a PBZ-n belül
+
+A `geotag.pbz`-ben talált ikon (`{9A42861F-...}.psd`) valódi **Adobe
+Photoshop (.psd) fájl**, 50×40 px, RGBA, 4×8 bit csatorna - tehát a
+gomb-ikonok natív PSD-ként vannak becsomagolva (rétegek nélkül, egyszerű
+exportált bitmap), nem PNG/ICO.
+
+### 1.4 A `core-lh2.pbz` gombjai (9 db)
+
+*Forrás: `outputlayout.tre:111` (`outputlayout/collage`) · `outputlayout.tre:51` (`outputlayout/ebutton`) · `outputlayout.tre:63` (`outputlayout/folderbutton`) - és további 4 elem ugyanott.*
+
+Ez a fájl a fő kimeneti sáv (az album-nézet alján/tetején megjelenő
+"mit csinálj a kijelölt képekkel" gombsor) alap gombkészletét írja le.
+`outputlayout/*` azonosítójú, `type="static"` gombok - vagyis a tényleges
+funkciót a Picasa natív kódja adja, a `.pbf` csak sorrendet/felirat-felülbírálást ad:
+
+| # | id | placement | label (felülbírálás) | Feltételezett funkció |
+|---|---|---|---|---|
+| 1 | `outputlayout/webupload` | 1.0 | - | Feltöltés Picasa Webalbumokba |
+| 2 | `outputlayout/ebutton` | 2.0 | - | E-mailben küldés |
+| 3 | `outputlayout/pbutton` | 3.0 | - | Nyomtatás |
+| 4 | `outputlayout/folderbutton` | 4.0 | - | Mappába exportálás / mappa megnyitása |
+| 5 | `outputlayout/orderbutton` | 5.0 | "Shop" | Fotónyomtatás rendelése (print-szolgáltatás) |
+| 6 | `custombutton/blogger` (dinamikus) | 6.0 | "BlogThis!" | Blogger-be posztolás (`action verb="hybrid"`, URL: `https://photos.blogger.com/picasa-post.g`) |
+| 7 | `outputlayout/collage` | 7.0 | "Collage" | Kollázs készítése |
+| 8 | `outputlayout/makemovie` | 8.0 | "Movie" | Diavetítés/film készítése a kijelölt képekből |
+| 9 | `outputlayout/sharewith` | 9.0 | "Hello" | Megosztás ("Hello" feltehetően a Google Hello/IM-integráció maradványa, vagy csak egy generikus felirat-placeholder) |
+### 1.5 A `geotag.pbz` gombja (1 db)
+
+| id | placement | label | ikon | action |
+|---|---|---|---|---|
+| `custombutton/geolocate` | 10.0 | "Geo-Tag" | `{9A42861F-...}/earth_icon`, `src="pbz"` (a csomagba ágyazott PSD) | `verb="geolocate"` (paraméter nélkül - natívan feldolgozott parancs, ami a Google Earth-glóbuszra helyezi a képeket) |
+| Tooltip | - | "Place pictures on the Google Earth globe" | | |
+
+**PicasaPy tanulság:** a `buttons/*.pbz` egy nyitott, bővíthető, deklaratív
+plugin-mechanizmus - új gomb hozzáadása annyi, hogy egy ZIP-be teszünk egy
+XML-t (+ opcionális PSD ikont). Egy Python-újraírásban ez triviálisan
+JSON/YAML + PNG kombinációra cserélhető, megőrizve a `static`/`dynamic`
+megkülönböztetést és a `verb`/`param` akció-modellt.
+
+---
+
+## 2. Web-export sablonrendszer (`web/templates/`, `web/documentation/`)
+
+### 2.1 Áttekintés
+
+Amikor a felhasználó egy albumot "Weboldal exportálása" funkcióval statikus
+HTML-lé exportál, a Picasa a `web/templates/<sablonnév>/` mappák valamelyikét
+dolgozza fel. A hivatalos dokumentáció (`web/documentation/index.html`,
+"The Picasa Web Templating System") **teljes egészében megtalálható** a
+programmappában - az alábbi alfejezetek ennek tömör, magyar összefoglalói,
+kiegészítve a tényleges sablonfájlokból kiolvasott adatokkal.
+
+Az exportálás menete:
+1. A kijelölt képekből bélyegkép- és nagyméretű másolatok készülnek a cél
+   könyvtár `thumbnail/` ill. `image/` almappáiba.
+2. A sablon gyökérfájlja - mindig `index.tpl` - feldolgozásra kerül, a benne
+   szereplő parancsok sorban lefutnak.
+3. A `loop` és `targetloop` parancsok képenként ismétlik a hivatkozott
+   include-fájlt, feltöltve a kép-hurok változóit.
+
+### 2.2 Sablonmappa-szerkezet
+
+Minden sablon egy önálló alkönyvtár a `web/templates/` alatt, tipikusan:
+
+```
+<sablonnév>/
+  index.tpl              # kötelező belépési pont, .tpl parancsfájl
+  header.html / footer.html
+  imagelistheader.html / imagelistelement.html / imagelistfooter.html
+  targetlistheader.html / includedtarget.html
+  itemheader.html / targetlistelement.html    # per-kép cél-oldal tartalma
+  imagetarget.tpl         # a targetloop által képenként feldolgozott al-sablon
+  style.css
+  preview.jpg              # a sablonválasztó előnézeti képe
+  assets/                  # statikus erőforrások (pl. style.css), a "copy" paranccsal másolva
+  xLifescape.ini           # csak a keretes (…frm) sablonoknál, ld. lentebb
+```
+
+A ténylegesen szállított 6 sablon:
+
+| Mappa | Jellemző | Megjegyzés |
+|---|---|---|
+| `whitebg/` | Fehér hátterű, index + külön "target" oldalak | `verboseimagelistelement.html` is van (bővebb képleírás-változat) |
+| `blackbg/` | Fekete hátterű, egyébként `whitebg` szerkezete | |
+| `greybg/` | Szürke hátterű | |
+| `whitefrm/`, `blackfrm/`, `greyfrm/` | **Keretes (frame-based)** elrendezés: bal oldalon görgethető bélyegkép-lista, jobbon a nagy kép - `frameset.htm` helyett `frameIndex.html`, `framebase.tpl`, `frameImageSet.tpl`, `framecaption.tpl`, `thumbnails.tpl` és egy `xLifescape.ini` konfigurációs fájl tartozik hozzájuk. Ezek klasszikus HTML-frame (`<frameset>`) alapú, egyoldalas galériát generálnak. |
+| `xml/` | Nem HTML, hanem **nyers XML** kimenetet generáló sablon ("Raw XML-formatted text for further translation") - külső feldolgozásra szánt gépi export, `header.xml`/`footer.xml`/`imagelistheader.xml`/`imagelistelement.xml`/`imagelistfooter.xml` fájlokkal. |
+
+A `web/documentation/examples/` egy **hetedik, tanpélda-sablont** tartalmaz
+(`TestWebExport`, `TestConditional1` feliratokkal) - kifejezetten a fenti
+dokumentáció illusztrálására, nem terjesztett sablon.
+
+### 2.3 A `.tpl` parancsnyelv
+
+Az `index.tpl` (és az általa hívott al-`.tpl` fájlok, pl. `imagetarget.tpl`)
+egy egyszerű, soronkénti, `#` megjegyzés-jelet használó parancsnyelv.
+Minden ilyen fájl `#templatefile -v "verzió" -n "név" -d "leírás"` fejléccel
+kezdődik (a `-n`/`-d` a sablonválasztó UI-ban jelenik meg).
+
+Parancsok:
+
+| Parancs | Paraméterek | Jelentés |
+|---|---|---|
+| `define` | `variableName variableValue` | Belső változó definiálása; a fájl teljes további feldolgozása során minden `<%variableName%>` erre cserélődik. Csak az utolsó `define` érvényes (felülírja a korábbiakat). |
+| `include` | `fileName` | HTML/sablonfájl beillesztése; a változó-helyettesítés a beillesztés pillanatában történik. |
+| `loop` | `perImageFile [columnCount rowStartInclude rowEndInclude]` | A megadott fájlt egyszer-per-kép illeszti be, eközben aktívvá válnak a "kép-hurok" változók. **A `columnCount`/`rowStartInclude`/`rowEndInclude` a hivatalos doksi szerint még nincs megvalósítva** (`notImplemented` jelölés). |
+| `targetloop` | `targetTemplateFile targetIncludeFile [...]` | Képenként **külön fájlt** exportál (`targetTemplateFile` alapján, sorszámozva: `index0.html`, `index1.html`, …), és a jelenlegi fájlba beilleszti `targetIncludeFile`-t képenként, `<%targetPath%>` változóval a generált fájl relatív útjára mutatva. Keretes/lapozható galériákhoz. |
+| `copy` | `source [destination]` | Statikus erőforrás (pl. `assets\`) rekurzív másolása a célkönyvtárba; záró backslash kötelező a könyvtárspecifikációnál. |
+
+### 2.4 Változó- és feltétel-szintaxis a HTML/XML include-fájlokban
+
+- Változóhelyettesítés: `<%valtozoNev%>`
+- Feltétel: `<%if valtozoNev%>...tartalom...<%endif%>` - a `!` előtaggal
+  negálható: `<%if !valtozoNev%>...<%endif%>`
+
+**"Parancs-változók"** (export-vezérlők, `define`-nal állíthatók, és a
+HTML-ben is felhasználhatók):
+
+| Változó | Jelentés |
+|---|---|
+| `exportFileName` | A generált fájl neve (targetloopnál ehhez fűződik a sorszám: `index0.html`, `index1.html`, …). |
+| `imageWidth` / `imageHeight` | A nagyméretű exportált kép max. szélessége/magassága (`0` = eredeti méret). |
+| `thumbnailWidth` / `thumbnailHeight` | A bélyegkép max. mérete (`0` = eredeti méret). |
+| `bgColor` | A bélyegképek árnyékának színe (alapért. `#FFFFFF`). |
+| `shadowedThumbnails` | `true`/`1`: árnyék a bélyegképeken (alapért. `1`). |
+| `shadowedImages` | `true`/`1`: árnyék a nagy képeken (alapért. `0`). |
+
+**Album-szintű változók** (minden oldalon elérhetők):
+
+`albumNumber`, `albumName`, `albumCaption`, `albumDate` (hó/év), `albumItemCount`
+
+**Kép-hurok változók** (`loop`/`targetloop` belsejében, az album-változókon felül):
+
+`itemNumber`, `itemName`, `itemOriginalPath`, `itemWidth`, `itemHeight`,
+`itemSize` (KB-ban, az **eredeti** fájlra), `itemThumbnailImage`,
+`itemLargeImage`, `isNextImage`/`isPrevImage`, `nextImage`/`prevImage`,
+`nextThumbnail`/`prevThumbnail`. A ténylegesen szállított sablonokban emellett
+`itemCaption`, `itemThumbnailWidth`/`itemThumbnailHeight`, `itemNameOnly`,
+`isFirstImage`/`isLastImage`, `firstImage`/`lastImage`,
+`firstThumbnail`/`lastThumbnail` változók is előfordulnak (ezek a
+dokumentációból hiányoznak, de az `xml/imagelistelement.xml` sablon
+ténylegesen használja őket).
+
+**Cél-oldal (`targetloop` által generált fájl) változói** - az album- és
+kép-hurok változókon felül: `referrer`, `isNextTarget`/`isPrevTarget`,
+`isFirstTarget`/`isLastTarget`, `nextTarget`/`prevTarget`,
+`firstTarget`/`lastTarget`, `outputIndex`.
+
+**Tartalmazó oldalon a `targetloop` hurok belsejében**: `targetPath` (a
+generált cél-fájl relatív útja).
+
+### 2.5 Példa (a `whitebg` sablonból)
+
+```
+index.tpl:
+  define exportFileName index.html
+  include header.html
+  include imagelistheader.html
+  include targetlistheader.html
+  targetloop imagetarget.tpl includedtarget.html
+  include footer.html
+  copy assets\
+
+imagelistelement.html:
+  <a href="<%itemLargeImage%>"><img src="<%itemThumbnailImage%>"
+     width="<%itemThumbnailWidth%>" height="<%itemThumbnailHeight%>"
+     title="<%itemCaption%>" border="0"></a>
+
+includedtarget.html:
+  <a href="<%targetPath%>"><img src="<%itemThumbnailImage%>" ...></a>
+```
+
+**PicasaPy tanulság:** ez egy teljesen dokumentált, egyszerű, saját
+sablonnyelv (nem Jinja2/Mustache) - egy Python újraírásban vagy egy kis
+saját parser (fenti táblázat = teljes spec), vagy pragmatikusan egy Jinja2
+"kompatibilitási réteg" építhető rá, amely a `<%var%>`/`<%if%>` szintaxist
+Jinja2 `{{ var }}`/`{% if %}` formára fordítja át az örökölt sablonok
+befogadásához.
+
+---
+
+## 3. Runtime konfigurációs fájlok (`runtime/`)
+
+### 3.1 `filters.txt` - a mappa-beolvasás kizárási listája
+
+> ⚠️ **Ezt a szakaszt 2026-08-21-én utasításszinten átmértük** (M9). A
+> korábbi leírás **négy** szakaszt említett és „tartalmazza/megegyezik"
+> illesztést feltételezett - **mindkettő téves volt.** A mért szemantika
+> alább; a régi szöveg helyesbítve.
+
+**A szállított fájl** (`research/copy_Picasa_3_7/Picasa3/runtime/filters.txt`,
+13 sor, üres sorokkal elválasztva):
+
+```
+DirectoryFilters
+
+windows
+winnt
+temp
+Program Files
+Originals
+
+DirectoryIncludes
+
+FileFilters
+
+FileIncludes
+```
+
+#### 3.1.1 A parszer - `0x004fbd30` (3392 b)
+
+Betöltő: `0x004e4ea0` (`0x004e4fc5`-nél a fájlnév), egyszer, induláskor
+(`0x004051b0` → `0x00402f90` → `0x004183c0` → `0x004e4ea0`).
+
+**HAT szakaszt ismer, nem négyet.** A fejléc-sorokat **nem** beégetett
+literálokkal hasonlítja, hanem a **szövegtárból** oldja fel
+(`0x9ae560`), kulcs `DS::<név>`, tartalék az angol literál. A hat kulcs a
+`referencia/stringres-en-hu.tsv`-ben is megvan (988-993. sor), magyarul
+ugyanaz a szöveg:
+
+| mód | szakasz | szövegtár-kulcs | felismerés címe |
+|---|---|---|---|
+| 1 | `DirectoryFilters` | `DS::DirectoryFilters` | `0x004fbff0` |
+| 2 | `DirectoryIncludes` | `DS::DirectoryIncludes` | `0x004fc04c` |
+| 3 | `FileFilters` | `DS::FileFilters` | `0x004fc0a4` |
+| 4 | `FileIncludes` | `DS::FileIncludes` | `0x004fc0fc` |
+| 5 | **`BundleFilters-BlackList`** | `DS::BundleFiltersBlackList` | `0x004fc154` |
+| 6 | **`BundleFilters-WhiteList`** | `DS::BundleFiltersWhiteList` | `0x004fc1ac` |
+
+A parszer sorról sorra olvas (`0x00996f20`); ha a sor **egyezik** egy
+fejléccel, csak a mód-változót állítja (`[esp+0x10] = 1..6`), egyébként a
+sort az aktuális mód szerint dolgozza fel:
+
+| mód | mit tesz a sorral | tároló |
+|---|---|---|
+| **1** `DirectoryFilters` | **hossz ≤ 3 → ELDOBJA** (`0x004fc21b`); ha a **2. karakter `:`** (`0x004fc224`) → **útvonal**-lista; egyébként → **név**-lista | `[obj+0x3c4]`/`+0x3c8` (útvonal), `[obj+0x3cc]`/`+0x3d0` (név) |
+| **2** `DirectoryIncludes` | eltárolja, hossz- és `:`-vizsgálat nélkül | `[obj+0x3bc]`/`+0x3c0` |
+| **3** `FileFilters` | eltárolja | `[obj+0x3d4]`/`+0x3d8` |
+| **4** `FileIncludes` | **SEMMIT - a sor eldobódik** (`0x004fc954 cmp ebx,4 / je` a ciklus elejére) | - |
+| **5** `BundleFilters-BlackList` | `0x004f9d80(this, sor)` - végigjárja a **`[obj+0x3e4]`/`+0x3e8`** tömböt és annak elemein állít | - |
+| **6** `BundleFilters-WhiteList` | `0x004fa080(this, sor)` - ugyanaz a tömb | - |
+
+**A négy beégetett mappanév** (`0x004fbb90` → `0x004f9bb0`) **ugyanabba a
+NÉV-listába** kerül (`[obj+0x3d0]`), mint a `DirectoryFilters` név-alakú
+sorai: `thumbs`, `RECYCLER`, `Originals`, `.picasaoriginals`.
+
+> **Ezért van üres sor a szállított fájlban:** az üres sor hossza 0, a
+> mód-1 ág a ≤ 3 hosszú sorokat eldobja. A `temp` négy karakter - épp
+> átmegy a rostán.
+
+#### 3.1.2 Az illesztés - KÉT KÜLÖN teszt
+
+**(a) NÉV-teszt - `0x004e2af0`** (a mappa saját nevére):
+
+```c
+for (e : DirectoryIncludes)      if (_stricmp(e, név) == 0) return 0;  // NEM kizárt
+for (e : DirectoryFilters_NÉV)   if (_stricmp(e, név) == 0) return 1;  // KIZÁRT
+return 0;
+```
+
+Címek: az Includes-ciklus `0x004e2b2a`-`0x004e2b52`, a Filters-ciklus
+`0x004e2b65`-`0x004e2b90`. Az összehasonlító `0x00bf697a`.
+
+**(b) ÚTVONAL-teszt - `0x004e2a50`** (a teljes útvonalra):
+
+```c
+for (e : DirectoryIncludes)      if (elotagE(út, e)) return 0;        // NEM kizárt
+for (e : DirectoryFilters_ÚTVONAL) if (elotagE(út, e)) return 0xF4242; // KIZÁRT
+return 0;
+```
+
+Címek: `0x004e2a57`-`0x004e2a8a`, illetve `0x004e2a96`-`0x004e2ac2`.
+
+**Három mért tulajdonság, amit eddig feltevésként kezeltünk:**
+
+1. **Az Includes TÉNYLEG felülír** - és a mechanizmus a **sorrend**:
+   mindkét teszt **előbb** az Includes-listát nézi, és találatra
+   **azonnal** „nem kizárt"-tal tér vissza. Nem külön prioritási szabály,
+   hanem korai kilépés.
+2. **A név-illesztés TELJES EGYEZÉS, kis-nagybetű-függetlenül.** Az
+   összehasonlító `0x00bf697a` a CRT `_stricmp`-je: `_NLSCMPERROR`
+   (`0x7FFFFFFF`) hibakód, `EINVAL` (0x16) null mutatóra, területi
+   beállítás-tábla (`[0xd49bf4]`). *(Bizalmi fok: **erős** - CRT-aláírás
+   alapján azonosítva, nem szimbólumból.)* **Nincs** részstring-illesztés.
+3. **Az útvonal-illesztés ELŐTAG, kis-nagybetű-függetlenül.** A
+   `0x00987030(A, B, kisNagybetuErzekeny)` akkor ad igazat, ha **`B`
+   előtagja `A`-nak**; a hívó `0`-t ad harmadik paraméternek, tehát a
+   ciklus az `'A'..'Z'` tartományt `+0x20`-szal kisbetűsíti
+   (`0x00987079`-`0x0098709e`). Ezért zárja ki egy
+   `C:\Program Files` bejegyzés a teljes fát alatta.
+
+#### 3.1.3 Ami NYITVA marad
+
+A `BundleFilters-BlackList` / `-WhiteList` **pontos hatása**. A két
+kezelő (`0x004f9d80`, 758 b; `0x004fa080`, 1291 b) nem egyszerű listába
+fűz, hanem a **`[obj+0x3e4]`/`+0x3e8` tömböt járja végig** és annak
+elemein állít állapotot - vagyis egy előre feltöltött „bundle"-katalógus
+engedélyezését/tiltását kapcsolja. A szállított fájl egyik szakaszt sem
+használja, tehát élő mintaadat nincs. **A PicasaPy-t nem érinti**: nálunk
+nincs bundle-fogalom.
+
+#### 3.1.4 PicasaPy-leképezés
+
+A szkennerben a két illesztési mód külön marad (a PicasaPy-ban: `scanner/name_filters.py`,
+#1169): a `directory_filters` kizárólag mappaneveket hasonlít teljes
+egyezéssel, a `path_prefix_filters` pedig teljes útvonalakat vizsgál
+komponenshatáros előtaggal. Így a Linuxos alapértelmezések (`~/.cache`,
+`~/.local/share/Trash`, `/proc`, `/sys`, `/usr`) nem tesznek kizárttá egy
+mással megegyező nevű, de másutt lévő valódi fotómappát.
+
+A Picasa beégetett `thumbs`, `RECYCLER`, `Originals` és `.picasaoriginals`
+nevei a névlistában vannak. A hatszakaszos modell a két
+`BundleFilters-*` szakaszt is tárolja, de ezekhez nincs PicasaPy-beli
+bundle-viselkedés, ezért egyelőre nem befolyásolják a bejárást.
+
+### 3.2 `fliprtl.txt` - RTL-tükrözési lista
+
+*Forrás: `compose_mail.tre:143` (`compose_mail/rtl_icon`).*
+
+Sima szöveges lista, soronként egy ikon-azonosító (pl. `arrows/right`,
+`globalbuttons/left_p`, `compose_mail/rtl_icon`). Ezek azok a `respack.yt`-beli
+ikon-nevek, amelyeket a UI **jobbról-balra (RTL) nyelvi módban** (arab, héber
+stb.) vízszintesen tükrözve kell megjeleníteni - tipikusan navigációs
+nyilak és irányfüggő ikonok. ~150+ bejegyzés.
+
+### 3.3 `winedisable.txt` - funkció-letiltási lista Wine alatt
+
+Sima szöveges lista, soronként egy szám (pl. `40225`, `40192`, …) -
+feltehetően belső erőforrás-/parancs-azonosítók (menüpont- vagy
+funkció-ID-k), amelyeket a program **letilt, ha Wine alatt fut** (Linuxon/
+macOS-en, natív Windows API hiányában). Ez közvetve megerősíti, hogy a
+Picasa fejlesztői tudatosan számoltak a Wine-kompatibilitással - ami a
+PicasaPy "Linux-first" célkitűzését történeti szempontból alátámasztja.
+
+### 3.4 `respack.yt` - bináris erőforráscsomag → **MEGFEJTVE (2026-08-06)**
+
+`runtime/respack.yt` (3,7 MB) és `runtime/slingshot/respack.yt` (372 KB)
+saját, dokumentálatlan bináris formátum volt - **azóta teljesen
+visszafejtve**, 2769/2769 rétegen hibátlan kicsomagolással.
+
+Teljes leírás: **[`picasa-respack-format.md`](picasa-respack-format.md)**;
+kicsomagoló: a PicasaPy-ban: `tools/picasa/respack.py`.
+
+Röviden: névindex a fájl végén (`uint32` eltolás a 0. bájton), rekordonként
+13 bájtos fejléc (`int16` határoló doboz + kódolásbájt), az adat vagy tömör
+BGRA-kitöltés, vagy **sorhatároktól független RLE** `(darab, B, G, R, A)`
+ötösökkel. A korábbi összefoglaló itt is tévesen RGBA-sorrendet írt; a
+helyesbítés részletei a `picasa-respack-format.md` 3.2 szakaszában vannak. A
+csomag **2909 bejegyzést** tartalmaz: 2769 rajzi réteget (ezek adják a
+`.pbf` gombfájlok `src="runtime"` és a `fliprtl.txt` ikonneveit) és
+**140 `.tre` UI-elrendezés-forrásfájlt** - vagyis a Picasa fő ablakának és
+szerkesztőjének teljes elrendezés-forráskódját.
+
+### 3.5 `.ytf` fájlok - saját betűtípus-formátum
+
+A `runtime/*.ytf` fájlok (pl. `HelveticaNeue Condensed-20-1.000000-400-0.ytf`)
+**nem** szabványos TrueType/OpenType fájlok - a `file` eszköz nem ismeri fel
+őket (egy kivétellel "GLS_BINARY_LSB_FIRST" jelzést ad, ami egy általános
+bináris-szerializációs jelzőre utal, nem betűtípus-specifikus). A fájlnév
+maga kódolja a paramétereket: `<családnév>-<méret>-<skálázás>-<súly>-<stílus>.ytf`
+(pl. `Praxis Semi Bold-Heavy-14-1.000000-700-0.ytf` = 14 pt, 1.0 skála,
+700 = bold súly, 0 = normál stílus). Ez arra utal, hogy a Picasa **előre
+renderelt, fix méretű raszter- vagy útvonal-glyph-gyorsítótárat** tárol
+fájlonként egy adott betűtípus/méret/súly kombinációhoz (feltehetően a
+saját `.fen` UI-renderelő motorjához, GLS = "Google/Generic Layout System"
+jellegű belső könyvtár). Nem használható közvetlenül Qt/QML alatt - a
+PicasaPy-nak natív rendszerbetűtípusokat vagy szabvány TTF/OTF fájlokat kell
+használnia helyette.
+
+#### A fejléc megfejtve
+
+A korábbi „nem tudjuk, mi van benne" álláspont **túl óvatos volt**: a fejléc
+egyszerű, little-endian `uint32` mezőkből áll, és minden mezője
+**visszaellenőrizhető a fájlnévből** - ez adja a megfejtés bizonyítékát.
+
+| eltolás | típus | jelentés | ellenőrzés |
+|---|---|---|---|
+| `0x00` | u32 | `100` - formátumjelző (mind a 12 fájlban azonos) | - |
+| `0x04` | u32 | **pontméret** | = a fájlnév mérete (11/12/13/14/16/18/20/28) ✅ |
+| `0x08` | u32 | **súly** | = a fájlnév súlya (400 / 700) ✅ |
+| `0x0c` | u32 | **dőlt** (0 = nem) | = a fájlnév utolsó mezője ✅ |
+| `0x10` | u32 | 3-6, a mérettel nő (sorköz/alávágás?) | - |
+| `0x14` | f32 | **skála** (`1.0`) | = a fájlnév `1.000000` mezője ✅ |
+| `0x18` | u32 | eltolás a fájlon belül (mindig < fájlméret) | 44092 / 87722 / 164870 ✅ |
+| `0x1c` | u32 | `256` - a glyph-tábla mérete | - |
+| `0x20` | u32 | `256` | - |
+| `0x24` | u32 | családfüggő (125 / 173) - a két HelveticaNeue-változatnál azonos | - |
+| `0x28` | u32 | **a családnév hossza** | = a rákövetkező sztring hossza, bájtra ✅ |
+| `0x2c` | bájtok | **a családnév** (`"Praxis Semi Bold/Heavy"`, `"HelveticaNeue MediumCond"`) | - |
+
+#### ⛔ ÖNHELYESBÍTÉS (2026-09-12, #2943): a név utáni tábla KERNING-PÁROK táblája
+
+A szakasz korábban azt írta, hogy a név után „4 × `int16` rekordok" táblája
+következik, és ezt egy **glyph-atlasz** koordinátáinak vélte. **A tagolás
+rossz volt.** A rekord nem négy `int16`, hanem:
+
+| eltolás | típus | jelentés |
+|---|---|---|
+| `+0` | u16 | a **bal** karakter kódja |
+| `+2` | u16 | a **jobb** karakter kódja |
+| `+4` | **i32** | az alávágás (kerning) értéke, képpontban |
+
+A korábbi példa így olvasva: `(98, 44, -2, -1)` valójában
+`'b'` · `','` · **-2** - egy alávágási pár, nem atlasz-koordináta.
+
+**A bizonyíték a párok TARTALMA.** A `Praxis Semi Bold/Heavy-12-700`
+tábla eleje nyers bájtokban:
+
+```
+56 00  69 00  ff ff ff ff      'V' 'i'  -1
+79 00  2c 00  fd ff ff ff      'y' ','  -3
+74 00  66 00  ff ff ff ff      't' 'f'  -1
+57 00  65 00  ff ff ff ff      'W' 'e'  -1
+31 00  31 00  fe ff ff ff      '1' '1'  -2
+```
+
+Ezek a tipográfia **klasszikus alávágási párjai** (`Vi`, `y,`, `We`, `V,`,
+`TA`, `Wa`, `td`, `y.`, `OV`, `py`) - véletlen bájtcsoportosítás ilyet nem
+ad. A tábla a névtől (`0x2c + névhossz`) kezdődik.
+
+**Mért darabszámok** (a pásztázás ott áll meg, ahol a bájtok már nem
+karakterpárnak látszanak - ez a szám tehát **alsó korlát**):
+
+| fájl | a tábla | pár |
+|---|---|---:|
+| `Praxis Semi Bold-Heavy-12…700` | `0x42`-`0x3ea` | **117** |
+| `Praxis Semi Bold-Heavy-18…700` | `0x42`-`0xe02` | **440** |
+
+*Következtetés, nem mérés:* a nagyobb fokozat több párt hordoz,
+valószínűleg mert kis méretnél sok alávágás egész képpontra nullára
+kerekedik, és kimarad a táblából.
+
+~~⚠️ **Ami továbbra sem megfejtett:** a karakterenkénti előrelépés (advance).~~
+**ELAVULT JELÖLÉS (2026-09-18, #2943):** az `advance`-vektor a betöltőből
+kiolvasva megvan; a teljes, visszakereshető lelet a 3.5 következő szakaszában
+áll. A korábbi nyitott állítás itt csak történeti nyom, nem maradt nyitott
+kérdés.
+
+**Miért érdekes mégis:** a fájlkészlet önmagában megadja a Picasa felületének
+**hiteles tipográfiáját** - két család (`Praxis Semi Bold/Heavy` és
+`HelveticaNeue Condensed`/`MediumCond`), nyolc méret (11, 12, 13, 14, 16, 18,
+20, 28) és két súly (400, 700). Ez a `constants.ui` betűtípus-hivatkozásainak
+(`alabel_buttfont_win` = Praxis Semi Bold/Heavy 12) a **teljes** listája, és a
+felületi hűséghez a glyph-adatok megfejtése nélkül is használható.
+
+#### A `0x24`-es mező MEGVAN: a kerning-párok DARABSZÁMA (2026-09-15, #2943)
+
+A fejléc-táblában a `0x24` eddig „családfüggő (125 / 173)" megjegyzéssel
+állt. Mérve **mind a 12 fájlon**: a mező **pontosan annyi**, ahány
+érvényes kerning-pár következik a név után.
+
+| fájl | `0x24` | beolvasott pár |
+|---|---:|---:|
+| `HelveticaNeue Condensed-20…400` | 125 | **125** |
+| `HelveticaNeue MediumCond-14…400` | 173 | **173** |
+| `HelveticaNeue MediumCond-28…400` | 173 | **173** |
+| `Praxis Semi Bold-Heavy-*…700` (12/13/14/16) | 117 | **117** |
+| `Praxis Semi Bold-Heavy-*…400` (11/12/14/18) | 440 | **440** |
+| `Praxis LT Regular-18…400` | 437 | 434 + 3 |
+
+*(A `LT Regular` három párja a plauzibilitás-szűrőmön kívül esik - a
+karakterkódjuk a 32…0x2fff tartományon kívüli -, nem ellenpélda.)*
+
+⇒ A korábbi „**alsó korlát**" darabszámok (117 és 440) ezzel **pontos
+értékké** váltak, és a tábla vége `0x2c + névhossz + 8 × [0x24]`.
+
+#### A `0x18`-as farok-blokk - ITT vannak a méretfüggő metrikák
+
+*Mérve: `0x18`-tól a fájl végéig tartó blokk mind a 12 fájlban.*
+
+| megfigyelés | szám |
+|---|---|
+| a blokk **hossza** | `8 × párok + K`, ahol **K = 6209…6216**, családonként állandó |
+| a hossz **pontméretre nem érzékeny** | `MediumCond-14` és `-28`: mindkettő **7600** |
+| a **tartalma** viszont igen | a 14 és 28 pt között **3243 / 7600** bájt eltér |
+| és **skálázódik** | a nem-nulla `u32` értékek **~63 %**-ára `v28 ≈ 2 × v14` |
+
+⇒ **A karakterenkénti előrelépés (advance) ebben a blokkban van** - a
+kétszeres arány mást nem magyarázna.
+
+#### ✅ A `.ytf` SZERKEZETE MEGVAN - a betöltőből olvasva, 12/12 fájlon igazolva (2026-09-16, #2943)
+
+*Nem statisztikából, hanem az OLVASÓBÓL. A `%s-%d-%f-%d-%d.ytf` nevet a
+`FUN_00a48ac0` állítja össze, ott foglal egy **612 bájtos** (`0x264`)
+objektumot, felépíti (`FUN_00a43f80` → vtábla `0x00ce400c` =
+**`ytFontCache`**), majd a `vtbl+0x28` = **`FUN_00a443f0`** metódussal
+értelmezi. Ez a metódus adja meg a szerkezetet.*
+
+**Amit az értelmező olvas** (`0x00a443fd`-től):
+
+| fejléc | mit tesz vele | hova |
+|---|---|---|
+| `0x00` u32 | **`100` kötelező**, különben `3`-as hibakóddal kilép | - |
+| `0x04` u32 | pontméret | `font+0x1c0` **és** `font+0x254` |
+| `0x08` u32 | súly | `font+0x1c4` |
+| `0x0c` **u8** | dőlt | `font+0x1c8` |
+| `0x10` u32 | - | `font+0x1d0` |
+| `0x14` f32 | skála | `font+0x1d4` |
+| `0x18` u32 | **elemszám, 1 bájt/elem** | `font+0x1ec` |
+| `0x1c` u32 | **elemszám, 4 bájt/elem** (`lea ecx,[edi*4]`) | `font+0x1f4` |
+| `0x20` u32 | **elemszám, 20 bájt/elem** (`mov edx,0x14; mul`) | `font+0x1fc` |
+
+⛔ **Két korábbi olvasat megdőlt.** A `0x0c` **egy bájt**, nem `u32`; a `0x18`
+pedig **NEM eltolás**, hanem a bitkép-blob **hossza** (ezért volt „mindig <
+fájlméret"). A 20 bájtos lépték számtani bizonyítéka az értelmező felső
+korlátja: `0x6666666 = 2³² / 20` (`0x00a44732`).
+
+**A 20 bájtos rekord mezőnkénti másolással** (`0x00a447ed`-`0x00a44810`):
+`u32 · u32 · u32 · u32 · u16 · u16`.
+
+##### A fájl elrendezése - és a 4 bájtos maradék
+
+```
+0x00              fejléc (0x2c bájt)
+0x2c              családnév (a 0x28-as hossz szerint)
+0x2c + névhossz   BITKÉP-BLOB              [0x18] bájt
++                 kerning-párok            8 × [0x24] bájt
++                 BITKÉP-ELTOLÁS tábla     4 × [0x1c] = 1024 bájt (256 × u32)
++                 GLYPH-rekordok           20 × [0x20] = 5120 bájt (256 × 20)
++                 4 bájt lezárás
+= fájlméret
+```
+
+**Mind a 12 fájlon a maradék pontosan 4 bájt**, és az eltolás-tábla
+mindenhol `0`-ról indul, a maximuma a blob hosszán belül marad - vagyis a
+tábla a blobba mutat. Ez a korábbi „`K = 6209…6216`, nem osztható 256-tal"
+megfigyelés magyarázata: `1024 + 5120 = 6144`, a maradék a név és a fejléc.
+
+##### A rekord mezői - mérve (14 vs. 28 pt: minden mező kétszerez)
+
+| eltolás | típus | jelentés | példa (Praxis 14 pt, w700) |
+|---|---|---|---|
+| `+0x00` | u32 | a bitkép **szélessége** | `A` = 33, `i` = 7, szóköz = 1 |
+| `+0x04` | u32 | a bitkép **magassága** | 35 (a szóköznél 1) |
+| `+0x08` | u32 | **bal oldali térköz** (a keskeny glifeknél pozitív) | `i` = 3, `A` = 0 |
+| `+0x0c` | u32 | magasság-ismétlés (a szóköznél **0**) | 35 / 0 |
+| **`+0x10`** | **u16** | **ADVANCE** - a karakterenkénti előrelépés | `A` = 33, `i` = 13, szóköz = 13 |
+| `+0x12` | u16 | mindenhol 0 | - |
+
+A `MediumCond` 14 → 28 pt átmenetben mind az öt nem-nulla mező mediánja
+**2,000…2,038** - ez igazolja, hogy a rekord a pontmérettel skálázódó
+metrika, nem szemét.
+
+##### Szélesség-vektor - a 12 fájl advance-átlaga
+
+| család | pt | súly | átlagos advance | advance / pt |
+|---|---:|---:|---:|---:|
+| HelveticaNeue MediumCond | 14 | 400 | 22,29 | **1,592** |
+| HelveticaNeue MediumCond | 28 | 400 | 44,48 | **1,588** |
+| HelveticaNeue Condensed | 20 | 400 | 31,54 | **1,577** |
+| Praxis LT Regular | 18 | 400 | 34,83 | **1,935** |
+| Praxis Semi Bold/Heavy | 11…18 | 400/700 | 21,66…36,68 | **1,946…2,038** |
+
+⇒ A `advance/pt` **családonként állandó** (±0,03), tehát a vektor közvetlenül
+összevethető bármely szabad családdal.
+
+*Bizonyítottsági fok: **megerősített** - az értelmező diszasszemblálva
+(címekkel), és a szerkezet mind a 12 szállított fájlon bájtra zár.*
+
+⛔ **De NEM egyenletes tábla.** A vizsgált rekordszélességek
+(4 · 5 · 10 · 19 · 20 · 25 · 38 · 50 `u32`) **egyike sem** ad oszloponként
+tiszta skálázást: mindegyik ~60 % körül marad, és sok érték
+`0xFFFFFFFF`-ként olvasva `-1`, tehát a blokkban **előjeles és
+szentinel mezők keverednek**. A `MediumCond` farka 1900 `u32`, ami
+**nem osztható 256-tal**, tehát a blokk nem 256 glyph fix rekordja sem.
+
+⛔ **A farok eleje NEM a kerning-tábla másolata** (bájtra összevetve mind
+a 12 fájlon) - a `8 × párok` tag tehát méret-egybeesés vagy egy MÁS,
+páronkénti 8 bájtos szerkezet, nem ugyanaz az adat.
+
+#### A következő gépi lépés - megnevezve
+
+Nem újabb vak statisztika, hanem **az olvasó**: a `%s-%d-%f-%d-%d.ytf`
+fájlnév-formátumot a **`0x00a48770`** és a **`0x00a48ac0`** használja; az
+egyik a betöltő. Abból derül ki, hogyan lépked a program a farok-blokkon -
+és vele az advance-mező helye.
+
+*Bizonyítottsági fok: **megerősített** a `0x24` jelentésére (12 fájl) és a
+farok hosszképletére · **erős** arra, hogy a metrikák a farokban vannak (a
+kétszeres skálázás) · **cáfolt**, hogy a farok egyenletes rekordtábla.*
+
+#### ✅ Az `advance`-vektor kiolvasva, a négy jelölt mérve (2026-09-18, #2943)
+
+A korábbi „a farokban van” erős következtetést most a **betöltő és a valódi
+telepítőfájl** zárja le. A Picasa 3.9.141.259 telepítőből statikusan
+kicsomagolt `Picasa3.exe` SHA-256-a
+`644b7bec89a2e4d57d119d15aa36af1df12a4c3547b692bc0462af35a93ddc96` - ez
+azonos a kutatási index binárisával. Az index célzott lekérdezései:
+
+| cím | index-lelet |
+|---|---|
+| `0x00a443f0` (`FUN_00a443f0`) | 2501 bájt; az értelmező, amely a három elemszámot felhasználja |
+| `0x00a48770` (`FUN_00a48770`) | 72 bájt; a `%s-%d-%f-%d-%d.ytf` fájlnév hivatkozója |
+| `0x00a48ac0` (`FUN_00a48ac0`) | 840 bájt; a betöltési út hivatkozója |
+| `0x00a487c0 → 0x00a48770` | 1 közvetlen hívás |
+| `0x00a48e10 → 0x00a48ac0` | 1 közvetlen hívás |
+
+A `FUN_00a443f0` olvasási útja a 20 bájtos glyph-rekord **`+0x10` mezőjét
+u16-ként** értelmezi; ez az `advance`. A 12 szállított `.ytf` fájlon végzett
+bájt-szintű validációban mind a 12 rekordkészlet `256` glyph-rekordot,
+`256` elemű eltolástáblát és pontosan `4` bájtos fájlvégi maradékot adott.
+A 14 pontos Praxis-minták közvetlen kontrolljai:
+
+| fájl | súly | `A` advance | `i` advance | szóköz advance |
+|---|---:|---:|---:|---:|
+| `Praxis Semi Bold-Heavy-14-…-400-0.ytf` | 400 | 31 | 14 | 12 |
+| `Praxis Semi Bold-Heavy-14-…-700-0.ytf` | 700 | 33 | 13 | 13 |
+
+**Mérés forrása:** a Picasa saját `.ytf` rekordja (`+0x10`), a jelölt TTF-ek
+`hmtx` advance-a és `head.unitsPerEm` mezője. A négy jelöltből valódi, rögzített
+TTF-et mértem; a forrásfájlok SHA-256-a:
+
+| jelölt | regular | bold |
+|---|---|---|
+| Source Sans 3 | `b6f2cc8d9905e97b5cd7a294367bb529814385f299fb23057060394cbd6bbffb` | `e53acf3eb590b2ff183288401da9f3b829703e9716bc88e0da821e3a2ce9c175` |
+| Open Sans | `47ed1cfaa7ffca04a04ab850b2938fd52c09d1b44cfa3e2980878e166b0cbd87` | `75367e6da7d914eaed87883ba51b2a2b5816b5cdbb39f96ec5c81a5b032bfd5a` |
+| Fira Sans | `848a44b912bc756fe5b1be7a0a82e58b38da321ce29970d69d38dd864790c8c5` | `ecaef073dcc8ae30830774ea1e456392b7ca618e4d4c3b45a9869cc70eeb71b6` |
+| Archivo Narrow | `8f870c49fabce4a26512907ce19f55d78324a0b13b43b66ee2bb2d64356d5efa` | `ae9051970e75e3e260f15d103bb7642271bdb6b36b78e7604d588582cea7948e` |
+
+A TTF-ek forráslekérése egyetlen, rögzített Google Fonts CSS-kérésből történt:
+`https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;700&family=Open+Sans:wght@400;700&family=Fira+Sans:wght@400;700&family=Archivo+Narrow:wght@400;700&display=swap`.
+A fenti SHA-256-értékek a CSS által adott konkrét TTF-fájlokat pinelik; a
+mérésben nem használtam a rendszer automatikus helyettesítőjét.
+A **72 leggyakoribb, 0…255 közötti** karakteren végzett, saját átlagukkal
+normalizált alak-összevetés eredménye (MAE; pontos mérés, nem illesztett
+szabad paraméter):
+
+| Picasa-minta | Source Sans 3 | Open Sans | Fira Sans | Archivo Narrow |
+|---|---:|---:|---:|---:|
+| Praxis 14 / 400, a regular jelölt | 6,086% | **5,127%** | 6,207% | 9,569% |
+| Praxis 14 / 700, a bold jelölt | 6,016% | 7,917% | 8,816% | **1,285%** |
+
+A karakterkészlet a mérésben pontosan: ` é t a l s n o z k é á r i m g p b d v . y j h f í ö ó u c % A ; & - K F \\ 1 E ) M ü $ , S P 0 ( : x T 2 N G ? D B / ú H L C V I q 3 R 4 J # O` - a kezdő szóköz a szóköz karakter.
+
+⛔ **A kompozit következtetés fontos:** a `.ytf`-vektor most már pontosan
+kiolvasható, de a normalizált alakmérés önmagában **nem ad egyetlen, súlytól
+független győztest**: a 400-as minta Open Sans, a 700-as minta Archivo Narrow
+felé áll. Az Archivo Narrow eredményét ezért nem szabad úgy olvasni, hogy a
+Picasa felülete keskeny betűt használ; a normalizálás éppen az abszolút
+kondenzáltságot veszi ki. A `Theme.uiFamily` / `Theme.condensedFamily` ma
+üres, míg az alkalmazás globális betűje mérve `Open Sans` (a PicasaPy-ban: `application.py`
+593-613), és a két Theme-tokennek jelenleg nincs fogyasztója. **A `.ytf`-
+mechanizmus megfejtve, de a Theme-tokenek terméki bekötésének hatása NINCS
+külön mérve.**
+
+**Bizalmi fok:** a rekordmező és a 12 fájl szerkezete **megerősített**
+(betöltő + bájtra záró minták); a négy jelölt glyph-alakmérése
+**megerősített** (rögzített TTF-hash, 72 közös karakter); egyetlen Theme-
+család kiválasztása pusztán ebből a normalizált vektorból **elvetett
+hipotézis**, mert a két súly más jelöltet ad. A jelenlegi Open Sans
+termékválasztás önálló, korábbi képpontmérésből származik; ezt a bináris-lelet
+nem diagnosztizálja újra.
+
+### 3.6 A felületi feliratok metrikai szerződése - Praxis + GDI (2026-09-18, #3337)
+
+A felületi „Windowsos betű” nem a rendszer véletlen alapértelmezettje. A
+`fontmacros_win.tre` leggyakoribb gombmakrója (`m_buttonfontC`) ezt rögzíti:
+
+| tulajdonság | eredeti érték |
+|---|---|
+| család | `Praxis Semi Bold/Heavy` |
+| pontméret | `12` |
+| súly | `400` |
+| betűköz | `-1` képpont |
+| sorköz | `10` képpont |
+| igazítás | középre |
+| belső margó | bal `5`, jobb `5` képpont |
+
+A másik gyakori felületi makró, az `m_displayfont12`, ugyanazt a családot,
+méretet, súlyt és `-1`-es betűközt használja; a `m_displayfont14` ugyanezt a
+családot `14` pontos mérettel adja. A `constants.ui` külön is ezt nevezi meg:
+`alabel_buttfont_win = Praxis Semi Bold/Heavy, 12`.
+
+#### A szélesség nem szemre, hanem GDI-metrikával dől el
+
+A bináris importtáblája a tényleges mérési utakat is tartalmazza:
+
+| import | hívófüggvény-cím |
+|---|---|
+| `CreateFontIndirectA` | `0x008637f0` |
+| `GetTextExtentExPointA` | `0x008637f0`, `0x008262d0` |
+| `GetTextExtentPoint32A` | `0x008d7140` |
+| `GetTextExtentPoint32W` | `0x008d8ce0`, `0x009b0ff0` |
+| `GetTextMetricsA` | `0x008d7140` |
+
+A szállított `.ytf` glyph-rekord `+0x10` mezője a karakterenkénti
+`advance`. Közvetlen kontroll a 14 pontos Praxis-fájlokon: az `A` advance
+`31` (400-as súly) és `33` (700-as súly), az `i` `14` és `13`, a szóköz
+`12` és `13`. Ezek a számok a fontrekordból olvasott értékek, nem közös
+képernyő-skálázásból származó becslések.
+
+#### Eredeti / nálunk / teendő
+
+| | Eredeti, mérve | PicasaPy, mérve | Teendő |
+|---|---|---|---|
+| gombfelirat | `Praxis Semi Bold/Heavy`, 12 pt, 400, tracking `-1`, leading `10`, 5-5 px belső margó | az alkalmazás globális családja `Open Sans` (a PicasaPy-ban: `application.py:594-637`); a `PanelButton` Qt `FontMetrics`-szel méretez és `letterSpacing=-1`-et állít | az érintett feliratokat a saját eredeti makrójukkal és tényleges dobozukkal kell párosítani |
+| szélesség | GDI `GetTextExtentExPointA` / `GetTextExtentPoint32A/W`, kiegészítve a `.ytf` advance-vektorral | QML/Qt platformmetrika | a túlcsordulást karakter- vagy feliratszinten kell mérni, nem közös screenshot-skálázással |
+| családtoken | `alabel_buttfont_win = Praxis Semi Bold/Heavy, 12`; `m_displayfont12` ugyanez a család | `Theme.uiFamily` és `Theme.condensedFamily` üres (a PicasaPy-ban: `Theme.qml:498-499`) | a családválasztás hatását külön, mért UI-kimeneten kell igazolni |
+
+**Bizonyítottsági fok: megerősített** a Praxis/GDI szerződésre és a `.ytf`
+`advance` jelentésére. A konkrét feliratok egyenkénti `.tre`-makró-hozzárendelése
+külön fejlesztői átadás; erre a bináris lelet nem becsül nevet vagy dobozméretet.
+
+**Nyitott kérdések mérlege - e kör saját kérdései:** 0 nyílt · 1 lezárva ·
+0 blokkolt · 0 hatókörön kívül · 0 „csak nyitva”. A leletből következő
+terméki teendő a #3337 jegyen áll.
+
+### 3.7 Egyéb runtime-fájlok - rövid jegyzetek
+
+| Fájl | Típus | Megjegyzés |
+|---|---|---|
+| `missing.jpg` | JPEG (96×72) | Helyettesítő kép hiányzó/nem elérhető fájlokhoz (pl. levált hálózati meghajtó esetén). |
+| `favicon.ico` | Windows ICO, 9 méret/színmélység-variáns (48×48…, 16 szín, 4 bpp) | A beépített webnézet/HTML-export favicon-ja. |
+| `bezier.txt` | Szöveges, numerikus | 4 sornyi Bézier-görbe vezérlőpont (x, y, súly hármasok), feltehetően UI-animációs "easing" görbék definíciója; több alternatív görbekészlet ki van kommentezve (`#`). |
+| `defaults.ini` | Szöveges INI | `[LifeScapeUpdater]` szekció: frissítés-ellenőrző URL-ek (`updates.picasasoftware.com`), olvasnivaló blog-feed, nyomtató-szolgáltatás URL-ek; `[Track]` szekció: `name=public` (kiadási csatorna/frissítési sáv jelzése). |
+| `constants.ui` | Szöveges INI (`[Picasa2]` szekció) | UI-elrendezési konstansok (méretek, színek hexában, betűtípus-nevek/méretek) az album-lista, album-címke, thumbnail-kijelölés és "publish to web" UI-elemekhez - platform-specifikus variánsokkal (`_win`/`_mac` szuffix). |
+| `properties.xml` | XML | A "Kép tulajdonságai" panel mezőlistája (FilePath, EXIF-mezők, GPS, Keywords, Regions/arcok, XMP stb.) - néhány mező `hide="1"` attribútummal rejtett/belső. |
+| `geotag.kml` | XML (Google Earth KML sablon) | Placeholder-tokenekkel (`%<FOR_EACH_IMAGE>%`, `%UID%`, `%IMAGE_ROLL%`, `$[description]`) - a geotag export ebből generálja a fényképeket a Google Earth glóbuszra helyező `.kml` fájlt. |
+| `xhairs.png`, `splashbk.jpg`, `picasaweb_logo.gif` | Kép | UI-grafikák (célkereszt geotaghez, indítóképernyő-háttér, Picasa Webalbumok logó). |
+| `pwconfirm.html` | HTML | Picasa Webalbumok-feltöltés megerősítő beépített weboldala. |
+
+---
+
+## 4. Plugin-ök (`plugins/`)
+
+| Elem | Valódi típus | Funkció |
+|---|---|---|
+| `Red.dll` | Windows PE32 DLL | **Nem csak vörösszem: ez a Picasa teljes gépi látás motorja.** A vörösszem-osztályok (`vrd_RedEyeCorrector`/`Detector`) mellett a szimbólumtábla tartalmazza a **`CNevenVisionDLL::IFace`** interfészt és egy teljes arcdetektáló készletet: `vbf_Cascade`, `vbf_BoostedClassifier` (`enn_BoostedClassifier`), `vde_LocalPoseDetector`, `vde_LocalDetectorSequence`, `erf_SlantDetector`, `vcf_PrecisionDetector`, `epi_PoseEst` (póz-becslés), `enn_MlpNet` (többrétegű perceptron). Vagyis a Picasa arcfelismerése a Google által **2006-ban felvásárolt Neven Vision** motorján fut, és ugyanez a DLL adja a vörösszem-detektálást is. |
+| `red.cfg` | **Bináris adat**, NEM szöveges konfiguráció a fájlnév ellenére | 2,28 MB. A `Red.dll` futásidőben betöltött **tanított modellje** - boosted cascade detektorok + MLP-súlyok. Ez magyarázza az `.exe`-ben talált arcadat-formátumot is: `conf(%.3f),pan(%.3f),leye(%.3f,%.3f),reye(%.3f,%.3f),mouth(%.3f,%.3f)` - megbízhatóság, fejfordulás (pán-szög) és három arcpont (bal/jobb szem, száj), pontosan az a kimenet, amit egy Neven Vision-féle póz- és jellegzetespont-detektor ad. Ld. `picasa-ini-format.md`. |
+| `ytITivo.yti` | Windows PE32 DLL (a `.yti` kiterjesztés ellenére futtatható kód) | **TiVo Desktop export plugin.** Stringek: `SOFTWARE\TiVo\Desktop\Beacon`, `TiVo Desktop\Photos\`, "Tivo Export" - képek exportálása/megosztása egy helyi TiVo Desktop-kiszolgáló felé (házimozi-integráció, kb. 2008-2015 korabeli funkció). |
+| `CDVDR/CDVDR.yti` | Windows PE32 DLL | **CD/DVD-R (lemezre írás) export plugin** - a fájlnév ("CD/DVD-Recordable") és a szimbólum (`ytICDVDR`) alapján a "Mentés CD/DVD-re" funkciót valósítja meg (ez hívja elő a `cdautorun/` alatti autorun-alkalmazásokat, ld. 5. pont). |
+| `expwebsites/expwebsites.yti` | Windows PE32 DLL, **beágyazott XML/i18n string-tábla** | **JAVÍTVA (2026-08-07):** NEM a `web/templates/` HTML-exportot vezérli, hanem egy **általános, futásidőben letöltött XML-protokollal irányított partner-feltöltő motor** (fotónyomtató-oldalak és webalbum-partnerek közös kerete). Bizonyíték: `CUploadProgram::StartSite/Login/XMLDownloadFailed`, „Photo Printer Site:", `XmlOverride`/`UrlOverride` felülbíráló kulcsok, album-név-validáció, kvóta- és cookie-ellenőrzés, telemetria-végpont. A HTML-sablonrendszert a főprogram maga dolgozza fel. |
+| `expwebsites/expwebsites.psd` | Adobe Photoshop kép (32×31, RGBA) | A plugin ikonja/UI-grafikája. |
+
+Mind a négy `.yti` fájl azonos `.pdb` build-útvonal-mintát hordoz
+(`…\picasa39-stable\build\plugins\…`), tehát ezek a Picasa build-rendszerén
+belül külön fordított modulok, amelyeket a főprogram futásidőben dinamikusan
+tölt be - ez egy klasszikus **plugin-DLL architektúra**, csak a kiterjesztés
+(`.yti` = "YT Interface"? - a `.yt`/`respack.yt` névkonvencióhoz hasonló
+belső jelölés) van elrejtve a szokásos `.dll`-hez képest.
+
+---
+
+## 5. `cdautorun/` - CD-lemez autorun és Mac visszaállító alkalmazások
+
+Ez a mappa a "Mentés CD/DVD-re" funkció kimenetének kiegészítője: amikor a
+Picasa fényképeket éget lemezre, ezt a mappát is ráírja, hogy a lemez
+Windowson autorun-nal, Mac OS X-en pedig egy natív `.app`-pal legyen
+megnyitható/visszaállítható.
+
+| Elem | Típus | Szerep |
+|---|---|---|
+| `PicasaCD.exe`, `PicasaRestore.exe` | Windows PE32 GUI EXE | Autorun diavetítő ill. "állítsd vissza a képeket a lemezről" segédprogram. |
+| `Picasa CD Slideshow.app/`, `Picasa Restore.app/` | macOS alkalmazáscsomag (`Info.plist` + `PkgInfo` + `Resources`/`Frameworks`/`MacOS`) | Ugyanaz macOS-en. A `Info.plist` az alkalmazást "Picasa 2.0.5.322 Labs, © 2007-2009 Google Inc."-ként azonosítja - vagyis ez a két Mac-alkalmazás **jóval régebbi build**, mint a Picasa 3.9 fő programja, és változatlanul öröklődött verzióról verzióra. |
+| `cdgo.ui` | **Valójában Adobe Photoshop (.psd) fájl**, 800×600 RGB, `.ui` kiterjesztéssel elrejtve | Az autorun-képernyő grafikai háttere/layoutja - a `.ui` kiterjesztés itt félrevezető, tartalma szerint kép, nem UI-leíró. |
+| `cdgo.tre` | **Sima szöveges UI-elrendezési fájl** (nem bináris) | Egy `#define`-alapú makrónyelv (`m_offsetLT`, `m_centerX`, `m_hidden` stb.), majd elem-per-elem `XConstraint`/`YConstraint`/`MaintainOffset`/`Property` direktívák (pl. `cdgo/grad: root`, `XConstraint 0, -0.1, 0`). Ez a Picasa saját, rugalmas (relatív/horgonyzott) UI-elrendezés-leíró nyelve - hasonló családba tartozik, mint a `.fen` dialógusformátum, de kifejezetten a `cdgo` (CD-autorun-képernyő) UI-fájának pozicionálására. A fájl végén `#i18n--` jelzés látható (a további tartalom valószínűleg nyelvi feliratokat vezet be - ezt a terminológiai ügynök dolgozza fel). |
+| `Download Picasa.url` | Windows internetes parancsikon (INI-szerű) | `URL=http://www.google.com/picasa` - egyszerű böngésző-hivatkozás a lemezről. |
+| (a `hu.lproj` és társai a `.app` csomagokon belül) | macOS lokalizációs `.xml`/`.strings` | Külön ügynök dolgozza fel (terminológia). |
+
+### 5.1 A `.lproj` lokalizáció - 37 nyelv, sima szövegben
+
+A `.app`-csomagokban nyelvenként egy `i18n/` mappa van, benne **egyszerű,
+UTF-8 XML** (nem `.strings`, a kiterjesztés ellenére):
+
+| fájl | tartalom |
+|---|---|
+| `cdgo.xml` | `<tooltips>` / `<action type= target=>` - a felületi feliratok |
+| `cdgo_stringres.xml` | `<resources>` / `<stringres id=>` - 88 sztring |
+| `cdgo_resexport.xml` | egyetlen `<Win32Res/>` elem (üres) |
+
+**Ez a séma bájtra ugyanaz, mint a `Picasa3i18n.dll`-be ágyazott két
+erőforrás-fajta** - vagyis a DLL megfejtését egy **független, sima szöveges
+forrás igazolja vissza.**
+
+A magyar készlet néhány közvetlenül hasznosítható eleme:
+
+| azonosító | magyar érték | megjegyzés |
+|---|---|---|
+| `il_FormatBigB` … `TB` | `%.0f bájt`, `%.0f KB`, `%.1f MB`, `%.1f GB` | a fájlméret-kiírás hiteles alakja: **„bájt"** kisbetűvel, MB-tól egy tizedes |
+| `WinSystemPaths::MyPictures` | `Képek` | |
+| `WinSystemPaths::MyVideos` | `Videók` | de a Mac-változat `Mozgófilmek` - a Picasa **önmagával sem volt következetes** |
+| `CDGo::advanceslide` | `%1$s (%3$d / %2$d)` | a diavetítés állapotsora |
+| `ytFileUtils::CopyProgress` | `%2$s / %1$s` | másolás-folyamat |
+
+> **Figyelemre méltó:** a dátum/idő formátumok a magyar fájlban **nincsenek
+> lefordítva** - `ytDateTime::Format1 = "%1$s %2$d, %3$d"` (hónap nap, év) és
+> `Format3 = "%1$d:%2$02d:%3$02d %4$cM"` (12 órás, AM/PM). Ez az **angol**
+> sorrend és óraformátum. A PicasaPy-ban ezt **nem kell másolni** - a helyes
+> magyar alak (`ÉÉÉÉ. hónap N.`, 24 órás idő) a jó; ezt tudatos eltérésként
+> érdemes kezelni, nem hűtlenségként.
+
+---
+
+## 6. `licenses/` - harmadik féltől származó komponensek
+
+A mappa mindössze **két** licencfájlt tartalmaz - ez a teljes, hivatalosan
+elismert harmadik féltől származó függőséglista a Picasa 3.9-ben:
+
+| Fájl | Komponens | Licenc | Szerepe a Picasában |
+|---|---|---|---|
+| `adobe_xmp_toolkit.txt` | **Adobe XMP Toolkit** (© 1999-2010 Adobe Systems) | BSD License | XMP-metaadatok (Adobe-szabványos, RDF/XML-alapú képmetaadat) olvasása/írása a képfájlokban - ez magyarázza, hogy a Picasa miért tud XMP-t exportálni/importálni a `.picasa.ini` mellett. |
+| `lcms.txt` | **Little CMS (lcms)**, © 1998-2010 Marti Maria Saguer | MIT-szerű engedékeny licenc | Színprofil-kezelés / ICC-színkonverzió (a `properties.xml`-ben is szereplő `ICC` mező feldolgozásához). |
+
+**Mérnöktörténeti érdekesség:** a Picasa csapata mindössze két nyílt forráskódú
+függőséget vállalt fel hivatalosan (a többi, pl. a saját `e*_`/`vrd_`
+képfeldolgozó keretrendszer és a betűtípus-/UI-motor, zárt, házon belüli
+kód) - ez arra utal, hogy a metaadat- (XMP) és színkezelés (lcms) volt az
+egyetlen terület, ahol tudatosan iparági szabványkönyvtárra támaszkodtak,
+minden más (képdekódolás, vörösszem-javítás, UI) saját fejlesztés volt. A
+PicasaPy-nál mindkét terület (XMP, ICC-színprofilok) ma is jól lefedett,
+karbantartott Python-könyvtárakkal kiváltható (pl. `python-xmp-toolkit`
+vagy közvetlen XML-kezelés az XMP-hez; `littlecms`/`lcms2` Python-kötések
+vagy `Pillow` beépített ICC-támogatás a színkezeléshez).
+
+---
+
+### 6.1 A licencfájlok mellett: egy harmadik, licenc nélküli komponens
+
+A `licenses/` csak kettőt sorol fel (XMP Toolkit, Little CMS), de a
+`Picasa3.exe` sztringjei egy harmadikat is elárulnak:
+
+```
+dcraw v9.19
+```
+
+A **dcraw** (Dave Coffin nyers-dekódere) közkincs jellegű, ezért nem igényelt
+licencfájlt - de ott van a binárisban, és ez adja a Picasa RAW-támogatását.
+A binárisból kiolvasható a kezelt formátumkészlet:
+
+`.arw` · `.cr2` · `.dng` · `.mrw` · `.nef` · `.orf` · `.pef` · `.raf` ·
+`.rw2` · `.srw` · `.x3f`
+
+valamint tömörítés-változatok („Nikon NEF Compressed", „Sony ARW Compressed",
+„Pentax PEF Compressed"), a `DNG Version:` mező és a
+`Number of raw images: %d` (egy nyers fájl **több** képet is tartalmazhat).
+
+**A színkezelés a Little CMS-en át teljes**: a binárisban ott a leképezési
+szándékok teljes készlete - `Perceptual`, `Relative colorimetric`,
+`Absolute colorimetric`, valamint a „preserving black ink/plane" változatok -,
+továbbá `Embedded ICC profile: %s` és `AdobeRGB 1998 built-in` /
+`AdobeRGB 1998 virtual profile`. A felületen ehhez tartozik a
+„Színkezelés használata (ICC)" kapcsoló (`ui-audit-menus.md`).
+
+Ez a két dolog összetartozik: a nyers fájlban **nincs** beégetett színtér, a
+dekóder nyers RGB-t ad, amit profilozni kell - a Picasa erre használta az
+lcms-t és a beépített AdobeRGB profilt.
+
+**Objektív-adatbázis:** a binárisban **265 objektívnév** van (Canon EF…,
+Sigma, Tamron, Tokina) - a Picasa a MakerNote objektív-azonosítóját emberi
+névre oldotta fel a tulajdonságok panelen.
+
+> **Következmény a PicasaPy-ra (#528):** a PicasaPy-ban: `scanner/filetypes.py` ma
+> felismeri a nyers kiterjesztéseket, de a betöltés `cv2.imdecode`, aminek
+> nincs RAW-dekódere - a nyers fájlok bekerülnek az indexbe, de nem jelenik
+> meg belőlük kép. A dcraw utódja a **LibRaw** (`rawpy`); a bélyegképhez a
+> beágyazott JPEG-előnézet (`extract_thumb`) elég.
+
+---
+
+## 7. Egyéb fájlok - egysoros jegyzetek
+
+| Fájl | Típus | Szerep |
+|---|---|---|
+| `update/LifeScapeUpdater/currentVersion.ini` | Szöveges INI | A telepített build verziószáma (`versionID=3.9.141.259`) és a letöltendő frissítő-csomag neve (`downloadURL=update.exe`) - ezt hasonlítja össze a program a `runtime/defaults.ini`-ben megadott távoli `currentversion.ini`-vel a frissítés-kereséskor. |
+| `i18n/uninstall_*.html` (29 fájl) | Statikus HTML | Az eltávolító (`uninstall.exe`) által megjelenített, nyelvenként lefordított "Biztosan eltávolítod a Picasát?" képernyők (angol alap + `bg, ca, cs, da, de, el, es, fi, fr, hi, hr, hu, id, it, ja, ko, lt, lv, nl, no, pl, pt-BR, ro, ru, sk, sl, sr, sv, th` nyelvi változatok). A `uninstall_hu.html` a magyar verzió. |
+| `MovieThumb.exe` | Windows PE32 GUI EXE | **Videó-bélyegkép KÜLÖN FOLYAMATBAN.** Saját DirectShow-filtergráfot épít (null-renderer + memóriapuffer), a kinyert képkockát beágyazott libjpeg-gel kódolja; a QuickTime-fájlokat is ezen a gráfon át kezeli. Kapcsolói: `/savemovie`, `/playmovie`, `/resamplefile`. **Az elkülönítés oka feltehetően az izoláció**: a kodek-függő gráf-építés összeomolhat, és így nem viszi magával a főprogramot (következtetés, nem string-bizonyíték). |
+| `Picasa3i18n.dll` | Windows PE32 DLL (~26,9 MB - a legnagyobb DLL a csomagban) | A teljes UI-szöveg lokalizációs erőforrás-DLL-je (minden támogatott nyelv string-táblája egy fájlban) - méretéből ítélve ez tartalmazza az összes nyelvi fordítást, amit az `.exe` futásidőben tölt be. |
+| `qtsupport.dll` | Windows PE32 DLL | **Apple QuickTime-híd** - vékony közvetítő réteg (`CQuickTimeInterface`), maga NEM dekódol: dinamikusan betölti és hívja a rendszerre telepített `QuickTime.qts`-t a Component Manageren át. A tényleges dekódolást a `MovieThumb.exe` DirectShow-gráfja végzi. |
+| `npPicasa3.dll` (a gyökérben) | Windows PE32 DLL, NPAPI-bővítmény | **Csak DETEKTÁLÁS.** MIME-típusa `application/x-picasa-detect`; mindössze a három kötelező NPAPI-belépőpontot exportálja, JavaScript-API (`invoke`/`hasMethod`/`NPObject`) NINCS benne. Egyetlen célja, hogy egy weboldal megkérdezhesse: *van-e telepítve Picasa?* |
+
+---
+
+## 7.5 A `Picasa3i18n.dll` lokalizációs erőforrásai - ⚠️ **NÉGY különböző XML-formátum**
+
+A honosítás nem egyetlen nagy táblában él, hanem **panelenként külön XML-erőforrásban**.
+Az erőforrás-leltár szerint **3084 `XMLF` erőforrás** van, 483 névtípusban, 41 nyelven;
+ebből **75 a magyar** (`Rsrc_XMLF_<PANEL>_HU.XML_409`).
+
+### ⚠️ A buktató: a fájlok NÉGY, egymással nem kompatibilis alakot használnak
+
+*Forrás: `foldermgr.tre:5` (`foldermgr/folder_list_label`) · `printoptions.tre:236` (`printoptions/apply`).*
+
+Ez a szakasz azért van itt, mert **egy csak az egyik alakot ismerő feldolgozó
+némán a szöveg ~15%-át találja meg** - hibaüzenet nélkül, látszólag sikeresen.
+
+**A) `<tooltips>` / `<action>` alak** - a `.tre`-vel leírt panelekhez
+(`foldermgr_text`, `printoptionstext`, `peoplepanel_text`, `collagepaneltext`, …):
+
+```xml
+<tooltips>
+ <action type="Label" target="foldermgr/folder_list_label"
+         xmbdesc="Label(foldermgr/folder_list_label)">
+  <xmbtext>Mappalista</xmbtext>
+ </action>
+ <action type="Tooltip" target="printoptions/apply" …>
+```
+
+A `type` értékei: `Label`, `Tooltip`, `Text`, `Text1`…`Text7`, `WebTarget`.
+
+**B) `<resources>` / `<stringres>` alak** - a `.fen`-nel leírt párbeszédekhez
+(`options`, `imageproperties`, `rename`, `offsettime`, `poster`, …):
+
+```xml
+<resources>
+ <stringres id="options/window1.win_title">
+  <xmbtext>Opciók</xmbtext>
+ </stringres>
+</resources>
+```
+
+Itt **nincs `type` attribútum**, és az azonosító `id=`, nem `target=`.
+
+**C) `<Win32Res>` / `<RT_DIALOG>` alak** - a natív Windows-párbeszédekhez
+(csak a `resexport` erőforrásban, 4 párbeszéd: Névjegy, adatbázis-tömörítés,
+replikáció, használati statisztika). Elrendezés-téglalapokat is tartalmaz:
+
+```xml
+<res resid="#145">
+  <dtitle><xmbtext>A Picasa névjegye</xmbtext></dtitle>
+  <dlayout>rect(0 0 435 293)</dlayout>
+  <item itemid="1" itemtype="Button" layout="rect(…)"><xmbtext>OK</xmbtext></item>
+```
+
+### Mennyiségi bizonyíték a buktatóra
+
+| feldolgozó | talált sor |
+|---|---:|
+| csak az **A** alakot ismeri | **784** |
+| **A + B** | **5273** |
+
+A különbség **6,7-szeres**, és az elsőre semmi nem hívja fel a figyelmet: a
+kimenet létezik, értelmes, és minden panelhez tartozik *néhány* sor. A hiba
+csak akkor derül ki, ha valaki egy konkrét párbeszédet (pl. a Beállításokat)
+keres, és nem találja benne.
+
+**Ellenőrző szabály:** kinyerés után nézd meg, van-e **0 soros** erőforrás.
+Ha egy 14 kB-os XML-ből nulla sor jön ki, a formátum nem illeszkedik.
+
+### Kinyerés a helyi DLL-ből
+
+Az erőforrások a `.rsrc` szakaszban vannak; a címet a bináris-index
+`data_symbols` táblája adja, a fájloffszetet a PE-szakasztáblából kell
+számolni (image base `0x10000000`):
+
+```python
+# name, address, size  ←  data_symbols, ahol name GLOB '*_HU.XML_409'
+offset = rawptr + (address - imagebase - virtual_address)
+blob   = dll_bytes[offset : offset + size]        # kész UTF-8 XML
+```
+
+**Eredmény a repóban:** `referencia/i18n-hu/` (75 XML) és
+`referencia/panel-feliratok-hu.tsv` (5273 sor: erőforrás · típus · azonosító ·
+magyar) - mindkettő a privát agent-repóban.
+
+> A `SHORTCUTS.XML` ugyanitt él, és **nem** a fenti három alak egyike: saját
+> `<shortcuts><keymap><item srckey=… ctrl=… shift=… alt=…>` szerkezete van.
+> Ez a negyedik formátum - ezért maradt sokáig észrevétlen (#442).
+
+## 8. Összegzés - mi hasznosítható közvetlenül a PicasaPy-ban
+
+1. **`buttons/*.pbz` formátum** - egyszerűen portolható deklaratív
+   plugin-mechanizmus (ZIP + XML + opcionális PSD-ikon); a `static`/`dynamic`
+   gomb-megkülönböztetés és a `verb`/`param` akció-modell átvehető egy
+   modern (JSON/YAML alapú) gomb-bővítmény rendszerhez.
+2. **A web-export sablonnyelv (2. fejezet)** teljes egészében
+   dokumentált és egyszerű - közvetlenül újraírható Pythonban (saját
+   mini-parser vagy Jinja2-alapú kompatibilitási réteg), és az eredeti
+   6 sablon (`whitebg`, `blackbg`, `greybg`, `whitefrm`, `blackfrm`,
+   `greyfrm`, `xml`) tartalma megőrizhető/áthozható.
+3. **`filters.txt` szemantikája** - **HAT** szakasz (könyvtár/fájl ×
+   kizárás/kivétel + két `BundleFilters`), és a 3.1.2 szerint **két
+   külön teszt**: teljes, kis-nagybetű-független NÉV-egyezés, illetve
+   kis-nagybetű-független ÚTVONAL-ELŐTAG. Az Includes a **sorrend** miatt
+   írja felül a Filters-t. Jegy: **#1169**.
+4. ~~A **`respack.yt` bináris formátum**~~ - **MEGOLDVA** (2026-08-06),
+   ld. [`picasa-respack-format.md`](picasa-respack-format.md): a formátum
+   teljesen dekódolt, az eredeti UI-grafika és a 140 `.tre`
+   elrendezés-forrás kinyerhető. A **`.ytf` betűtípus-formátum** továbbra
+   is dokumentálatlan - de nem is kell: a PicasaPy natív
+   rendszerbetűtípusokkal dolgozik.
+5. **Licenc-lista** (XMP Toolkit, lcms) megerősíti, hogy a PicasaPy-nak
+   ugyanezen a két területen (XMP-metaadat, ICC-színkezelés) kell jól
+   dokumentált, karbantartott Python-könyvtárt választania a
+   kompatibilitáshoz.

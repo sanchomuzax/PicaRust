@@ -1,0 +1,1138 @@
+# A menüsor TELJES leltára a binárisból - 189 tétel, 18 névtér
+
+*2026-08-25. Ez a lap **gépi** leltár: a `stringres-en-hu.tsv` `eMenu*`
+névtereiből származik, nem képernyőképekből.*
+
+> ⚠️ **Miért kellett a képernyőkép-alapú `ui-audit-menus.md` mellé ez is:**
+> az a lap **35 képernyőképből** készült, tehát csak azt látta, ami a
+> tulajdonos gépén, az ő állapotában **meg is jelent**. A szövegtár ezzel
+> szemben **minden** menütételt tartalmaz - a feltételesen megjelenőket, a
+> platformfüggőket és a halottakat is.
+
+## 1. A tizennyolc névtér
+
+A menütételek kulcsa `eMenu<Menü>::ID_<PARANCS>` alakú.
+
+| névtér | tétel | mi ez |
+|---|---:|---|
+| `eMenuView` | 46 | Nézet |
+| `eMenuTools` | 38 | Eszközök |
+| `eMenuFile` | 21 | Fájl |
+| `eMenuPicture` | 18 | Kép |
+| `eMenuLabelFolder` | 14 | Mappa / Album (kontextusfüggő címke) |
+| `eMenuEdit` | 14 | Szerkesztés |
+| `eMenuHelp` | 11 | Súgó |
+| `eMenuCreate` | 8 | Létrehozás |
+| `eMenuCreateMovie` | 3 | **almenü**: Létrehozás → Film |
+| `eMenuViewWin` · `eMenuViewMac` | 3 + 3 | platformfüggő Nézet-tételek |
+| `eMenuFileWin` · `eMenuFileMac` | 2 + 3 | platformfüggő Fájl-tételek |
+| `eMenuCreateWin` · `eMenuCreateMac` | 1 + 1 | platformfüggő |
+| `eMenuPictureWin` · `eMenuPictureMac` | 1 + 1 | platformfüggő |
+| `eMenuHelpMac` | 1 | platformfüggő |
+| **összesen** | **189** | |
+
+⇒ A **nyolc főmenü** (Fájl, Szerkesztés, Nézet, Mappa/Album, Kép,
+Létrehozás, Eszközök, Súgó) egyezik a képernyőképekkel; a leltár a
+**platform-változatokat** és **egy almenüt** (`eMenuCreateMovie`) is
+megmutat, amit a képernyőkép-audit nem.
+
+## 2. Lefedettség - 165/189 (87%), újramérve 2026-09-02
+
+Mérés: a menütétel angol ÉS magyar feliratát keresve a **teljes QML-fában**
+és a PicasaPy-ban: `picasapy_hu.ts`-ben, ékezet-, `&`- és „…"-független
+összehasonlítással. (Az első mérés csak a PicasaPy-ban: `PicasaMenuBar.qml`-t nézte; a
+helyi menük és a más fájlokba került tételek így kimaradtak belőle.)
+
+| menü | összes | nálunk | hiányzik | 2026-08-25-höz képest |
+|---|---:|---:|---:|---|
+| `eMenuTools` | 38 | 24 | **14** | -4 |
+| `eMenuView` | 46 | **46** | **0** | **-9, teljes lett** |
+| `eMenuFile` | 21 | 19 | 2 | - |
+| `eMenuHelp` | 11 | 10 | 1 | - |
+| `eMenuCreateMovie` | 3 | 2 | 1 | - |
+| `eMenuPicture` · `eMenuEdit` · `eMenuLabelFolder` · `eMenuCreate` | 54 | **54** | **0** | - |
+| platform-változatok (Mac/Win) | 16 | 10 | 6 *(hatókörön kívül)* | -1 |
+| **összesen** | **189** | **165** | **24** | **-15** |
+
+⚠️ **A 2026-08-25-i 150/189 (79%) ELAVULT** - a `eMenuView` névtér azóta
+teljes lett (#1434, #1595, #1766 köre). Az alábbi 3.1-3.3 csoportosítás a
+RÉGI, 39 tételes mérésből származik; a besorolások történeti állapotot
+mutatnak. A #5709 a Közzététel FTP-n tételt a hatókörön kívüli állapotból érdemi
+hiánnyá sorolja át.
+
+**A 2026-09-02-i érdemi hiányra mind van nyitott jegy**:
+#1398 · #1399 · #1401 · #1402 · #1403 · #1404 · #1405 · #1406 · #1408.
+Az FTP-közzététel későbbi, érdemi hiányként igazolt tétel; fejlesztői
+jegytörzse a #5709 jelentésében szerepel.
+
+## 3. A HIÁNYZÓ 39 tétel, három csoportban
+
+### 3.1 Hatókörön kívül: halott online szolgáltatás vagy más platform (13)
+
+| parancs | felirat | miért |
+|---|---|---|
+| `ID_GETMYSTUFF` | Importálás a Picasa Webalbumokból… *(a 3.9.141 képernyőjén angolul: „Import from Google Photos...”, ld. 10.)* | a szolgáltatás megszűnt |
+| `ID_DELETE_EMPTY_ALBUMS` | Üres online albumok törlése… | ua. |
+| `ID_TOOLS_COLLAB` | Feltöltés közös szerkesztésű webalbumba | ua. |
+| `ID_TOOLS_DOWNLOAD_FACES` | Névcímkék letöltése a Picasa Webalbumokból | ua. |
+| `ID_TOOLS_YOUTUBE` | Feltöltés a YouTube webhelyre | külső szolgáltatás |
+| `ID_PICTURE_GEOTAG` | Geocímkézés a Google Earth programmal… | a Google Earth-integráció megszűnt |
+| `ID_VIEW_EARTH` | Megtekintés a Google Earth programban… | ua. |
+| `ID_IPHOTOIMPORT` | Importálás az iPhoto alkalmazásból… | Apple-ág, tulajdonosi döntés (2026-08-21) |
+| `ID_HELP_UNINSTALL` | A Picasa eltávolítása | telepítő-specifikus |
+| `ID_VIEW_MAC` | Mac gamma (1.6) | platform |
+| `ID_VIEW_RDESK` | Távoli asztal | platform-specifikus megjelenítés |
+| *(+ 2 további Mac-változat)* | | |
+
+### 3.2 ÉRDEMI hiány: feltárandó (19)
+
+Ezek valódi, megépíthető funkciók, és a binárisból feltárhatók:
+
+| # | parancs | felirat | megjegyzés |
+|---:|---|---|---|
+| 1 | `ID_DUPES` | Fájlok másodpéldányainak megjelenítése | **van `dedup/` csomagunk** - összevetendő |
+| 2 | `ID_PASSPORT` | Útlevélkép… | önálló, jól körülhatárolt funkció |
+| 3 | `ID_MOVE_DATABASE` | Adatbázis helyének kiválasztása… | infrastruktúra; érinti a `db3` útvonalat |
+| 4-7 | `ID_S_GREEN` · `ID_S_ORANGE` · `ID_S_PURPLE` · `ID_S_YELLOW` | Zöld · Narancssárga · Lila · Sárga | **színcímke-rendszer**, négy tétel egyben |
+| 8 | `ID_SAVESEARCH` | Keresési eredmények mentése… | a `]search` tokenhez kapcsolódik |
+| 9 | `ID_SEARCHTOKEN` | Címke megjelenítése albumként… | ua. |
+| 10 | `ID_WRITE_XMP_FACES` | Arcinformációk írása XMP-adatokba… | az arcfelismerés kimenete |
+| 11 | `ID_PICTURE_GEOUNTAG` | Geocímkék törlése | a `geotag` ini-kulcshoz |
+| 12 | `ID_VIEW_FOLDERS` | Egyszerű mappanézet | a lapos mappanézet |
+| 13-18 | `ID_VIEW_16` · `ID_VIEW_NORMAL` · `ID_VIEW_LCD` · `ID_VIEW_LINEAR` · `ID_VIEW_OV` · `ID_VIEW_PROJECTOR` | 16 bites (szemcsézett) · 24 bites · LCD fehérpont · Lineáris gamma (2.2) · Túlcsordult képpontok megjelenítése · Projektor mód | **megjelenítési/gamma-módok** - egy összefüggő készlet |
+| 19 | `ID_FTPWEB` | Közzététel FTP-n keresztül… | a #5709 bináris-vizsgálata élő parancsutat, FTP-fiókkezelést és tényleges feltöltést igazolt; PicasaPy-ban hiányzik |
+
+### 3.3 Almenü-hiány (1)
+
+| parancs | felirat |
+|---|---|
+| `ID_FACES` (`eMenuCreateMovie`) | A kijelölésben lévő arcokból… |
+
+## 4. Hogyan reprodukálható ez a leltár
+
+```bash
+awk -F'\t' '$1 ~ /^eMenu/ {print $1"\t"$2"\t"$3}' \
+    ~/picasapy-agent/referencia/stringres-en-hu.tsv | sort
+```
+
+*Bizonyítottsági fok: **megerősített** a leltárra (a szállított
+szövegtárból). A lefedettség-mérés **erős**: felirat-egyezésen alapul, tehát
+egy átfogalmazott menüpontot „hiányzónak" jelölhet - ezért a 3.2 lista
+minden tétele külön ellenőrzendő a megvalósítás előtt.*
+
+---
+
+## 5. Az Eszközök menünek NÉGY ALMENÜJE van (2026-08-25)
+
+A `eMenuTools` névtér **nem lapos**: négy kulcs nem `ID_`-vel kezdődik -
+ezek az **almenü-fejlécek**:
+
+| kulcs | magyar felirat | mi tartozik alá (a tételekből következtetve) |
+|---|---|---|
+| `Experimental` | **Kísérleti** | - |
+| `Geotag` | **Geocímke** | `ID_PICTURE_GEOTAG`, `ID_PICTURE_GEOUNTAG`, `ID_EXPORT_EARTH`, `ID_VIEW_EARTH` |
+| `Searchfor` | **Keresés…** | a hat `ID_S_<szín>` és az `ID_VIEW_BW` (`0x9da9`, fekete keresés) |
+| `Upload` | **Feltöltés** | `ID_TOOLS_UPLOAD`, `ID_TOOLS_UPLOAD_ES`, `ID_TOOLS_BATCH_UPLOAD`, `ID_TOOLS_YOUTUBE`, `ID_TOOLS_COLLAB` |
+
+⚠️ A képernyőkép-alapú audit ezt az **almenü-szerkezetet** nem rögzítette.
+
+*A menüfejlécek általános hozzárendelésének bizonyítottsági foka: **erős** -
+a felirat-szemantikából és a névterek együtt-tárolásából. A `Searchfor`
+almenü hozzárendelése külön megerősített: a menüépítő `0x00d6e708`
+gyerek-táblát és 7 elemet állít be (`0x0055c36f`, `0x0055c379`; lásd a
+7. szakaszt).*
+
+## 6. A hat `ID_S_<szín>` = KERESÉS SZÍN SZERINT
+
+**Hat szín**, nem négy (a korábbi hiánylistám kettőt tévesen lefedettnek
+jelölt, mert a „Kék"/„Piros" szó máshol előfordul a fordításunkban):
+
+| parancs | HU | | parancs | HU |
+|---|---|---|---|---|
+| `ID_S_BLUE` | Kék | | `ID_S_PURPLE` | Lila |
+| `ID_S_GREEN` | Zöld | | `ID_S_RED` | Piros |
+| `ID_S_ORANGE` | Narancssárga | | `ID_S_YELLOW` | Sárga |
+
+Ez a hat `ID_S_*` parancs; a Keresés… almenü leltára nem teljes velük:
+külön hetedik gyerek az `ID_VIEW_BW` kulcsú, `0x9da9` azonosítójú fekete
+keresés. A menüépítő mérését lásd a 7. szakaszban.
+
+**Ez nem színcímkézés, hanem keresés**: a `Searchfor` („Keresés…") almenü
+alatt ülnek, és a binárisban ott van hozzá az **`ImageColorSwatch`**
+(`0x00bb41c0`) - a színminta-vezérlő.
+
+### Az adatforrás: `imagedata_avgcolor` - MÉRVE valódi adaton
+
+| adatbázis | sor | nem üres | arány |
+|---|---:|---:|---:|
+| `research/testdata/Picasa2/db3` | 140 755 | **133 454** | **94,8 %** |
+| `research/testdata/Picasa2-arcok/…/db3` | 3 335 | 2 792 | 83,7 % |
+
+A tárolt érték **ARGB dword**, alfa mindig `0xff`. Példák:
+`0xffaca190` (R 172, G 161, B 144 - meleg bézs), `0xff5a5046`,
+`0xfff7f8f9` (majdnem fehér). Ezek hihető **kép-átlagszínek**.
+
+⇒ A Picasa **minden képre** eltárolja az átlagszínt, és a szín szerinti
+keresés ezen dolgozik.
+
+*Bizonyítottsági fok: **megerősített** az oszlop létére, típusára és
+kitöltöttségére (valódi adaton mérve) és az `ImageColorSwatch` létére.
+**Erős, nem megerősített**: hogy a keresés konkrétan ezt az oszlopot
+olvassa - a keresőkód nincs végigkövetve odáig.*
+
+---
+
+## 7. A TELJES parancstérkép a menüépítő kódból (2026-08-25)
+
+A 1-6. szakasz a **szövegtárból** dolgozott. Ez a szakasz a **kódból**: a
+menüsort egyetlen függvény építi, és abból a **parancsazonosítók** is
+kiolvashatók.
+
+### A menüépítő: `0x00559150` - 15 495 bájt
+
+Ez a `CMenuBar` építője; **minden** menüt ez rak össze. A menürekord
+felépítése soronként visszaköszön:
+
+```asm
+push  <fordítási kulcs>                  ; pl. "eMenuView::ID_VIEW_PROJECTOR"
+mov   eax, <alapértelmezett angol felirat>   ; "&Projector Mode"
+mov   dword ptr [rek+0x04], ebx          ; gyorsbillentyű-szöveg
+mov   word  ptr [rek+0x08], bx           ; gyorsítóbillentyű-módosítók maszkja (8.5)
+mov   word  ptr [rek+0x0a], 0x9d20       ; <<< PARANCSAZONOSÍTÓ
+mov   dword ptr [rek+0x0c], ebx          ; almenü-tömb
+mov   dword ptr [rek+0x10], ebx          ; almenü darabszám
+```
+
+*(A `+0x0a` = parancsazonosító itt **igazolódik** - szemben a `Tray` helyi
+menü rekordjaival, ahol ugyanez a mező mást hordozott, ld.
+`picasa-keptalca.md` 12.)*
+
+### A kinyert térkép: 177 tétel, **140 ellenőrzött parancsazonosítóval**
+
+> 🟢 **HARMADIK, SIKERES KINYERÉS - 2026-09-01 (#1581).** Az oszlop
+> **visszakerült** a CSV-be. A korábbi „ne legyen harmadik próbálkozás"
+> figyelmeztetés ezzel érvényét vesztette: nem a feladat volt
+> megoldhatatlan, hanem a horgony volt rossz.
+>
+> **A bukás oka (a #1409 lelete).** A fordító a menürekord `+0x04`…`+0x10`
+> mezőit a **KÖVETKEZŐ** rekord feliratának betöltése **után** írja ki. Aki
+> a `push "…kulcs"`-ot a rá következő `mov word ptr […+0x0a]`-val olvassa
+> össze, **egy rekorddal elcsúszik**. A csúszás azért látszott
+> „szabálytalannak", mert nem minden rekordot előz meg felirat-betöltés (az
+> elválasztók és az almenü-fejek nem), így a hiba hol jelentkezett, hol nem.
+>
+> **A javított horgony:** `mov dword ptr [REK], eax` - ez adja a rekord
+> KEZDŐCÍMÉT, és a `+0x0a` ahhoz tartozik.
+
+#### A kinyerés menete - és miért nem diszasszemblálással
+
+A `.text` adatszigeteket tartalmaz; lineáris dekódolásnál a menüépítő
+környékén értelmetlen utasítások jönnek ki (`call 0xb8567ea4`), és a
+kinyerés csendben félresiklik. Ehelyett a menüépítő **gépiesen ismételt
+sablonjának bájtmintáját** keressük - annak fix a kódolása, tehát nincs
+szinkronvesztés:
+
+```asm
+68 <kulcs>          push  "<Osztály::ID_NEV>"
+B8 <imm32>          mov   eax, <angol felirat>
+[csak tárolások]    a MEGELŐZŐ rekord +0x04..+0x10 mezői
+E8 <rel32>          call  <fordítás-betöltő>
+8B 00 / 83 C4 04 / 3B C3 / 74 0A / 83 C0 04
+A3 <REK>            mov   dword ptr [REK], eax    ; <<< a rekord kezdőcíme
+```
+
+A `push`-t **csak akkor** fogadjuk el, ha a `call`-ig vezető út kizárólag
+tárolásokból áll - vagyis a sablon hiánytalanul kirajzolódik. Ahol nem, a
+cella **üresen marad**.
+
+⚠️ **Ez a szigor nem óvatoskodás, hanem mérés.** Kipróbáltam a kényelmes
+változatot is („keresd visszafelé a legközelebbi `push`-t"): az **három
+különböző azonosítót** adott ugyanarra a kulcsra, és a kimenete pontosan
+úgy nézett ki, mint egy jó találat. A laza változat 308, a szigorú 146
+párt ad - a különbözet nagy része néma tévedés lett volna.
+
+#### A kontroll: 13 független azonosítóból 13 ✔
+
+A kulcs (`eMenuView::ID_VIEW_LCD`) és az azonosító (`+0x0a` = `0x9d20`)
+**két különböző mezőből** jön, ezért az egyezésük valódi kontroll. A
+#1409/#1454 által korábban, más úton rögzített azonosítók mind stimmelnek:
+
+`ID_VIEW_16` · `ID_VIEW_PROJECTOR` · `ID_VIEW_MAC` · `ID_VIEW_SEPIA` ·
+`ID_VIEW_LINEAR` · `ID_VIEW_NORMAL` · `ID_VIEW_AUTO` · `ID_VIEW_LCD` ·
+`ID_VIEW_OV` · `ID_VIEW_RDESK` · `ID_VIEW_FOLDERS` · `ID_VIEW_WATCHED` ·
+`ID_VIEW_ALL` - **13/13, eltérés nincs.**
+
+#### ⭐ Amit menet közben megtanultunk: a kulcs a FELIRATOT nevezi meg
+
+`eMenuView::ID_VIEW_BW` **három** rekordon szerepel, három azonosítóval:
+
+| rekord | azonosító | a szomszédai alapján melyik menü |
+|---|---|---|
+| `0x00d6ddb0` | `0x9d1c` | Nézet (`ID_VIEW_SEPIA`, `ID_CAPNONE` közt) |
+| `0x00d6e41c` | `0x9d4c` | Kép (`ID_PICTURE_WARMIFY` `0x9d4d`, `ID_PICTURE_FILM_GRAIN` `0x9d4e` közt) |
+| `0x00d6e780` | `0x9da9` | Eszközök (`ID_S_PURPLE` `0x9da8`, `ID_FTPWEB` közt) |
+
+A szomszédos azonosítók számtani folytonossága **függetlenül igazolja**,
+hogy három külön parancsról van szó. A `push`-olt sztring tehát **fordítási
+kulcs**, nem parancsnév: a „Fekete-fehér" feliratot három menü használja
+újra. A CSV maga is három `eMenuView,ID_VIEW_BW` sort tartalmaz - ezért
+ezek a sorok **üresen maradnak**: nem tudjuk, melyik sor melyik menüé.
+
+**A harmadik rekord a Keresés… almenü hetedik gyereke** - nem pusztán egy
+felirat nélküli diszpécserág. A `CMenuBar` a `Searchfor` rekordhoz a
+`0x0055c36f` utasításnál `0x00d6e708` gyerek-táblát, a `0x0055c379`-nél
+pedig **7** gyereket állít be. A `0x00d6e780` rekord a tábla hetedik,
+`0x14` bájtos lépésű eleme; a `0x0055c212`/`0x0055c217` a
+`eMenuView::ID_VIEW_BW` kulcsot és az `&Black and White` alapfeliratot,
+a `0x0055c269` pedig a `0x9da9` parancsazonosítót rendeli hozzá. A magyar
+felirat `&Fekete-fehér`. A korábbi „nincs hozzá menüfelirat” állítás
+helyesbítve: a feliratkulcs közös más menüpozíciókkal, de ezen a rekordon
+is van címke.
+
+Három ilyen ütközés van (`ID_VIEW_BW`, `ID_CAPTAG`, `ID_PICTURE_UNHIDE`),
+összesen 7 CSV-sort érintve.
+
+#### ⚠️ Egy eltérés a korábbi feljegyzésektől: `0x9db7`
+
+A fenti (2026-08-25-ös) bekezdés `ID_VIEW_MYPICTURES = 0x9db7`-et mond
+„helyes"-nek. A mostani kinyerés szerint a `0x9db7`-et hordozó rekord
+(`0x00d6de44`) felirat-kulcsa **`eMenuViewWin::ID_VIEW_MYDOCS`**, míg
+`eMenuViewWin::ID_VIEW_MYPICTURES` a `0x00d6de58` rekordon áll, azonosítója
+**`0x9e3a`**. A fentiek fényében ez nem feltétlenül ellentmondás - a kulcs
+a feliratot nevezi meg -, de **a `0x9db7` ↔ `ID_VIEW_MYPICTURES` társítás
+nem tekinthető megerősítettnek**. NYITOTT.
+
+#### A kinyerő
+
+a PicasaPy-ban: `scripts/binaris/menu_parancsazonositok.py` - a bináris útját a
+`PICASA_EXE` környezeti változó adja. Függősége (`pefile`) **nincs** a
+projekt csomaglistáján: ez kutatóeszköz, nem futásidejű kód.
+
+Géppel olvasható alakban: **[`picasa-menu-parancsok.csv`](picasa-menu-parancsok.csv)**
+(oszlopok: `menu`, `parancs`, `parancsazonosito`, `felirat_en`, `felirat_hu`).
+
+| névtér | tétel | | névtér | tétel |
+|---|---:|---|---|---:|
+| `eMenuView` | 48 | | `eMenuHelp` | 10 |
+| `eMenuTools` | 36 | | `eMenuCreate` | 7 |
+| `eMenuFile` | 19 | | `CMenuBar` | 4 *(gyorsbillentyűk)* |
+| `eMenuPicture` | 19 | | `eMenuCreateMovie` | 3 |
+| `eMenuLabelFolder` | 13 | | platform-változatok | 7 |
+| `eMenuEdit` | 11 | | | |
+
+> **Miért ez a legfontosabb eszköz a további feltáráshoz:** a
+> parancsazonosítóval **közvetlenül megtalálható a kezelője** a főablak
+> parancs-diszpécserében (`0x005cb990`), tehát bármely menüpont működése
+> egy lépésben kereshetővé vált. A menük tényleg „majdnem minden
+> funkcióhoz" elvezetnek - ez a térkép az útjelző.
+
+### Példa: a Nézet menü megjelenítési módjai
+
+> 🟢 **JAVÍTVA 2026-08-27-én (#1409).** Az itt korábban állt tábla **egy
+> rekorddal el volt csúszva** - pontosan az a hiba, amire ez a szakasz
+> feljebb figyelmeztet. A csúszás oka: a fordító a rekord `+0x0a`
+> parancsazonosítóját a **KÖVETKEZŐ** rekord feliratának betöltése után
+> írja ki, ezért a `push "…kulcs"` és a rá következő `mov word ptr
+> […+0x0a]` **nem** tartozik össze. A helyes horgony a `mov dword ptr
+> [<cím>], eax` - az adja a rekord kezdőcímét.
+>
+> 🟢 **A „ne legyen harmadik próbálkozás" tanács ELAVULT.** A javított
+> horgonnyal újramérve **épp az a négy horgony, amelyen a korábbi szabály
+> 1/4-et adott, mind a négy egyezik**: `ID_VIEW_MYPICTURES` `0x9db7`
+> (`0x0055a26d`) · `ID_VIEW_FOLDERS` `0x9db6` (`0x0055a385`) ·
+> `ID_VIEW_ALL` `0x9db9` (`0x0055a3cf`) · `ID_VIEW_WATCHED` `0x9db8`
+> (`0x0055a671`). A leképezés tehát **nem szabálytalan**. *(A teljes
+> oszlop újbóli kinyerése külön jegy tárgya - a szabály ellenőrzött, az
+> oszlop nem.)*
+>
+> Az alábbi tábla **négy független szemantikai horgonnyal is igazolt** (a
+> viselkedésből visszafelé, nem a szabályból): `0x9d55` a tiszta fehér
+> képpontokat színezi át, `0x9d18` véletlen zajt kever, `0x9d1e`-hez nincs
+> átalakító, `0x9dbc`-t a távoli asztal észlelése állítja be. Részletek:
+> **[picasa-megjelenitesi-modok.md](picasa-megjelenitesi-modok.md)**.
+
+| parancs | azonosító | felirat |
+|---|---|---|
+| `ID_VIEW_16` | `0x9d18` | &16-bit (dithered) |
+| `ID_VIEW_PROJECTOR` | `0x9d19` | &Projector Mode |
+| `ID_VIEW_MAC` | `0x9d1a` | &Mac Gamma (1.6) |
+| `ID_VIEW_SEPIA` | `0x9d1b` | &Sepia |
+| `ID_VIEW_BW` | `0x9d1c` | &Black and White |
+| `ID_VIEW_LINEAR` | `0x9d1d` | Linear &Gamma (2.2) |
+| `ID_VIEW_NORMAL` | `0x9d1e` | &24-bit |
+| `ID_VIEW_AUTO` | `0x9d1f` | &Automatic |
+| `ID_VIEW_LCD` | `0x9d20` | &LCD Whitepoint |
+| `ID_VIEW_OV` | `0x9d55` | &Show overflow pixels |
+| `ID_VIEW_RDESK` | `0x9dbc` | &Remote Desktop |
+
+A `0x9d18`-`0x9d20` **összefüggő kilences blokk**; az `OV` és az `RDESK`
+külön tartományban van, tehát később kerültek be. A **rádió/kapcsoló
+kérdés eldőlt**: mind a tizenegy **egyetlen kizáró rádiócsoport** tagja
+(`0x00575670`), nincs köztük független kapcsoló.
+
+*Bizonyítottsági fok: **megerősített** a menüépítő címére, a rekord-alakra
+és a kinyert azonosítókra (diszasszemblálva + gépi kinyerés). A CSV
+**gépi kinyerés eredménye**: ahol az azonosító üres, ott a minta eltért -
+az ilyen tételt kézzel kell ellenőrizni (9 tétel a 177-ből... pontosan 32).*
+
+---
+
+## 8. A menürekord `+0x04` és `+0x08` mezője - gyorsbillentyű és ikon (2026-09-09, #2819)
+
+**Bizalmi fok: megerősített.** A 7. szakasz a `+0x0a` (parancsazonosító)
+mezőt mérte ki. Ez a szakasz a másik kettőt, a
+`picasa-megjelenitesi-modok.md` **9.3** pontjának kérdésére: a
+Megjelenítési mód almenüben mind a kettő nulla volt - **a többi menüben
+is?**
+
+### 8.1 A módszer és a KONTROLL
+
+A menüépítő (`0x00559150`, 15 495 bájt) törzsét pásztáztam, memóriaplafon
+alatt. A rekordokat nem sorrend, hanem **abszolút célcím** szerint
+csoportosítottam - a 7. szakaszban leírt „egy rekorddal elcsúszik" csapda
+így fel sem merül.
+
+**A rekordot az azonosítja, hogy a `+0x0a` cellájába WORD méretű írás
+történt** (ez a parancsazonosító mező alakja). Ez a szűrő a 207
+nyers jelöltből **173** valódi rekordot hagy meg.
+
+| mérőszám | érték |
+|---|---|
+| abszolút címre író utasítás a menüépítőben | 1469 |
+| ebből `dword` / `word` | 1123 / 346 |
+| nyers rekordkezdet-jelölt (`mov dword [X], eax`) | 207 |
+| **valódi rekord** (word-írás a `+0x0a`-ra) | **173** |
+| **KONTROLL: nem nulla parancsazonosító** | **162 / 173** |
+
+A kontroll a 7. szakasz 140 ellenőrzött azonosítójával összevethető: a
+pásztázó tehát nem üresre fut, a nulla-találatok valódiak.
+
+### 8.2 ⭐ A válasz: VAN gyorsbillentyű és VAN ikon
+
+| mező | nem nulla | a 173-ból |
+|---|---|---|
+| `+0x04` gyorsbillentyű-szöveg | **24** | 14 % |
+| `+0x08` ikonszám (word) | **5** | 3 % |
+
+⚠️ **Módszertani csapda, amibe menet közben beleestem:** a 24-ből
+**négyet** nem közvetlen értékként ír a fordító, hanem `eax`-en át
+(`mov dword ptr [rek+4], eax`, ahol az `eax`-be előbb a sztringcím
+került). Az „olvasd ki az immediate-et" pásztázás ezt a négyet **nem
+látja** - 20-at ad 24 helyett. A négy elveszett tétel épp a leghosszabb
+billentyűnevek: `Delete` és háromszor `Enter`.
+
+### 8.3 A teljes lista
+
+> ⛔ **2026-09-10 (#2821): EZ A TÁBLA HIÁNYOS.** A „maszk" oszlopot az
+> immediate értékre szűrő pásztázás állította elő, ezért **négy rekordnál
+> nullát mutat 1 vagy 4 helyett** (a `di` regiszterből írt tételek). A
+> javított értékek és a hiba oka a **8.7/c**-ben.
+
+| rekord | parancs | angol felirat | gyorsbillentyű | `+0x08` maszk |
+|---|---|---|---|---|
+| `0x00d6d960` | `0x9d67` | `&New Album...` | `N` | - |
+| `0x00d6d9b0` | `0x9c91` | `&Import From...` | `M` | - |
+| `0x00d6da28` | `0x9d4f` | `&Rename...` | `F2` | 4 |
+| `0x00d6dadc` | `0x9c99` | `&Locate on Disk` | `Enter` | - |
+| `0x00d6daf0` | `0x9c9a` | `&Delete from Disk...` | `Delete` | 4 |
+| `0x00d6db18` | `0xe107` | `&Print...` | `P` | - |
+| `0x00d6db2c` | `0x9c97` | `&E-Mail...` | `E` | - |
+| `0x00d6db80` | `0x9d39` | `Cu&t` | `X` | - |
+| `0x00d6db94` | `0x9d3b` | `&Copy` | `C` | - |
+| `0x00d6dba8` | `0x9d3c` | `&Paste` | `V` | - |
+| `0x00d6dc48` | `0x9cb8` | `Select &All` | `A` | - |
+| `0x00d6dc70` | `0x9c47` | `&Invert Selection` | `I` | - |
+| `0x00d6dc84` | `0x9c90` | `C&lear Selection` | `D` | - |
+| `0x00d6dfb4` | `0x9c9d` | `S&mall Thumbnails` | `1` | - |
+| `0x00d6dfc8` | `0x9c9c` | `&Normal Thumbnails` | `2` | - |
+| `0x00d6dfdc` | `0x9c8f` | `&Edit View` | `3` | - |
+| `0x00d6e018` | `0x9d2c` | `&Tags` | `T` | - |
+| `0x00d6e090` | `0x9ccc` | `Ti&meline` | `5` | - |
+| `0x00d6e274` | `0x9c94` | `&Print Contact Sheet...` | `P` | 1 |
+| `0x00d6e2b0` | `0x9cba` | `&Locate on Disk` | `Enter` | - |
+| `0x00d6e318` | `0x9d4f` | `&Rename...` | `F2` | - |
+| `0x00d6e354` | `0x9ca3` | `Rotate &Counterclockwise` | - | 1 |
+| `0x00d6e498` | `0x9ca0` | `&View and Edit` | `3` | - |
+| `0x00d6e560` | `0x9ca8` | `Propert&ies` | `Enter` | 6 |
+| `0x00d6e9b8` | `0x9cac` | `&Help Contents and Index` | `F1` | - |
+
+*(A `&Rename...` két rekordja a **Fájl** menüben és a **Kép ▸ Csoportos
+szerkesztés** almenüben van; mindkettő billentyűje `F2`, parancsa `0x9d4f`.
+A `&Locate on Disk` két rekordja a **Fájl** és a **Mappa** főmenüben.)*
+
+> ⛔ **2026-09-09, MÁSODIK MENET (#2821): A MEZŐ NEM IKON.** A `+0x08` a
+> **gyorsítóbillentyű-módosítók bitmaszkja** (`Ctrl+` / `Shift+` / `Alt+`).
+> Az olvasója megvan, és az alábbi 8.4 két „nulla olvasás" leletének is
+> megvan a magyarázata. A helyes állapot a **8.5** szakaszban; az alábbi
+> 8.4/8.4-b MÉRÉSEI állnak, a belőlük vont „ikon" olvasat NEM.
+
+### 8.4 Mit jelentenek a számok az ikonmezőben - RÉSZBEN eldőlt (#2821)
+
+A `+0x08` **word**, és mindössze három érték fordul elő: **1** (kétszer),
+**4** (kétszer), **6** (egyszer).
+
+**Amit a #2821 kimért - mindegyik állítás címmel:**
+
+**(a) Egyetlen rekordmezőt sem olvas senki ABSZOLÚT címen.** A 173 rekord
+mind a hat mezőjére, a teljes `.text`-en:
+
+| mező | írás | olvasás |
+|---|---|---|
+| `+0x00` felirat | 346 | **0** |
+| `+0x04` gyorsbillentyű | 177 | **0** |
+| `+0x08` ikon | 173 | **0** |
+| `+0x0a` parancsazonosító | 173 | **0** |
+| `+0x0c` almenü-mutató | 173 | **0** |
+| `+0x10` darabszám | 173 | **0** |
+
+⇒ a fogyasztás **mutatón át** történik, nem globális címen. *(A `+0x0a`
+sora egyben KONTROLL: a parancsazonosítót biztosan olvassa valaki, mégis
+nulla - tehát a nulla nem a mező halottságát jelenti, hanem a keresési
+alak korlátját.)*
+
+**(b) A rekordtömb pontosan NYOLCSZOR hagyja el a menüépítőt mutatóként**
+- a nyolc felső szintű menü tömbfeje:
+`0x0055988d`, `0x00559c7c`, `0x0055acb8`, `0x0055b289`, `0x0055ba48`,
+`0x0055be1f`, `0x0055ca04`, `0x0055cd89` (`push <tömbfej>` →
+`call 0x005590c0`). Ezen felül **11** almenü-mutató kerül a `+0x0c`
+mezőkbe (pl. `0x0055abca`: `mov dword ptr [0xd6e128], 0xd6dc98`).
+
+**(c) A `CreateMenu` és a `SetMenu` importot PONTOSAN EGY függvény hívja:**
+a menüépítő (`0x00559150`). A `CreatePopupMenu`-t a `0x005590c0` és a
+`0x00a6aee0`. ⇒ a menüsor valódi Win32-menü, és ez a lánc építi.
+
+**(d) ⭐ A mért úton NINCS bittérkép a Win32 felé.** Az egyetlen
+`MENUITEMINFO`-kitöltő ezen a láncon a `0x00559050` (**3** hívóhely,
+indextől független pásztázással: `0x00559122`, `0x005eaf9d`, `0x00a6af93`):
+
+```
+0x00559057  mov dword ptr [esp],     0x30    ; cbSize = 48 (MENUITEMINFOA)
+0x0055905e  mov dword ptr [esp + 4], 0x15    ; ⭐ fMask
+0x00559066  mov dword ptr [esp + 8], 0       ; fType = MFT_STRING
+0x00559093  push 0xffff                      ; pozíció = a végére
+0x005590a1  call dword ptr [0xd6958c]        ; InsertMenuItem
+```
+
+`fMask = 0x15` = `MIIM_STATE (0x01) | MIIM_SUBMENU (0x04) | MIIM_TYPE (0x10)`.
+**Hiányzik belőle a `MIIM_BITMAP` (0x80) ÉS a `MIIM_CHECKMARKS` (0x08)** ⇒
+ezen az úton a `+0x08` értéke **soha nem jut el a Win32-hez**.
+
+**(e) A teljes `.text` WORD-olvasásai a `+8` eltoláson: 276 találat**, és
+egyik sem menürekord (üzenetstruktúrák `[ebx+8]` = `wParam` alsó szava,
+FPU-vezérlőszavak `fldcw`, és hasonlók). ⚠️ **Reguláris-kifejezés csapda:**
+a `word ptr` **részsztringje** a `dword ptr`-nek - az első futásom ezért
+adott 276 helyett több ezer hamis találatot. A minta `(?<![a-z])word ptr`.
+
+### 8.4/b ⛔ Ami NEM dőlt el, és mi dönti el
+
+A per-TÉTEL beszúrás útja nincs meg. A `0x00a6aee0` (378 bájt) **rekurzív**
+menüjáró (`0x00a6af5c` önhívás), de **kétmezős** szerkezeten dolgozik
+(`[ebp]`, `[ebp+4]`), nem a 20 bájtos rekordon ⇒ **valami átalakítja a
+rekordtömböt** ebbe a szerkezetbe, és ezt az átalakítót nem találtam meg.
+
+**A megszerzés útja:** a `0x005590c0` (140 bájt) a tömbfejet a
+`0x00a6aee0`-nak adja át (`0x005590cd`-`0x005590e9`). Az átalakítás vagy
+ott, vagy a `0x00a6aee0` általam nem kilistázott ágain történik. Ha az
+átalakító a `+0x08`-at átveszi, ott derül ki, mit indexel; ha eldobja, a
+mező **halott** - és akkor a 7. szakasz „ikon" elnevezése KÖVETKEZTETÉS
+marad, nem mérés.
+
+⚠️ **Amit ebből NEM szabad levonni:** hogy a menüben nincs ikon. Csak azt,
+hogy a **mért úton** nem jut el bittérkép a Win32-hez. A Picasa saját
+menürajzolót is használhat (a `0x00a6aee0` és a `SetMenuInfo` hívások erre
+utalnak) - az a `+0x08`-at más úton is elérheti.
+
+### 8.5 Amit ez a mérés NEM mond meg
+
+A menüépítő törzsében 30 további `mov dword [X], eax` írás áll a Súgó
+menü tömbjének tartományában (`0x00d6e9d8`…`0x00d6eab8`), amelyeknek
+**nincs `+0x0a` word-írásuk**, tehát nem rekordkezdetek. Hogy pontosan mik
+(a kinyert értékek a Súgó menü feliratai: `&Keyboard Shortcuts`,
+`Picasa &Forums`, `Online &ReadMe`, `Release &Notes`, `Privacy Policy`,
+`Terms`, `&Uninstalling Picasa`, `&Check for Updates`, `&About Picasa`),
+azt **nem derítettem ki**. A 173-as rekordszám ezért **alsó korlát** a
+Súgó menüre nézve.
+
+---
+
+## 8.5 ⭐ A `+0x08` NEM ikon - a gyorsítóbillentyű-módosítók maszkja (2026-09-09, #2821)
+
+**Bizalmi fok: megerősített** a mező jelentésére; **feltételes** az egyes
+bitek polaritására (ld. 8.5/d).
+
+### 8.5/a Miért nem találta meg két korábbi pásztázás - két nevezhető ok
+
+Az előző menet (8.4) mind a hat rekordmezőre **nulla olvasást** mért. A
+magyarázat nem az volt, hogy a mezők halottak:
+
+**(1) A bejáró ELTOLJA a bázismutatóját.** A `0x00a6aee0` (378 bájt) így
+indul:
+
+```
+0x00a6aef9  mov ebp, dword ptr [esp + 0x24]   ; a rekordtömb feje
+0x00a6aefd  add ebp, 0xc                      ; ⭐ +0x0c-vel ELŐRE tolja
+```
+
+Ettől a rekord mezői **negatív eltolással** jelennek meg:
+
+| rekordmező | ahogy a bejáró látja |
+|---|---|
+| `+0x00` felirat | `[ebp - 0xc]` |
+| `+0x04` gyorsbillentyű | `[ebp - 8]` |
+| **`+0x08` maszk** | **`[ebp - 4]`** |
+| `+0x0a` parancsazonosító | `[ebp - 2]` |
+| `+0x0c` almenü-mutató | `[ebp]` |
+| `+0x10` almenü-darabszám | `[ebp + 4]` |
+
+A `[reg + 8]` / `[reg + 0xa]` alakra szűrő keresés ezért **elvileg sem**
+találhatta meg. *(A `+0x0c`/`+0x10` eltolás azért kapta a nullát, mert
+azokra a bejáró `[ebp]` / `[ebp+4]` alakban hivatkozik.)*
+
+**(2) A mezőt BÁJTKÉNT olvassa, holott az építő SZÓKÉNT írja.**
+
+```
+0x00559438  mov   word ptr [0xd6da30], 4      ; az ÍRÓ: word
+0x00a6b015  movzx ecx, byte ptr [ebp - 4]     ; az OLVASÓ: byte
+```
+
+A WORD-méretre szűrő keresés (8.4/e, 276 találat) ezért sem foghatta meg.
+
+### 8.5/b A bejáró három ága - mérve
+
+```
+0x00a6af04  cmp dword ptr [ebp - 0xc], ebx    ; felirat == 0 ?
+0x00a6af07  jne 0xa6af2e                      ;   nem → tovább
+            ...  push 0xffff ; call 0xa6b120  ;   igen → ELVÁLASZTÓ
+0x00a6af2e  cmp dword ptr [ebp], ebx          ; almenü-mutató == 0 ?
+0x00a6af31  je  0xa6afc3                      ;   igen → LEVÉL (tétel)
+0x00a6af5c  call 0xa6aee0                     ;   nem  → REKURZIÓ az almenüre
+```
+
+A **levél** ágon olvassa be mind a négy tartalmi mezőt:
+
+```
+0x00a6afc3  mov   edx, dword ptr [ebp - 8]    ; +0x04  gyorsbillentyű-szöveg
+0x00a6afe8  mov   edx, dword ptr [ebp - 0xc]  ; +0x00  felirat
+0x00a6b00d  movzx eax, word ptr [ebp - 2]     ; +0x0a  parancsazonosító
+0x00a6b015  movzx ecx, byte ptr [ebp - 4]     ; ⭐ +0x08
+0x00a6b02b  call  0xa6b250                    ; a tételbeszúró
+```
+
+### 8.5/c ⭐ Mit tesz a `0x00a6b250` a bájttal: BITENKÉNT szétszedi
+
+A `0x00a6b250` (1068 bájt) a bájtot `bl`-ben kapja
+(`0x00a6b25c  mov bl, byte ptr [esp + 0x38]`), majd bitenként bontja:
+
+```
+0x00a6b3bb  mov cl, bl ; shr cl, 2 ; not cl ; and cl, 1   ; a 2-es bit (0x04)
+0x00a6b3c0  mov al, bl ; and al, 1                        ; a 0-as bit (0x01)
+0x00a6b3c4  mov dl, bl ; and dl, 2                        ; az 1-es bit (0x02)
+```
+
+és három **bit-kapuzott** ág fűzi elé a módosító-előtagokat. A fordítási
+kulcsok és az angol alapértelmezések **kiolvasva**:
+
+| ág | teszt | fordítási kulcs | alapértelmezett |
+|---|---|---|---|
+| `0x00a6b575` | `test bl, 4` | `ytMenu::CtrlPrefix` (`0x00ce4a88`) | **`Ctrl+`** (`0x00ce4a80`) |
+| `0x00a6b5a4` | `test bl, 1` | `ytMesu::ShiftPrefix` (`0x00ce4aa4`) | **`Shift+`** (`0x00ce4a9c`) |
+| `0x00a6b5d3` | `test bl, 2` | `ytMenu::AltPrefix` (`0x00ce4ac0`) | **`Alt+`** (`0x00ce4ab8`) |
+
+⇒ **A `+0x08` a gyorsítóbillentyű MÓDOSÍTÓ-MASZKJA, nem ikonszám.**
+Bittérképet sehol nem tölt be belőle semmi - ez egyben megmagyarázza a
+8.4/d leletét (`MENUITEMINFO.fMask = 0x15`, `MIIM_BITMAP` nélkül): nincs
+is mit átadni.
+
+**A megfigyelt értékek ezzel értelmet kapnak:** `1` = 0-as bit, `4` = 2-es
+bit, `6` = 1-es + 2-es bit. Ez **bitkombináció, nem index** - és épp ezért
+nem fordul elő `3`, `5` vagy `7`.
+
+😀 **Melléklelet: elírás az EREDETIBEN.** A Shift-előtag kulcsa
+`ytMesu::ShiftPrefix` - a másik kettő `ytMenu::…`. A Google elírta, és így
+adta ki. Ha valaha átvesszük ezeket a kulcsokat, ezt **változatlanul** kell
+átvenni, különben a fordítás nem talál.
+
+### 8.5/d ⛔ Amit NEM állítok: az egyes bitek polaritása
+
+A `bl` a hármas teszt ELŐTT **újraszámolódik** - nem a nyers mező:
+
+```
+0x00a6b451  mov bl, byte ptr [esp + 0x22] ; neg bl ; sbb bl, bl ; and ebx, 2
+0x00a6b45c  cmp byte ptr [esp + 0x21], 0  ; setne dl ; or bl, dl
+0x00a6b466  cmp byte ptr [esp + 0x20], 0  ; setne al ; sub al, 1 ; and eax, 4 ; or bl, al
+```
+
+A három veremzászló a `0x00a6b3ce`-`0x00a6b451` szakaszon áll össze,
+amelyben **négy további hívás** is közbejön (`0xa6ade0`, `0x985990`,
+`0xc080f0`, `0x5c2100`), tehát **más bemenet is beszól**. Ezt a szakaszt
+nem olvastam végig.
+
+**Kontroll-ellenőrzés a mai ismert Picasa-gyorsbillentyűkkel** - a
+2-es bit (Ctrl elhagyása) négy ponton egyezik, egy ponton NEM:
+
+| tétel | `+0x08` | mért gyorsbillentyű-szöveg | ismert viselkedés | egyezik? |
+|---|---|---|---|---|
+| `&New Album...` | 0 | `N` | Ctrl+N | ✅ |
+| `&Rename...` | 4 | `F2` | F2 (Ctrl nélkül) | ✅ |
+| `Propert&ies` | 6 | `Enter` | Alt+Enter | ✅ |
+| `&Locate on Disk` | 0 | `Enter` | Ctrl+Enter | ✅ |
+| `&Help Contents and Index` | **0** | `F1` | **F1** (Ctrl nélkül) | ❌ |
+
+⇒ a „0 ⇒ Ctrl+" olvasat **egy ponton megdől**, tehát van még egy tényező.
+**Ezért a bit↔módosító táblát NEM adom át szerződésként.**
+
+> ⭐ **FELOLDVA a 8.6-ban (ugyanazon a napon):** a tényező nem a
+> funkcióbillentyűk külön ága, hanem az, hogy a három bájt **lekérdezési
+> kulcs** egy futásidejű gyorsítóbillentyű-táblába (`0x00a6ade0`), és a
+> **tábla** adja a módosítókat. Statikus bit↔módosító tábla ezért nem
+> létezik - a kérdés volt rosszul feltéve.
+
+**A megszerzés útja:** a `0x00a6b3ce`-`0x00a6b451` szakasz végigolvasása,
+benne a `0xa6ade0` és a `0x5c2100` hívás visszatérési értékének
+azonosítása. Egy kör, olcsó.
+
+### 8.5/e A 7. és a 8. szakasz HELYESBÍTÉSE
+
+A 7. szakasz rekord-táblájában a `+0x08` mellett „ikon" áll, és a 8.
+szakasz táblájának is „ikon" a fejléce. **Mindkettő téves elnevezés** -
+KÖVETKEZTETÉS volt, nem mérés (a `+0x0a`-ra volt bizonyíték). A helyes név:
+**gyorsítóbillentyű-módosítók bitmaszkja**. Ugyanez a téves elnevezés áll a
+[picasa-megjelenitesi-modok.md](picasa-megjelenitesi-modok.md) 1. szakasz
+rekord-táblájában is.
+
+⇒ **Termékhatás:** az öt „ikonos" tétel NEM ikont visel. Ha valaki a
+menüsorba ikont tett volna emiatt, az hibás lenne. A tényleges lelet az,
+hogy ennek az öt tételnek **más a módosító-készlete**, mint a többinek.
+
+---
+
+## 8.6 A „melyik bit melyik módosító" kérdés ROSSZUL VAN FELTÉVE (2026-09-09, #2821)
+
+**Bizalmi fok: megerősített** a szerkezetre; a kérdés átfogalmazásának oka
+utasításszinten kiolvasva.
+
+A 8.5 nyitva hagyta a bit↔módosító **polaritását**, mert a naiv olvasat a
+`&Help Contents and Index` tételen megdőlt (maszk `0`, mégis `F1`
+módosító nélkül). A hiányzó 133 bájt (`0x00a6b3ce`-`0x00a6b451`)
+elolvasva a válasz: **nincs statikus bit↔módosító leképezés.**
+
+### 8.6/a A három bájt egy KÉRDÉS, nem kódolás
+
+A `0x00a6b250` a maszk három bitjét **három külön bájtba** teríti szét, és
+mindegyikből **két példányt** készít:
+
+```
+0x00a6b3bb  mov cl, bl ; shr cl, 2 ; not cl ; and cl, 1   ; = NOT bit2
+0x00a6b3c0  mov al, bl ; and al, 1                        ; = bit0
+0x00a6b3c4  mov dl, bl ; and dl, 2                        ; = bit1
+0x00a6b3ce  mov byte ptr [esp + 0x24], al   ; ⎫ TARTALÉK példány
+0x00a6b3e4  mov byte ptr [esp + 0x23], cl   ; ⎬ (0x23…0x25)
+0x00a6b3ec  mov byte ptr [esp + 0x25], dl   ; ⎭
+0x00a6b3d2  mov byte ptr [esp + 0x21], al   ; ⎫ MUNKA-példány
+0x00a6b3e8  mov byte ptr [esp + 0x20], cl   ; ⎬ (0x20…0x22)
+0x00a6b3f0  mov byte ptr [esp + 0x22], dl   ; ⎭
+0x00a6b3e0  lea esi, [esp + 0x20]           ; ⭐ a MUNKA-példány CÍME
+0x00a6b3f8  call 0xa6ade0                   ; és átadja neki
+```
+
+⚠️ **A két példány maga a bizonyíték:** ha a hívott függvény nem
+módosíthatná a bájtokat, nem kellene tartalék. Az `esi` **be- és kimenő**
+paraméter.
+
+### 8.6/b A hívott függvény TÁBLÁT KERES, nem dekódol
+
+`0x00a6ade0` (162 bájt) egy tárolón iterál, és **soronként négy dolgot**
+hasonlít össze:
+
+```
+0x00a6adee  mov ebp, dword ptr [eax + 8] ; shr ebp, 1   ; a sorok száma
+0x00a6ae00  mov ecx, dword ptr [esi + 8]
+0x00a6ae03  cmp dword ptr [eax + 0xc], ecx             ; kulcs egyezés?
+0x00a6ae08  mov cl, byte ptr [eax + 3]                 ; a sor 1. bájtja
+0x00a6ae0b  movsx ebx, byte ptr [esi]                  ; a KÉRDÉS 1. bájtja
+0x00a6ae10  cmp cl, 0xff ; sete dl ; cmp ebx, edx      ; 0xFF = külön eset
+0x00a6ae20  mov cl, byte ptr [eax + 4]  / [esi + 1]    ; a 2. bájt
+0x00a6ae3a  mov cl, byte ptr [eax + 5]  / [esi + 2]    ; a 3. bájt
+```
+
+⇒ a három bájt **lekérdezési kulcs** egy futásidőben feltöltött
+gyorsítóbillentyű-táblába, `0xFF` jelöléssel a soroldalon. A **tábla**
+mondja meg a tényleges módosítókat, nem a maszk.
+
+### 8.6/c A visszaszámolás IDENTITÁS - csak újraolvasás
+
+A `0x00a6b451`-`0x00a6b473` blokk látszólag újrakódolja a maszkot. Kimérve
+**bitre azonosat** ad vissza:
+
+| utasítássor | mit ad |
+|---|---|
+| `bl = [esp+0x22]` (=bit1) `; neg bl ; sbb bl,bl ; and ebx,2` | bit1 → bit1 |
+| `cmp [esp+0x21],0 ; setne dl ; or bl,dl` | bit0 → bit0 |
+| `cmp [esp+0x20],0` (=NOT bit2) `; setne al ; sub al,1 ; and eax,4 ; or bl,al` | bit2 → bit2 (kettős tagadás) |
+
+Vagyis a blokk **nem átalakít**, hanem a `0xa6ade0` által esetleg
+**módosított** munka-példányt olvassa vissza maszkká.
+
+### 8.6/d Az előtag-fűzés KAPUZOTT - nem minden tételen fut
+
+```
+0x00a6b3fd  test al, al
+0x00a6b3ff  je 0xa6b475      ; ⭐ ha a táblakeresés NEM talált:
+0x00a6b4a3      push 0xffff  ;    beszúrás előtag NÉLKÜL
+0x00a6b4a9      call 0xa6b120
+0x00a6b4ae      jmp 0xa6b657 ;    és kész
+```
+
+A `Ctrl+`/`Shift+`/`Alt+` hármas (8.5/c) tehát **csak akkor** fut le, ha a
+táblakeresés talált sort. Ezen az ágon a `test bl, 4` / `1` / `2` hármas
+`jne`-vel **átlép**, amikor a bit **be van állítva** - vagyis a bit ott már
+azt jelenti, hogy az adott előtag **NEM kell**.
+
+### 8.6/e ⛔ Ezért a 8.5/d kontroll-anomáliája NEM anomália
+
+A `&Help Contents and Index` maszkja `0`, gyorsbillentyűje `F1` Ctrl
+nélkül. Statikus leképezéssel ez ellentmondás; **táblakereséssel nem az**:
+a Súgó parancsához tartozó tábla-sor a saját módosító-készletét adja, és a
+maszk csak a kulcs egy része. Nem kell külön ág a funkcióbillentyűkhöz.
+
+⇒ **A „melyik bit melyik módosító" kérdésre nem lehet táblát adni**, mert a
+válasz futásidejű adattól függ. A helyes megfogalmazás: *melyik tábla, ki
+tölti fel, és mi a sorformátuma.*
+
+### 8.6/f Ami ebből MÉG hiányzik - pontos következő lépés
+
+> ⛔ **A 8.7 kimondja: ez a szál NAGYRÉSZT ÚJRAFELFEDEZÉS volt.** A
+> [picasa-gyorsbillentyuk.md](picasa-gyorsbillentyuk.md) **3.** szakasza a
+> jelzőmező bitjeit, a fordítási kulcsokat és a `runtime\shortcuts.xml`
+> betöltőt már tartalmazta. Az alábbi lépések tehát nem voltak szükségesek;
+> ami tényleg új, az a 8.7/a-c.
+
+1. **A tábla tulajdonosa.** A `0xa6ade0` az `eax`-ben kapja a tárolót; a
+   hívóban ez `0x00a6b3d6  mov eax, dword ptr [esp + 0x4c]`, tehát a
+   `0x00a6b250` egyik paramétere. Vissza kell követni a `0x00a6b250`
+   hívási láncán (`0x00a6b02b` a bejáróból).
+2. **A kulcs.** `[esi + 8]` = a hívó `[esp + 0x28]`-a, amit a
+   `0x00a6b3da  mov dword ptr [esp + 0x28], esi` állít be az AKKORI `esi`
+   értékéből. Ezt egy verem-visszakövetés adja meg.
+3. **A sorformátum.** A `0xa6ade0` a `+0x3`, `+0x4`, `+0x5` bájtokat és a
+   `+0xc` dwordöt olvassa ⇒ a sor legalább 16 bájt; a lépést a
+   `shr ebp, 1` és az iteráció adja meg.
+
+⚠️ **Amit NEM állítok:** hogy a maszk bitjei „Ctrl/Shift/Alt"-ot jelentenek.
+Csak azt, hogy a **kereső hármas** ilyen sorrendben teszteli őket, ha a
+keresés talált. A jelentést a tábla adja.
+
+---
+
+## 8.7 ⛔ ÖNHELYESBÍTÉS: ez a szál NAGYRÉSZT ÚJRAFELFEDEZÉS volt - a testvérlap már tudta (2026-09-10, #2821)
+
+> ⭐ **A szál LEZÁRVA (2026-09-10).** A 8.7/d-ben nyitva hagyott utolsó két
+> tétel (`dstkey`, `keymap`) **sem volt nyitott** - a
+> [picasa-gyorsbillentyuk.md](picasa-gyorsbillentyuk.md) **2.2** és **2.3**
+> szakasza megválaszolja. A #2821 zárva.
+
+**A [picasa-gyorsbillentyuk.md](picasa-gyorsbillentyuk.md) 3. szakasza a
+#2821 három menetének a LÉNYEGÉT már tartalmazta**, és részletesebben.
+Amit ott már ki volt mérve:
+
+| amit a 8.5-8.6 „megtalált" | hol állt már | 
+|---|---|
+| a `+0x08` = **módosító-jelzőmező**, nem ikon | `picasa-gyorsbillentyuk.md` **3.1** rekordtáblája |
+| a bitek: 0 = Shift, 1 = Alt, 2 = **NINCS Ctrl** (fordított) | **3.2**, ugyanezzel a `0x00a6b3bb`…`0x00a6b3cb` diszasszemblátummal |
+| a három fordítási kulcs, benne az `ytMesu` **elírás az eredetiben** | **3.2** utolsó bekezdése |
+| a négyes ellenőrzés (0→`Ctrl+N`, 4→`F2`, 1→`Ctrl+Shift+O`, 6→`Alt+Enter`) | **3.2** |
+| a `SHORTCUTS.XML` 48 rekesze és a `runtime\shortcuts.xml` lemezes felülbírálat (`0x009a16b0`, `0x00c8c3d4`) | **1.** és **2.**, sőt azt is kimondja, hogy a fájl a szállított telepítésben **nincs** meg |
+| a menüsáv gyorsbillentyűs rekordjai | **3.3** - **32 sor**, magyar felirattal és képernyőkép-ellenőrzéssel |
+
+⛔ **Miért nem vettem észre öt körön át:** a `megjelenitesi-modok.md` 9.3
+pontjából indultam, és ezen a lapon dolgoztam. **A testvérlapot a FUNKCIÓ
+nevére kellett volna keresnem** (`gyorsbillentyuk`), nem az elemnévre. A
+projekt saját tanulsága pontosan ez, és nem alkalmaztam.
+
+⇒ **A 8.5/c és a 8.6 mérései állnak** (a bejáró, a táblakereső, a kapuzás),
+de **nem újak**. Ez a szakasz azt tartja meg, ami tényleg új.
+
+### 8.7/a ⭐ ÚJ: a 8.3 maszk-oszlopa HIÁNYOS VOLT - négy rekord
+
+Ez a saját, ebben a körben keletkezett hibám javítása. A 8.3 táblát az
+**immediate** értékre szűrő pásztázás állította elő. Újramérve, a `+0x08`
+írásának forrása a 173 rekordon:
+
+| forrás | rekord |
+|---|---|
+| közvetlen érték | **5** |
+| `bx` regiszter (bizonyítottan 0: `0x00559155 xor ebx, ebx`, több `ebx`-írás nincs) | **164** |
+| **`di` regiszter** | **4** |
+| írás nélkül | 0 |
+
+A `di` **élő konstans**, amely három ponton változik - a builder egyetlen
+négy `edi`-írása:
+
+```
+0x00559184  mov edi, 1
+0x0055a335  mov edi, 5
+0x0055af40  mov edi, 4
+0x0055b25a  mov edi, 4
+```
+
+⇒ a négy `di`-ből író rekord maszkja **nem 0**:
+
+| rekord | felirat | maszk | a `gyorsbillentyuk.md` 3.3 szerint |
+|---|---|---|---|
+| `0x00d6d9ec` | `&Open File(s) in an Editor` | **1** | `Ctrl+Shift+O` ✅ |
+| `0x00d6dab4` | `Export Pi&cture to Folder...` | **1** | `Ctrl+Shift+S` ✅ |
+| `0x00d6e318` | `&Rename...` (második példány) | **4** | `F2` ✅ |
+| `0x00d6e9b8` | `&Help Contents and Index` | **4** | `F1` ✅ |
+
+**A 8.5/d „Help/F1 anomáliája" ezzel megszűnt** - és a magyarázat nem a
+binárisban volt, hanem az én pásztázómban. A 8.3 tábla fölé figyelmeztetés
+került, és a „24 gyorsbillentyű" száma is **alsó korlát**: a testvérlap
+3.3-a **32** rekordot sorol.
+
+### 8.7/b ⭐ ÚJ: a jelzőmező forrása egy XML-ből töltött tároló, és a tároló ÚTJA
+
+A `gyorsbillentyuk.md` a fájlt és a betöltőt nevezi meg; ez a szakasz a
+**köztes utat** teszi hozzá, amit ott nem találtam:
+
+```
+0x00559158  lea ecx, [esp + 0x10]            ; a tároló CÍME (verem-lokális)
+0x0055915c  mov dword ptr [esp + 0x10], ebx  ; 0
+0x00559160  mov dword ptr [esp + 0x14], ebx  ; 0
+0x00559164  call 0x9a16b0                    ; a betöltő (→ 'runtime\shortcuts.xml')
+```
+
+A lokálist a 15 495 bájtos építő **pontosan kilencszer** érinti: egyszer itt,
+és **nyolcszor** a `call 0x005590c0` **harmadik** argumentumaként - mindig
+ugyanazt. Onnan a `0x00a6aee0` → `0x00a6b250` → `0x00a6ade0` láncon
+jut a keresőhöz. Más metódust nem hív rá, és többet nem ír bele.
+
+A nyolc hívás második argumentuma a menü tételszáma, `push`-ként kiolvasva:
+
+| menü tömbfeje | tételszám |
+|---|---|
+| `0xd6d960` | **27** · `0xd6db80` | **14** |
+| `0xd6dfa0` | **23** · `0xd6e1c0` | **17** |
+| `0xd6e498` | **11** · `0xd6e5b0` | **10** |
+| `0xd6e850` | **18** · `0xd6e9b8` | **13** |
+| **összesen** | **133** |
+
+*(A 8.1 szerint 173 rekord van; 173 - 133 = 40 az almenükben.)*
+
+### 8.7/c ⛔ ÚJ: a testvérlap 3.1-e egy ponton MEGDŐL
+
+A `gyorsbillentyuk.md` **3.1** táblája azt írja, hogy a `+0x0c` és a `+0x10`
+mező „a szállított menükben 0". **Ez nem áll:** a menüépítőben **11**
+almenü-mutató kerül a `+0x0c` mezőkbe közvetlen értékként, például
+
+```
+0x0055abca  mov dword ptr [0xd6e128], 0xd6dc98
+0x0055ac38  mov dword ptr [0xd6e150], 0xd6ddc8
+0x0055af63  mov dword ptr [0xd6e21c], 0xd6e170
+```
+
+és a `0x00a6aee0` bejáró épp ezen a mezőn dönt almenü és levél között
+(`0x00a6af2e cmp dword ptr [ebp], ebx`), majd **rekurzívan** hívja magát
+(`0x00a6af5c`). A 133 felső szintű tétel és a 173 rekord közti 40-es
+különbség is ezekben az almenükben van.
+
+### 8.7/d ⛔ ÖNHELYESBÍTÉS: ez a kettő SEM volt nyitott (2026-09-10)
+
+Az előző változat azt írta, hogy a `dstkey` és a `keymap id` nyitva marad,
+azzal az indoklással, hogy „a `gyorsbillentyuk.md` 7. szakasza nem sorolja
+őket". **A hivatkozás volt hibás:** nem a 7.-ben vannak, mert a **2.2** és a
+**2.3** szakasz **megválaszolja** őket.
+
+| tétel | hol van a válasz | a válasz |
+|---|---|---|
+| **`dstkey`** | `gyorsbillentyuk.md` **2.2** | a **kanonikus (angol)** billentyű, amire a program lefordítja; **üres `dstkey` = nincs átképezés**, a `srckey` maga a kanonikus. A cél-oldali módosítók (`dctrl`/`dshift`/`dalt`) **csak az olasz táblában** fordulnak elő. |
+| **`keymap`** | `gyorsbillentyuk.md` **2.3** | a DLL 3084 `XMLF` erőforrásából **pontosan nyolc** keymap (alap + `DE`, `ES`, `FR`, `IT`, `NL`, `PT-BR`, `RU`), erőforrás-eltolásokkal és az átképezett rekeszek számával. **Magyar nincs** ⇒ a magyar Picasa az **angol alaptáblát** használja. |
+
+⇒ **A #2821 szálában nem marad nyitott kérdés.**
+
+⛔ **A hiba mechanizmusa, harmadszor ugyanaz:** a testvérlapnak a *„mit nem
+vizsgáltam"* szakaszát olvastam, nem a **tartalomjegyzékét**. Egy „nyitott
+kérdés" állítás előtt a lap **saját szakaszlistája** a kötelező lépés
+(`grep -n '^## \|^### '`) - a 249. kör tanulsága, amit itt még nem
+alkalmaztam.
+
+### 8.7/e Ami MÉG kimaradhatott - kimondva
+
+Ez a szakasz (8.5-8.7) a `+0x08` mezőről szól. A `gyorsbillentyuk.md`
+**7. szakasza** azt sorolja, amit AZ A kör nem vizsgált; abból a `+0x08`-hoz
+tartozó tételek: **nincs olyan**. Amit ott nyitva hagyott (a menün kívüli
+billentyűk *(billentyű, módosító) → cmd* leképezése, a 12 kötés nélküli
+rekesz, a videólejátszó és a szerkesztőpanel billentyűi), az **nem ennek a
+lapnak a hatóköre**.
+
+---
+
+## 9. ⛳ A `winedisable.txt` FELOLDVA - mit tiltott le a Picasa Wine alatt (2026-09-11, 285. kör, #2963)
+
+*A #531 két utat kínált a 13 parancsazonosító feloldására: Wine-kísérletet
+vagy visszafejtést. **Egyik sem kellett**: a 7. szakasz parancstérképe
+(2026-09-01, #1581) azóta megvan, és kilencet azonnal megad. A maradék
+négyre ez a szakasz ad mért - negatív - választ.*
+
+*Forrás: `runtime/winedisable.txt` · `docs/specs/picasa-menu-parancsok.csv`
+(137 azonosító) · a menüépítő `mov word ptr [<rekord-mező>], <ID>`
+tárolásai.*
+
+### 9.1 A kilenc feloldott parancs
+
+| szám | hex | menü | parancs | felirat |
+|---:|---|---|---|---|
+| 40019 | `0x9c53` | Súgó | `ID_HELP_CHECK_FOR_UPDATES` | Frissítések keresése |
+| 40276 | `0x9d54` | Eszközök | `ID_FTPWEB` | Közzététel FTP-n keresztül… |
+| 40284 | `0x9d5c` | Létrehozás | `ID_SCREENSAVER` | Hozzáadás a képernyővédőhöz… |
+| 40350 | `0x9d9e` | Eszközök | `ID_VIEW_EARTH` | Megtekintés a Google Earth programban… |
+| 40368 | `0x9db0` | Eszközök | `ID_EXPORT_EARTH` | Exportálás Google Earth-fájlba |
+| 40372 | `0x9db4` | Eszközök | `ID_PICTURE_GEOTAG` | Geocímkézés a Google Earth programmal… |
+| 40373 | `0x9db5` | Eszközök | `ID_PICTURE_GEOUNTAG` | Geocímkék törlése |
+| 40393 | `0x9dc9` | Eszközök | `ID_TOOLS_CONFIG_SCREENSAVER` | Képernyővédő konfigurálása… |
+| 40432 | `0x9df0` | Eszközök | `ID_TOOLS_CONFIG_SLINGSHOT` | Fotómegjelenítő beállítása… |
+
+**Funkció szerint:** **Google Earth** (4) · **képernyővédő** (2) ·
+**frissítéskeresés** (1) · **FTP-közzététel** (1) · **fotómegjelenítő
+beállítása** (1).
+
+### 9.2 ⛔ A #531 JELÖLTLISTÁJA NAGYRÉSZT TÉVES VOLT
+
+A jegy „jelöltek (találgatás, nem bizonyíték)" sora ezt írta: *nyomtatás,
+e-mail-küldés MAPI-n, képernyővédő-beállítás, CD/DVD-írás,
+Windows-héjintegráció, TWAIN/WIA képbeolvasás, asztali háttérkép*.
+
+A mérés szerint **a hétből egy** szerepel a listán (a képernyővédő). A
+nyomtatás, az e-mail, a CD-írás, a héjintegráció, a képbeolvasás és a
+háttérkép **NINCS letiltva** Wine alatt.
+
+⭐ **Ez rangsorolási információ, és az ellenkezőjét mondja, mint a
+feltevés:** amit a Google feladott, az nem a Windows-API-hoz kötött
+klasszikus funkció, hanem a **külső Google-szolgáltatásra** épülő
+(Earth, frissítés, FTP, saját fotómegjelenítő).
+
+### 9.3 A maradék NÉGY: a szállított binárisban NINCS rájuk hivatkozás
+
+`40225` (`0x9d21`) · `40192` (`0x9d00`) · `40370` (`0x9db2`) ·
+`40371` (`0x9db3`).
+
+**A mérés menete és a kontrollja.** A menüépítő a parancsazonosítót
+`mov word ptr [<rekord-mező>], <ID>` alakban írja ki, és a rekord kulcsát
+két `push`-sal korábban tolja a veremre (ez a 7. szakaszban leírt
+kiírási csúsztatás). Ezzel a szabállyal a **kilenc ismert azonosító
+9/9-ben** visszaadja a saját nevét - a mérőlánc tehát helyes.
+
+Ugyanezzel a pásztázással (indextől független, teljes `.text`):
+
+| azonosító | utasítás-előfordulás a `.text`-en |
+|---|---:|
+| `0x9db4` (kontroll, ismert parancs) | **2** |
+| `0x9d21` · `0x9d00` · `0x9db2` · `0x9db3` | **0** |
+
+⇒ **A négy azonosítóra a `Picasa3.exe` kódjában egyetlen hivatkozás sincs.**
+Nincs menürekordjuk, tehát a letiltásuk ebben a buildben **hatástalan**.
+
+⚠️ **A hatókör kimondva:** ez a `Picasa3.exe`-re áll. A telepítés többi
+binárisát **nem** mértem ki utasításszinten; a nyers bájtminta-számlálás
+ott nem bizonyíték (a kontroll-azonosítók is „előfordulnak" olyan
+fájlokban, amelyekben menü nincs). Hogy a négy szám egy korábbi build
+maradványa-e, a **szállított** fájlokból nem dönthető el.
+
+*Bizonyítottsági fok: **megerősített** a kilencre (két független forrás: a
+parancstérkép és a menüépítő), és **megerősített negatív** a négyre
+(kontroll-pozitívval futtatott, indextől független pásztázás).*
+
+*Kérdés-mérleg (SAJÁT kérdések): **1 LEZÁRVA** (K1 - a négy maradék: a
+binárisban nincs rájuk hivatkozás) · 0 nyitott · 0 blokkolt · 0 hatókörön
+kívül · 0 „csak nyitva".*
+
+## 10. ÉLESBEN MÉRVE az eredetin - sorrend, láthatóság, felirat (2026-09-25, #3610)
+
+*Forrás: az eredeti angol Picasa 3.9.141, Wine alatt, 1280×1024, feladatra
+futtatva (Colab-felmérés #4, #7, #17-#28; a mérés eszközei és a képek a privát
+`picasapy-agent` #142, #146 alatt). Ide csak a mért tény kerül.*
+
+### 10.1 A sorrend a rekordtömb sorrendje
+
+A `CMenuBar` építője (7. szakasz) minden menüt egy **20 bájtos rekordokból álló
+tömbbe** ír. A tömbön belüli sorrend **a megjelenés sorrendje**, a kitöltetlen
+rekord pedig **az elválasztó**. A lenyitott menük képéből kimért sorok (tétel,
+illetve 9 px-es elválasztóblokk, 16 px-es tételmagasság) **mind a 8 főmenüben**
+egyeznek a tömbök sorrendjével, az elválasztókkal együtt. A főmenük tömbjeinek
+kezdőcíme:
+
+| menü | tömb | rekord | ebből látszik |
+|---|---|---:|---:|
+| File | `0xd6d960` | 27 | 19 tétel + 8 elválasztó |
+| Edit | `0xd6db80` | 14 | 11 + 3 |
+| View | `0xd6dfa0` | 23 | 18 + 5 |
+| Folder | `0xd6e1c0` | 17 | 12 + 5 |
+| Picture | `0xd6e498` | 11 | 7 + 4 |
+| Create | `0xd6e5b0` | 10 | 8 + 2 |
+| Tools | `0xd6e850` | 18 | 13 + 4 (+1 rejtett) |
+| Help | `0xd6e9b8` | 13 | 10 + 3 |
+
+⇒ A `picasa-menu-parancsok.csv` kulcsrendű listája helyett **ez** a sorrend a
+mérvadó a menüsor felépítéséhez.
+
+### 10.1/a A Kép ▸ Csoportos szerkesztés almenüje
+
+A Kép menü `Batch Edit` rekordja (`0x00d6e4ac`) a `0x00d6e318` című
+gyerektáblára mutat; a gyerekszám **19** (`0x00d6e4bc`), az elválasztókat is
+beleértve. A 20 bájtos rekordok sorrendje és az üres rekordok adják az
+almenü sorrendjét és öt csoporthatárát:
+
+| # | rekord | angol felirat | parancsazonosító |
+|---:|---|---|---|
+| 1 | `0x00d6e318` | `&Rename...` (`F2`) | `0x9d4f` |
+| 2 | `0x00d6e32c` | - *(elválasztó)* | - |
+| 3 | `0x00d6e340` | `R&otate Clockwise` | `0x9ca2` |
+| 4 | `0x00d6e354` | `Rotate &Counterclockwise` | `0x9ca3` |
+| 5 | `0x00d6e368` | - *(elválasztó)* | - |
+| 6 | `0x00d6e37c` | `A&uto Contrast` | `0x9d49` |
+| 7 | `0x00d6e390` | `&Auto Color` | `0x9d48` |
+| 8 | `0x00d6e3a4` | `I'm Feeling &Lucky` | `0x9d5e` |
+| 9 | `0x00d6e3b8` | - *(elválasztó)* | - |
+| 10 | `0x00d6e3cc` | `&Sepia` | `0x9d4a` |
+| 11 | `0x00d6e3e0` | `S&harpen` | `0x9d4b` |
+| 12 | `0x00d6e3f4` | `&Warmify` | `0x9d4d` |
+| 13 | `0x00d6e408` | `&Film Grain` | `0x9d4e` |
+| 14 | `0x00d6e41c` | `&Black and White` | `0x9d4c` |
+| 15 | `0x00d6e430` | - *(elválasztó)* | - |
+| 16 | `0x00d6e444` | `Auto Red Eye Correction` | `0x9df1` |
+| 17 | `0x00d6e458` | - *(elválasztó)* | - |
+| 18 | `0x00d6e46c` | `Show Text` | `0x9deb` |
+| 19 | `0x00d6e480` | `Hide Text` | `0x9dec` |
+
+**14 művelet + 5 elválasztó.** A feliratkulcsok között van a fájlmenüből
+újrahasznált `eMenuFile::ID_FILE_RENAME`; a parancsazonosítója és az F2
+gyorsbillentyűje ettől a helytől is a meglévő átnevező párbeszédre vezet.
+
+### 10.2 Feltételes tétel: `ID_TOOLS_DOWNLOAD_FACES`
+
+A „Download Name Tags from Picasa Web Albums” rekordja a Tools-tömbben ott
+van (a Batch Upload és az Upload almenü között), de **a képernyőn nem
+jelenik meg**. A Tools menü a képen 13 tételt mutat, a tömb 14-et. Feltételes
+tétel. Nálunk a szolgáltatás megszűnése miatt hatókörön kívül van (3.1).
+
+### 10.3 Az `ID_GETMYSTUFF` felirata a képernyőn MÁS, mint a sztringtáblában
+
+A kulcs (`eMenuFile::ID_GETMYSTUFF`, `0x9dfa`) angol sztringtábla-szövege
+„Import from Picasa Web Albums...”. **A képernyőn viszont „Import from Google
+Photos...” áll.** A 3.9.141 a feliratot kicserélte, a kulcsot megtartotta.
+⚠️ A sztringtábla tehát nem minden tételnél a képernyő felirata. Ahol a kettő
+eltér, **a kép a mérvadó**.
+
+### 10.4 Élesben megnyitva
+
+Üres könyvtárral (első indítás után) a 98 látható tételből **40 választható**:
+a törlő, áthelyező és eltávolító tételeket, valamint az almenü-fejeket nem
+nyitottuk meg. Megnyitva **17 ad látható hatást**:
+
+- új ablakot nyit: Album Properties, Folder Manager, Open, Log in to Google,
+  People, Confirm, Configure Buttons, Options, About Picasa;
+- a nézetet váltja: Tags, People.
+
+A „View and Edit” és az „Edit View” kép nélkül egy **Info** ablakot nyit:
+„You must select an image to edit.” A többi tétel üres könyvtárral nem ad
+látható hatást (nincs kijelölés, nincs mit vetíteni), a Súgó webes tételei
+pedig böngészőt nyitnának.

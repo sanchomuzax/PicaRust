@@ -1,0 +1,687 @@
+# Bezárás és kilépés az eredeti Picasában - mikor mit zár be az „X"
+
+Ez a lap azt a kérdést válaszolja meg, hogy a jobb felső bezáró gomb (és a
+nézetenkénti kilépők) mikor zárják a **teljes alkalmazást**, és mikor csak egy
+**funkciót**. UX-részletek, amiket a felület újraépítésénél könnyű elrontani.
+
+Forrás: a `Picasa3.exe` string- és erőforrástáblája, valamint a felület saját
+`.tre` leírói. A címek visszakereshetők a
+`referencia/binary-index/picasa3-index.sqlite`-ban.
+
+## A lényeg: HÁROM külön szint van, nem egy
+
+A Picasa nem egyetlen „bezárás" fogalommal dolgozik. Három, egymástól
+független mechanizmus él egymás mellett:
+
+| szint | mit zár | megerősítés |
+|---|---|---|
+| **1. Nézet-kilépő** | egy megjelenítési módot (nagy nézet, szerkesztés, diavetítés) | nincs - de van beállítás a kattintásszámra |
+| **2. Lap bezárása** | egy *projektet* (kollázs, mozgófilm) | **igen**, három választással |
+| **3. Alkalmazás kilépés** | az egész programot | csak feltételesen (folyamatban lévő feltöltés) |
+
+## 1. szint - nézet-kilépők (NEM zárják az appot)
+
+*Forrás: `editoneup.tre:40` (`editoneup/exit`) · `editoneup.tre:83` (`editoneup/prev`) · `oneup.tre:40` (`oneup/exit`) - és további 1 elem ugyanott.*
+
+Három külön kilépő vezérlő létezik, mindegyik a saját nézetéhez tartozik:
+
+| vezérlő | nézet | szomszédai a `.tre`-ben |
+|---|---|---|
+| `oneup/exit` | **nagy nézet** (egy kép) | `oneup/prev` · `next` · `rotateleft` · `star` · `caption` |
+| `editoneup/exit` | **szerkesztő nézet** | `editoneup/prev` · `next` · `rotateleft` · `star` · `captionbutton` |
+| `overlays/exit` | **diavetítés** | `overlays/left` · `right` · `timeline` · `startbutton` |
+
+Ezek **visszalépnek az előző szintre**, nem zárnak alkalmazást.
+
+> **Beállítás:** `SingleClickExit` - a Beállítások párbeszéd hivatalos magyar
+> felirata: **„Szerkesztési nézetből való kilépés egy kattintással"**. Vagyis
+> a szerkesztésből való kilépés kattintásszáma **felhasználói döntés**, nem
+> beégetett viselkedés.
+
+A szerkesztő nézetnek ezen felül **külön `back` vezérlője** is van
+(`editoneup/back`, `editoneup/stripback`) - a kilépés és a visszalépés két
+külön dolog.
+
+### `SingleClickExit` - a videó-előnézeti ablak eseményei (#4458, 2026-10-06)
+
+**Megerősített a `ytDSMovie` ablakára:** a `SingleClickExit` nem a `Back to
+Library` gomb kattintását módosítja, hanem azt választja ki, hogy a videó
+előnézeti ablakának balgombos eseményei közül melyik indítsa el a
+`thumbui/albumview` parancsot.
+
+Az eseményút a binárisban:
+
+1. A `ytDSMovie` ablakosztály `WndProc`-ja `0x0054c540` (`0x0054c840` a
+   `RegisterClassA` rekordjába ezt a címet és a `ytDSMovie` osztálynevet
+   írja). A `0x0054b730` a `ytDSMovie` nevű gyermekablakot létrehozza, és az
+   ablakfogantyút az objektum `+0x17c` mezőjében tárolja.
+2. A `CThumbUI` `+0x288` interfészének vtáblája `0x00c906f4`, egyetlen
+   bejegyzése `0x00595fe0`. A videóobjektum `+0x184` mezőjébe ez az
+   interfész kerül (`0x00593fcf`-`0x00593fd5`, illetve
+   `0x005948c6`-`0x005948cc`). A videóablak az `editpanel/movieparent`
+   felületi elemhez kapcsolódik (`0x00594a89`-`0x00594a8e`, majd
+   `0x00594c13`-`0x00594c34`); a `.tre` szerint ez az elem az
+   `editpanel/preview` gyereke.
+3. A `WndProc` a `WM_LBUTTONDOWN` (`0x201`) üzenetet `1` eseménykóddá
+   alakítja (`0x0054c7f9`-`0x0054c80a`), a `WM_LBUTTONDBLCLK` (`0x203`)
+   üzenetet pedig `3`-má (`0x0054c7d0`-`0x0054c7e5`), majd meghívja a
+   fenti interfészt.
+4. A `0x00595fe0` csak az `1` és `3` kódnál olvassa a
+   `Preferences\SingleClickExit` értéket (`0x005962bb`-`0x005962e6`).
+   A `0x0059630b`-`0x00596313` összevetése azt követeli meg, hogy az
+   esemény `1` legyen, ha a beállítás `1`, és `3`, ha a beállítás `0`.
+   Egyezéskor - ha a lent megnevezett belső kapu nyitva van - a kezelő a
+   `thumbui/albumview` parancsnevet a műveleti listába teszi
+   (`0x00596326`-`0x00596338`, `0x00596495`-`0x005964c2`). Az elem felirata
+   „Back To Library”, súgója „Return to organized thumbnails”
+   (`thumbui_text.tre`), tehát ez a rendezett bélyegképekhez visszalépő
+   művelet.
+
+| `SingleClickExit` | esemény a videó-előnézeti `ytDSMovie` ablakon | művelet |
+|---:|---|---|
+| **0** (alapérték; `0x006e0cf2`-`0x006e0cfa`) | balgombos dupla kattintás (`WM_LBUTTONDBLCLK`, `0x203`; belső kód `3`) | `thumbui/albumview`: vissza a rendezett bélyegképekhez |
+| **1** | egyszeres balgomb-lenyomás (`WM_LBUTTONDOWN`, `0x201`; belső kód `1`) | ugyanaz a `thumbui/albumview` művelet |
+
+**Kapu és területi korlát.** A beállítás-egyezés után a kezelő még ellenőrzi,
+hogy `[CThumbUI+0x30a6] == 0` (`0x00596319`-`0x00596320`). Ha az érték nem
+nulla, az album-nézet parancsa nem fut le; dupla kattintásnál külön ág hívja
+a `0x005944f0`-et (`0x00596297`-`0x005962b8`). Ennek a mezőnek az állapotnevét
+ez a vizsgálat nem azonosította, ezért a táblázat a nyitott kapu esetére szól.
+Az eseményút a `ytDSMovie` gyermekablak teljes kliensfelületéről kapja az
+egérüzenetet. A `WndProc` nem ad át egérkoordinátát, és a callback nem végez
+képpont- vagy képtartalom-találatvizsgálatot; ezen az útvonalon a videókép és
+a videóablak kitöltése között nincs különbségképzés. A kliensfelület pontos
+pixelmérete nincs megmérve. Ez a bizonyíték **nem** állapítja meg, hogy az
+állóképes `editpanel/previewimage` vagy az azon kívüli üres szerkesztői
+terület is ugyanígy viselkedik.
+
+**A `SingleClickExit` közvetlen sztringhivatkozásainak leltára:** a memóriakapus,
+darabolt teljes `.text` pásztázás 2 884 879 utasítást vizsgált meg, és a
+`SingleClickExit` literálra pontosan öt kódhivatkozást adott. A pozitív
+ellenőrzés mind az ötöt a nyilvántartó és a sztring-xref leltárával egyezőnek
+találta:
+
+| cím | szerep |
+|---|---|
+| `0x006e0cf5` | alapérték-regisztrálás; a `0x006e0cb0` rutin 0-val regisztrálja |
+| `0x006e136a` | az Általános beállítások párbeszéd kulcslistája |
+| `0x00564b7b` | `CThumbUI` inicializálás: beolvasás a `+0x31ac` mezőbe |
+| `0x005cfafc` | beállítási érték beolvasása az opciólap összeállításakor |
+| `0x005962bb` | a kattintási esemény végrehajtási kapuja |
+
+### Állóképes előnézet: a `PreviewHandler` útja (#4493, 2026-10-07)
+
+**A beállítás az állóképes előnézet kezelőjéig is eljut.** A `CThumbUI`
+inicializálása a `Preferences\SingleClickExit` értékét a `+0x31ac` mezőbe
+olvassa (`0x00564b7b`-`0x00564bac`). A `PreviewHandler` vtáblája
+`0x00c90a60`; negyedik metódusa `0x005c24c0`. Ez a metódus az `1` eseménykód
+ágában csak akkor folytatja a kilépő útvonalat, ha a mező nem nulla
+(`0x005c2898`-`0x005c28bf`), az `0x0d` kód ágában pedig csak akkor, ha nulla
+(`0x005c2b03`-`0x005c2b0f`). A közös út a `0x00566270` rutinra vezet; az
+ellenőrzi, hogy az `editpanel/preview` létezik és látható-e, majd feloldja és
+elküldi a `thumbui/albumview` parancsot (`0x005662a2`-`0x005662fc`). Az
+előnézet láthatósági kapuja és a kezelő egyes belső ágai tehát itt is
+feltételek; egyes ágak a `0x00571a80` segédre terelnek, amelynek pontos
+szemantikája ebből a vizsgálatból nem állapítható meg.
+
+**Az objektumkapcsolat külön ellenőrzése:** a `0x00563190` a
+`PreviewHandler` vtábláját írja az objektumra (`0x0056319a`), a szülőt pedig
+`+0x28` mezőbe teszi (`0x005631b9`). A `0x005733f0` UI-építő a
+`editpanel/preview` és `editpanel/preview2` elemekhez ilyen kezelőt hoz létre
+és regisztrál (`0x005738fd`-`0x00573957`); az `editpanel.tre` szerint az
+`editpanel/previewimage` és `editpanel/previewimage2` ezek gyermekei (1005.,
+1011. sor). A memóriakapus teljes `.text` pásztázás a `0x00c90a60` vtable
+közvetlen író hivatkozását a `0x00563190` rutinban találta meg. Ez megerősíti,
+hogy a vizsgált handler az állóképes előnézeti ághoz tartozik.
+
+Az `1` kódhoz tartozó általános jelentés balgomb-lenyomás. A 2026-10-07-i
+#4493-as állapotban még nem volt ismert, mi állítja elő az `0x0d` eseményt; ezt
+a következő, #4500-as célzott olvasat lezárta. Az `0x0d` nem egérüzenet és nem
+kattintásszám, hanem a billentyűesemény `VK_RETURN` kódja (lásd lent).
+
+**A 2026-10-07-i kutatási állapot - a #4500 későbbi eredménye felülírta.** A
+natív bemeneti út akkori vizsgálata még nem volt összekötve a
+`PreviewHandler`-rel. A `ytWindow::vftable` (`0x00cd87fc`)
+üzenetkezelője a `0x00984970`; a `0x201`-`0x208` Win32 egérüzeneteket
+`0x00984a10`-`0x009850da` között táblás ágakkal választja szét, és a
+`0x00985324` bájttábla két közös útra tereli őket. A látható balgomb-lenyomási
+út közvetlenül kimásolja a natív `HWND`, `message`, `wParam`, `lParam`
+mezőket (`0x00984d35`-`0x00984d80`), majd a rekord címét a
+`[ytWindow+0x64]` objektum `+0x2c` virtuális metódusának adja
+(`0x009851a1`-`0x009851b1`). A külön `0x00561f50` rutin is rekordot állít
+össze, de egy másik ágban (`0x00984e65`); egyik út sem bizonyítja, hogy az
+`editpanel/preview` `PreviewHandler`-jéhez vezet, és nem tárja fel, melyik
+üzenet állítja `0x0d`-re a handler eseményének `+8` mezőjét.
+Az ATL `CAxHostWindow` `0x00920fa0` eljárása egy másik jelölt: az ismert
+`WM_*` ágak az eredeti Win32 üzenetszámot adják át a `0x00921980` segédnek,
+de ennek a hívásnak sincs bizonyított kapcsolata a `PreviewHandler`-rel.
+
+A teljes `.text` `paszta.py`-s, memóriakapus összehasonlító pásztázása 52,
+`0x201`-`0x209` konstanssal végzett `cmp` utasítást talált 18 függvényben;
+ez nem zárja ki a táblás vagy virtuális leképezést, tehát negatív eredményként
+nem használható. **Cáfoló kör:** a `0x0d = WM_LBUTTONDBLCLK` feltevést a más
+UI-ágak ellenőrzésével próbáltam cáfolni: a videó-előnézeti ág a
+`WM_LBUTTONDBLCLK`-t `3` kódra viszi (`0x0054c7d0`-`0x0054c7e3`), a
+fában pedig külön `treedouble` esemény készül (`0x00ab3ff0`,
+`0x00ab3ffc`). Ez cáfolja az ágak közötti kódazonosítási feltevést, de nem
+dönti el a still preview gesztusát, mert egyik út PreviewHandler-kapcsolata
+sem bizonyított.
+
+#### Eredeti / nálunk / teendő (#4493)
+
+| | Eredeti | Nálunk | Teendő |
+|---|---|---|---|
+| videó-előnézet (`ytDSMovie`) | `[CThumbUI+0x30a6] == 0` mellett `SingleClickExit=0`: balgombos dupla kattintás (`WM_LBUTTONDBLCLK`, `0x203`, belső kód `3`); `=1`: balgomb-lenyomás (`WM_LBUTTONDOWN`, `0x201`, belső kód `1`). Mindkettő a `thumbui/albumview` parancshoz vezet (`0x0054c540`, `0x00595fe0`). | A `VideoExitGestureArea` köti a `controller.singleClickExitEnabled` értéket a videó kilépési gesztusához (a PicasaPy-ban: `VideoPlayerView.qml:120-124`). | A #4449 videós útja megfelel az eredeti beállításnak. |
+| állóképes előnézet (`editpanel/preview`) | `=1` esetén a balgomb-lenyomás `1` kódja, `=0` esetén a billentyű-eseményosztályban a `VK_RETURN` (`0x0d`) vezethet a `thumbui/albumview` parancshoz, ha a `CThumbUI+0x31ac` mező nulla és az előnézet látható (`0x00564bac`, `0x005c24c0`, `0x00566270`). Az `0x0d` tehát nem egérgesztus. | A PicasaPy-ban: `PhotoViewer.qml` a `singleClickExitEnabled` értéket olvassa. `=1` mellett a bal kattintás visszalép; `=0` mellett Enterre a könyvtárba tér vissza, az aktív szerkesztőeszköz saját Enter-útját megtartva. Mindkét állásban a dupla kattintás nagyítás-illesztés marad, a `Back to Library` gomb pedig a `viewer.kerBezaras()`-t használja. | `=1` mellett a már bekötött bal kattintás lépjen vissza; `=0` mellett az állóképes néző Enter billentyűje térjen vissza a könyvtárba. Az Enter ne vegye el az aktív szerkesztőeszköz (különösen a sorozat-vágás) saját eseményét. A dupla kattintás maradjon nagyítás-illesztés, a `Back to Library` gomb pedig működő. |
+
+**Fejlesztői teendő a #4500-as leképezés után:**
+
+1. Bekapcsolt értéknél a bizonyított balgomb-lenyomás hívja a meglévő
+   `viewer.kerBezaras()` visszalépést.
+2. Kikapcsolt értéknél a `VK_RETURN`-nek megfelelő Enter billentyűje hívja a
+   `viewer.kerBezaras()` visszalépést; a dupla kattintás maradjon
+   `viewer.zoomFit()`.
+3. Az Enter-kezelés ne vegye el az aktív szerkesztőeszköz saját útját
+   (különösen a Vágás „alkalmazás és következő kép” sorozatát), és a meglévő
+   `viewerBackButton` maradjon használható.
+
+**Kész, ha:** az `0x0d` billentyűkód bizonyítéka a specben áll; `SingleClickExit=1`
+mellett az állóképes előnézetből balgomb-lenyomásra visszalép; `=0` mellett
+Enterre visszalép; az aktív szerkesztőeszköz megtartja saját Enter-útját; a
+dupla kattintás nagyítás-illesztés marad; a `Back to Library` vezérlő továbbra
+is elérhető.
+
+**Nyitott:** az üres szerkesztőfelület viselkedése; ez a #4500 Enter-következtetését nem érinti.
+
+- ~~`Ghidra-kör kell: 0x005c24c0 - kövesd vissza a PreviewHandler esemény +8 mezőjének 0x0d-re állítását a natív bemenetig`.~~ **Lezárva (#4500):** az `0x0d` a billentyűesemény `+0x10` mezőjében a `VK_RETURN`; nem egérgesztus, ezért a `WM_*` egérüzenet leképezését nem kell hozzá keresni.
+
+#### #4500 - az `0x0d` a Return billentyű, nem egérgesztus (2026-10-12)
+
+A `0x005c24c0` (`PreviewHandler`) eseményrekordján belül két külön mező
+azonosítja az eseményt: a `+0x08` az eseményosztály, a `+0x10` pedig a
+billentyűkód. A kezelő a `0x17` billentyűosztályt külön ágon választja ki,
+majd annak `+0x10` mezőjét vizsgálja; az `0x0d` ezen a mezőn a Win32
+`VK_RETURN` (Enter). Tehát a korábbi `0x0d = egérkattintás` feltevés téves:
+nem a `WM_*` egérüzenetből származó osztálykódot, hanem a Return billentyűt
+jelenti. A bizonyíték közvetlenül a handler két mezőjének külön olvasata és
+összevetése; a `0x00984970` `ytWindow` egérútja ettől független, és nem
+szükséges az Enter azonosításához.
+
+A `CThumbUI` `SingleClickExit` mezője a `+0x31ac` eltoláson van. A Return
+ág csak nulla értéknél engedi tovább a visszalépési utat; az `0x00566270`
+ellenőrzi az `editpanel/preview` láthatóságát, majd a
+`thumbui/albumview` parancshoz vezet. A handler belső kapui tehát itt is
+érvényesek, de az esemény fizikai jelentése már nem feltételes: **Enter**.
+
+**Nálunk (#4500 előtt):** a PicasaPy-ban: `PhotoViewer.qml` Enter-kötése minden nem
+szövegmező-fókusznál a következő képre léptetett. A kikapcsolt beállítás
+Enter-kilépését ez a jegy pótolja. A beállított egykattintásos bal kattintás
+és a `viewerBackButton` meglévő útja változatlan; dupla kattintásra továbbra is
+`zoomFit()` fut. A Vágás eszköz a PicasaPy-ban: `CropOverlay.qml`-beli Enter-kezelése külön
+„alkalmazás és következő kép” sorozatot végez, ezért annak eseményét a
+nézőből kilépő ág nem foghatja el.
+
+**Bizonyosság: feltételes (egy út).** A `+0x10 == VK_RETURN (0x0d)` a
+dekompilált kódból (`referencia/ghidra-koteg-2026-10-12/005c24c0.c`, #23)
+közvetlenül kiolvasható; a `+0x08 == 0x17` billentyű-eseményosztály viszont
+következtetés, mert a `+8` mező írója még nincs megtalálva. Második,
+független út (a `+8` író azonosítása vagy natív futtatás a kezelőn) zárná le.
+A #4493 korábbi gesztusleírása és a #4500 „nem azonosított” következtetése
+ehhez képest elavult.
+
+**Nyitott marad:** az üres szerkesztőfelület viselkedése. Ez nem változtat
+azon, hogy az állóképes előnézet `SingleClickExit=0` melletti bizonyított
+Return-útja Enter.
+## 2. szint - lap bezárása (projekt), HÁROM választással
+
+A kollázs- és a filmszerkesztő **lapként** viselkedik, és a lap bezárásakor -
+ha van nem mentett módosítás - megerősítést kér. A kollázs változat
+(`0x0082c0a0`), hivatalos magyar szöveggel:
+
+> **Cím:** Jóváhagyás…
+>
+> A jelenlegi kollázs nem mentett módosításokat is tartalmaz.
+>
+> A lap bezárása előtt menti vagy elveti ezeket? (Megjegyzés: A program a
+> piszkozatokat a „Kollázsok" albumba menti.)
+>
+> A lap nyitva hagyásához kattintson a Mégse gombra.
+
+**Három gomb:** `Piszkozat mentése` · `Módosítások elvetése` · `Mégse`.
+
+A mozgófilm változata (`0x006251f0`) ugyanez a minta, az album-megjegyzés
+nélkül.
+
+> ⚠️ **Ez nem kétgombos „Mented? Igen/Nem".** A harmadik választás - „a lap
+> nyitva marad" - külön van, és a szöveg ki is mondja. Egy kétgombos
+> párbeszéd itt viselkedésbeli eltérés lenne.
+
+## 3. szint - kilépés az alkalmazásból
+
+A kilépés **alapesetben nem kérdez**, de **négy feltételes figyelmeztetés**
+létezik (2026-08-15-i kiegészítés; a negyediket - `WarnClosePlugins` - a
+2026-08-31-i teljes kör azonosította, ld. (d) lent).
+
+### (a) Folyamatban lévő feltöltés (`0x0067fee0`, `CUploadManagerThread`):
+
+> Uploads are in progress. Would you like to exit now?
+> (Uploads will resume next time you run Picasa.)
+
+**Gombok:** `Exit Now` · `Keep Going`. Vagyis a feltöltés **nem blokkolja** a
+kilépést, és a következő indításkor folytatódik.
+
+### (b) Folyamatban lévő IMPORT (`IDS_WARNCLOSEACQUIRE`, `0x005e45c0`)
+
+> **A Picasa bezárása előtt importálja a képeket?**
+
+**Gombok:** `Képek importálása` · `Kilépés`.
+
+Vagyis az importálás sem blokkolja a kilépést - csak felajánlja a
+befejezését.
+
+### (c) Nem alkalmazott szerkesztés - **ÉL, LEZÁRVA (2026-08-31)**
+
+> **Kilépés előtt alkalmazza a módosításokat a jelenlegi képre?**
+
+A korábbi kör ezt „nincs rá kereszthivatkozás, talán halott szöveg"-ként
+hagyta nyitva. **Megdőlt:** a kilépési kapu (`0x0057c4e0`) pontosan erre
+az esetre hívja a `0x005e45c0`-ot, és annak szerkesztő-ágában **élő
+szövegként** megvan a párja, a `CThumbUI::ConfirmAbandonModifiedEdit`
+kulccsal (`0x00c975fc`):
+
+> **Apply changes to current image before proceeding?**
+> („Alkalmazza a módosításokat a jelenlegi képre, mielőtt folytatná?")
+
+**Gombok:** `Apply Changes` · `Discard Changes` · `Cancel`
+(`CThumbUI::ConfirmAbandonModifiedEditYesButton` / `…NoButton` / `il_Cancel`).
+
+Ez tehát **az `IDS_WARNCLOSEEDIT`-nél** a valódi, megvalósított szöveg:
+ugyanaz a kérdés, de „*before proceeding*" szövegváltozattal (az
+`IDS_WARNCLOSEEDIT`-ben lévő „before quitting?" változat a szövegtárban
+nincs bekötve - az a formás, de fel nem használt változat). A
+**`0x005e45c0`** alkalmazó-ágai a tevékeny eszközt jelzik meg
+(`editpanel/redeyeapply` · `cropapply` · `edittextpanel/edittextapply` ·
+`editpanel/retouchapply`; Picniknél `editpanel/picnikcancel` -
+`0x005e499c`-`0x005e4a8c`).
+
+**Mikor jön elő:** aktív szerkesztő-eszköz - a kiváltó feltételek a
+kilépési kapuban (`0x0057c4e0`, `0x57c55d`-`0x57c58f`):
+
+| feltétel | bizonyíték |
+|---|---|
+| import/acquire fut (jelző `[app+0xdc1]`) | `0x0057c55d` |
+| szövegátszerkesztés / vágás / vörösszem / arckeret él | `0x00562d00` (sztringjei: `editpanel/edittextoverlay`, `editpanel/cropselection`, `editpanel/redselection`, `peoplepanel/manual_frame`) |
+| Picnik-menet aktív | `0x005f2650` (`editpanel/picnikbase`) |
+| a `[app+0x2c8]` objektum foglalt (0x751bb0 igaz) | `0x57c578`-`0x57c57e` |
+| videó-előnézet él (`previewclip2`) | `0x005696c0` (`editpanel/previewclip2`) |
+
+*(A `0x005e45c0` belül további állapotokat néz: `[app+0x30d4] == 4` →
+ugyanaz a `0x00751bb0`; `[app+0x30d4] == 5` → a `0x005f8d80`, a párbeszéd
+másik hívóhelye - `0x5e47ce`-`0x5e47f5`.)*
+
+### (d) Folyamatban lévő web-művelet - `WarnClosePlugins` (`0x005e4240`)
+
+A korábbi körök ezt a négy szöveget a szövegtárban látták, de nem találták
+meg a hívóját. A `0x0057c4e0`-ből levezetve **a kilépési kapu utolsó
+vizsgálata, közvetlenül a leállás előtt**:
+
+> **Figyelmeztetés**
+> Ha bezárja a Picasát, azzal leállítja a be nem fejeződött műveleteket.
+> Valóban bezárja a programot?
+
+**Gombok:** `Bezárás ennek ellenére` · `Bezárás mellőzése`.
+**Cím:** `WarnClosePlugins::Title` („Figyelmeztetés").
+
+A párbeszéd akkor jön elő, ha a webes/online műveletek valamelyike fut
+(feltöltő böngésző, web-export munkamenet): a feltétel három jelzőből VAGY
+kapcsolatban áll (`0x005e4240`, `0x5e4250`-`0x5e42dd`):
+
+1. `[app+0xed8]` nem nulla ÉS a `0x00699140` foglaltság-kérdezés
+   `0xf4240`-ot („foglalt") ad;
+2. a `0x00d67904`-nál élő (plugin-)kezelő vtable+0x24 hívása `0xf4240`-ot ad -
+   ekkor a `0x009b40a0` begyűjti a műveletek neveit;
+3. `[app+0xecc]` jelző: a `+5` bájt vagy a `+0x18` mező nem nulla.
+
+A válasz **`0xf4242` (vétó)** esetén a kapu a kilépés állapotát 3-ról
+2-re visszavételezi (`0x0057c5d6`), és az ablak nyitva marad.
+
+#### ⭐ LEZÁRVA (2026-09-12, #1738): a párbeszéd NEM sorolja fel a műveleteket
+
+A korábbi kör ezt élő Picasa-képernyőképre bízta volna. **Nem kell hozzá** -
+a `0x009b40a0` elolvasása eldönti.
+
+**Mit csinál a begyűjtő.** Végigmegy a bejegyzett kezelők tömbjén
+(`[obj+0x54]`, lépésköz `0x14`, darabszám `[obj+0x58] >> 1`), és
+kezelőnként két virtuálist hív: a `vtbl+0xc`-t (szűrés - a `0xf4241` és a
+nulla visszatérés kihagyja a tételt), majd a `vtbl+0x10`-et, ami egy
+szöveget ad vissza.
+
+**A döntő rész: EGYETLEN szöveget tart meg.**
+
+| helyzet | mi történik | cím |
+|---|---|---|
+| az eddigi szöveg üres | az újat átveszi | `0x009b412b` (`FUN_005c2100` = sztring-értékadás) |
+| az új szöveg **azonos** az eddigivel | továbblép, egy példányt tart | `0x009b4190`-`0x009b41ac` (bájtonkénti összevetés) |
+| az új szöveg **eltér** | **mind a négy puffert kiüríti és `-1`-gyel tér vissza** | `0x009b41ef` → `0x009b41b2` |
+
+Vagyis **összefűzés, elválasztó és formátumsztring nincs** - ezért nem
+találta meg egyetlen kör sem: nem létezik.
+
+**Mit tesz a hívó a `-1`-gyel.** A `0x005e4240` a visszakapott szöveget az
+`edi`-ben nézi meg; ha üres (`0x005e42e5`-`0x005e42f3`), a **beégetett
+általános szöveget** tölti be:
+
+```
+0x005e42f5  push 0xc97450("WarnClosePlugins::message")
+0x005e42fa  mov  eax, 0xc97400("Closing Picasa will cancel unfinished
+                               operations. Do you really want to close?")
+```
+
+Ha nem üres, azt a szöveget használja helyette (`jne 0x5e431e`).
+
+⇒ **A válasz a jegy kérdésére:** a párbeszéd **soha nem sorol fel
+műveleteket**. Vagy egyetlen, a bővítménytől kapott üzenetet mutat - és azt
+is csak akkor, ha MINDEN blokkoló bővítmény UGYANAZT a szöveget adja -, vagy
+a fenti általános mondatot.
+
+**Amit ez NEM mond meg:** hogy a bővítmények milyen szöveget adnak vissza
+(a `vtbl+0x10` az egyes bővítményekben), és hogy élesben előfordul-e egyáltalán
+a nem üres ág. A megvalósításunkhoz ez nem kell: a felsorolás lehetősége
+kizárva, az általános szöveg pedig ki van olvasva.
+
+### ✅ Az `exit_nag` nem élő kapcsoló, hanem eltávolított maradvány (#671,
+2026-09-12)
+
+Az `exit_nag` korábbi „jelzőtábla-elemként” való leírása túl erős volt. A
+`0x004092e0` két külön műveletet végez:
+
+- `0x00409340` **beszúr** egy név szerinti rekordot, és annak értékét 1-re
+  állítja (`[rekord+8] = 1`); ezt kapja az `auto_update`, `new_album`,
+  `new_collection`, `extended_filetypes`, `extended_filters`, `email_scanner`
+  és `hosting`;
+- `0x00409450` név szerint **megkeres és eltávolít** egy meglévő rekordot;
+  ezt hívja a `watermark`, majd az `exit_nag` nevével.
+
+A tábla közvetlenül előtte, a `0x00409250`-ben jön létre. Az ott hívott
+`0x004095c0` csak a `runtime\\defaults.ini` `[Track]` / `name` értékét olvassa
+be (a szállított fájlban `public`), a táblát nem tölti fel. Ezért az
+`exit_nag` törlése ebben a buildben már létrehozáskor is eredménytelen
+védelmi/takarító művelet.
+
+**Kimerítő negatív kontroll:** a darabolt, memóriakapus teljes `.text`-pászta
+**2 884 879 utasítást** vizsgált meg, 85,2 MiB csúcs-RSS-sel. Az
+`exit_nag` címére (`0x00c7f9fc`) pontosan **1** operandus mutat:
+`0x00409331 mov edx,0xc7f9fc`, közvetlenül a törlő hívás előtt. A pozitív
+kontrollként mért `watermark` címére **3** operandus mutatott: a törlés és két
+valódi exportfelületi használat (`0x00739266`, `0x00739dd4`).
+
+A közös név szerinti lekérdező (`0x00409530`) összes hívója is ellenőrizve:
+négy hívó függvényben öt hívási hely van, mindegyik közvetlen literált ad át
+- négyszer `hosting`, egyszer `buttonmgr:browse`. Dinamikus név és kilépési
+ág nincs közöttük.
+
+⇒ **Az `exit_nag`-nak ebben a Picasa 3.9 buildben nincs felhasználói hatása:**
+nem beállítás, nem dialóguskapu és nem élő kísérleti jelző, hanem egy
+kifejezetten eltávolított, névként bent maradt funkciómaradvány. A PicasaPy
+kilépési viselkedésébe nem kell átvenni.
+
+## A „Ne kérdezzen újra." KÖZÖS jelölőnégyzet
+
+Az `IDS_CLOSE_LAST_CHECK` (**„Ne kérdezzen újra."**) **négy különböző
+párbeszédben** ugyanaz az erőforrás:
+
+| cím | mi ez |
+|---|---|
+| `0x0053a790` | „Lemezre menti a módosításokat?" |
+| `0x005d2ad0` | az utolsó gyűjtemény bezárása |
+| `0x005ee2a0` | a „Rejtett mappák" jelszó-felajánlása |
+| `0x0053b2e0` | (azonosítatlan) |
+
+Vagyis a Picasában az „elnyomható megerősítés" **egységes minta**, nem
+dialógusonként külön megoldás. Ezt érdemes nálunk is közös komponensként
+megvalósítani.
+
+## Az utolsó gyűjtemény bezárása
+
+Külön megerősítés (`IDS_CLOSING_LAST_COLLECTION_*`):
+
+> **Bezárja a legutóbbi gyűjteményt?**
+> Az utolsó gyűjteményének bezárására készül. Az indexképek területén
+> egyetlen kép sem lesz látható. Folytatja?
+>
+> Egy gyűjtemény megnyitásához kattintson duplán a nevére, vagy kattintson a
+> mellette lévő ikonra.
+
+Figyelemre méltó, hogy a szöveg **megmondja, hogyan lehet visszacsinálni** -
+nem csak figyelmeztet.
+
+## Külön mechanizmus: „Lemezre menti a módosításokat?"
+
+Ez **nem** bezárási párbeszéd, hanem a szerkesztések lemezre írásáé
+(`0x0053a790`, `CThumbUI::FileSave::message`):
+
+> **Lemezre menti a módosításokat?**
+> *(a párbeszéd hozzáteszi: „A program biztonsági másolatot készít ezekről a
+> fájlokról.")*
+
+Elnyomható: **`DoNotAskFileSave`** beállításkulcs.
+
+## ✅ A kilépési kapu teljes sorrendje (`0x0057c4e0`, 2026-08-31)
+
+A **minden** bezárási út közös pontja. A főablak üzenetkezelője
+(`0x005e4ac0`) a `WM_SYSCOMMAND` (`0x112`) üzenetben a `SC_CLOSE`
+(`0xf060`) paraméterre **közvetlenül ezt** hívja (`0x5e4d87`-`0x5e4d90`).
+Alt+F4, a rendszermenü Bezárás és a címsor X-je mind ide érkezik.
+
+A kapu visszatérési értékei - a keretrendszer három állapotkódja:
+
+| kód | jelentés |
+|---|---|
+| `0xf4240` (1 000 000) | **halasztva** - most nem léphet ki (modális, mód-ablak stb. záródik) |
+| `0xf4241` | **elküldve** - a kérést továbbította |
+| `0xf4242` | **vétó** - a felhasználó meggondolta magát (párbeszéd „mégse") |
+
+A kapu lépései, sorrendben (minden lépésnél: ha kimenete `0xf4242`,
+kilépés-megszakítás; ha halasztás történt, a felhasználó **újra** X-nyomása
+indít egy új kört, ami a következő akadályt szedi le - tehát egy
+modális + egy figyelmeztetés EGY X-nyomás alatt látszhat):
+
+1. **Mód-ablak zárása először** (`0x57c4e3`-`0x57c513`): ha aktív mód van
+   (a `0x00d67858` globális számláló 1-10), annak ablakleírója a
+   `0x00d4a4a8`-nál élő tízelemes táblában van - kap egy
+   `PostMessage(WM_SYSCOMMAND, SC_CLOSE)`-t. *Ez a magyarázata annak, hogy
+   nagy nézetben/diavetítésben az X először a nézetet zárja.*
+2. **Modális ablak zárása** (`0x57c519`-`0x57c553`): ha van modális párbeszéd,
+   a `CloseModal` (`0x00983140`) vagy **elsüti a `CloseModal` névparancsot**,
+   vagy - ha a vezérlő nem vétózza - `PostMessage(modális, WM_CLOSE, 0, 0)`.
+   A WM_CLOSE tehát a modális ablakok útja; a főablaké az SC_CLOSE.
+3. **`[app+0xdc0]` jelző** beállítva → néma halasztás (`0x57c554`).
+4. **Import / szerkesztő-ág** - a fenti (b)/(c) szakasz:
+   `0x005e45c0` hívása; `0xf4242`-nél megáll.
+5. **`0x579330()`** igaz → `0x00566270` (előnézet/albumnézet lezárása) és halasztás.
+6. **Kilépési állapot beállítása** (`0x00d678d8` → `+0x48 = 3`),
+7. **`WarnClosePlugins`** (`0x005e4240`) - (d) szakasz; vétónál állapot 3→2.
+8. **Leállás indítása** (`0x57c5ed`-`0x57c630`): `0x0040df60(0)`,
+   `0x0097d370(app)`, `0x0057d290`, `IsZoomed`-ellenőrzés, majd a
+   kilépéskori mentések (ld. lejjebb), és a visszatérési érték 0 - a
+   Windows bezárhatja az ablakot.
+
+> **Nálunk hiányzik a 2. lépés párja is:** QML-ben a modális `Dialog`
+> bezárása nem egységes „elképzelhető-e most" lekérdezésen fut - lásd
+> „A MI oldalunk" szakaszt.
+
+## ✅ A bezárás anatómiája gombonként - minden bezáró vezérlő, névparanccsal
+
+A Picasa felületi nyelvében a bezárás **névparancs** (a `0x009cd8a0`
+parancs-forgalmazón át), nem ablaküzenet. A teljes leltár:
+
+| vezérlő | névparancs / üzenet | kiadó függvény | mit zár |
+|---|---|---|---|
+| **főablak X** (egyéni címsor gomb) | `WM_SYSCOMMAND, SC_CLOSE` | WndProc `0x005e4d87` | a kilépési kapu fut le (kb. lépései) |
+| **lap X** (kollázs/film fül) | `<lapid>/close` - a gomb az azonosítóból építi: `"%x" + "/close"` (`0x005b2553`-`0x005b2565`) | `0x005b2410` | egy projekt-lap, háromválasztós megerősítéssel |
+| **jobb fiók X** (szerkesztőben) | `rightdrawerpanel/close` | `0x0057bb50` | a jobb oldali információsáv |
+| **navigátor X** | `nav/close` | `0x005de8e0` | a szerkesztői nagyítás-navigátor lebegőablaka (`nav.tre`) |
+| **toys X** | `toys/close` | `0x005d56e0` | az egyszerű javítások panel eszköze |
+| **modális párbeszéd X** | `CloseModal` névparancs, vagy `WM_CLOSE` | `0x00983140` | az aktuális modális ablak |
+| **miniböngésző (Helyek)** X | `geo::close_tip` = „Ablak bezárása" | `0x00651580` | a geo/miniböngésző ablak |
+| **EXIF-tulajdonságok** | `EXIF::Close` = „Bezárás" | `0x009f4300` | a tulajdonság-panel |
+| **egér/billentyű „vissza"** | `WM_APPCOMMAND` (0x319) 1-es parancs → `editpanel/picnikcancel`, ha Picnik él | WndProc `0x5e4e86`-`0x5e4eac` | az online szerkesztés |
+
+A címke-gombok képei egy közös gyárból jönnek: a főablak X-je a
+`globalbuttons/square_close_n` / `_h` (hover) / `_p` (lenyomva) hármast
+kéri (`0x00648f8f`-`0x00648f9f`), a lap X-je a `tab/close_n` / `_p` / `_h`
+hármasát (`0x005b2584`-`0x005b2593`).
+
+## ✅ Kilépéskor MENTÉSEK futnak - nem csak leállás
+
+A kapu 8. lépésében, a szálbontás ELŐTT három mentés fut (sorrendben,
+`0x0057c5ed`-`0x57c628`):
+
+| függvény | mit ír | kulcsok |
+|---|---|---|
+| `0x00575f50` | **főablak-geometria** | `mainwinismax` · `mainwinpos` = `rect(%ld %ld %ld %ld)` |
+| `0x00576490` | bélyegkép-méret | `Thumbscale` · `ThumbscalePeople` |
+| `0x00576660` | **utolsó nézet** | `LastAlbumSelected` · `LastViewRoot` · `LastViewRoot2` |
+
+(Vagyis a *Fájl → Kilépés menüpont* handlerében is meglévő
+`GetWindowRect` (`0x00533bc0`, a `0x005cb990` parancs-diszpécser
+`0x9c98`-as esetéből) ugyanebbe a menetbe tartozik: az ablak pozíciója a
+kilépés pillanatában rögzül.)
+
+> **Helyesbítés (2026-08-31, második kör):** a Fájl → Kilépés
+> parancsazonisítója a javított menü-horgonnyal **`0x9c41`** (nem
+> `0x9c98` - az az EPROCESS/„Order Prints" rekordja), és a `0x9c41` esete
+> (`0x5cba27`) **`PostMessage(WM_SYSCOMMAND, SC_CLOSE)`**-t küld - tehát
+> a menü Kilépés és az X **bizonyítottan ugyanarra a kapura** fut. A
+> korábbi kör „a menü útja a kapuig nem volt nyomonkövethető" megjegyzése
+> ezzel lezárult. (Az `0x9c98`-as eset - web-panel-lezárás - ettől független
+> menütétel; a horgony-módszer határát ld.
+> `picasa-menu-parancsok-viselkedes.md` 34.1.)
+
+## Amit ebből érdemes átvenni
+
+1. **Az „X" jelentése szintfüggő.** Nézetben visszalép, lapon projektet zár,
+   a főablakon kilép. Egyetlen közös viselkedés nincs.
+2. **A projekt-lap bezárása HÁROM választás**, nem kettő.
+3. **A szerkesztésből kilépés kattintásszáma beállítás** (`SingleClickExit`),
+   nem fix.
+4. **A kilépés alapból nem kérdez** - négy feltételes figyelmeztetés van
+   (feltöltés, import, aktív szerkesztő-eszköz, web-művelet), és egyik sem
+   tiltja meg.
+5. **Bezárás előtt a program sorban zárja a rétegeket**: először a mód-ablak,
+   aztán a modális párbeszéd, csak aztán jönnek a kérdések.
+
+## Korábban nyitott kérdések - lezárva
+
+- ~~Az `exit_nag` kapcsoló pontos hatása.~~ **LEZÁRVA (2026-09-12):** nincs
+  hatása ebben a buildben; a program a nevet kizárólag a jelzőtáblából való
+  eltávolításhoz használja, olvasója nincs (részletes bizonyítás fent).
+- ~~Él-e még az `IDS_WARNCLOSEEDIT`.~~ **LEZÁRVA (2026-08-31):** él - a
+  `CThumbUI::ConfirmAbandonModifiedEdit` kulccsal, „before proceeding?"
+  szöveggel, a `0x005e45c0` szerkesztő-ágában; a cím nélküli
+  „before quitting?" változat a szövegtárban fel nem használt maradvány.
+
+## ✅ A főablak bezárása MEGSZÜNTETI a háttérszálakat
+
+Három, egymást megerősítő tény:
+
+**1. Nincs „rejtve tovább fut" út.** A főablaknak nincs tálcaikonja
+(bizonyítva lent), tehát nincs hova elrejtőznie.
+
+**2. A program egyetlen, lineáris fő függvényből fut** (`0x004051b0`,
+2533 bájt): előkészítés → futás → leállás. Ez írja a `CleanExit`
+beállításkulcsot is (`0x00403fc0` induláskor, `0x00404070` kilépéskor) -
+ebből tudja a következő indítás, hogy előzőleg összeomlás volt-e.
+
+**3. A szálak bontása erőszakos.** A `ytBaseThread` bontó útja
+(`0x0097b420`, a vtable 0. slotjából) pontosan ezt a három API-t hívja,
+ebben a sorrendben:
+
+```
+WaitForSingleObject   →   TerminateThread   →   CloseHandle
+```
+
+Vagyis: megvárja a szálat, és **ha nem áll le, kilövi**.
+
+> ⚠️ **Ezt a mintát NE vegyük át.** A `TerminateThread` a Windows egyik
+> legdurvább API-ja: nem futtat takarítást, és nyitva hagyhat zárolásokat
+> vagy félbeírt fájlt. Ez magyarázhatja a Picasa ismert, kilépéskori
+> adatbázis-sérüléseit. A `.picasa.ini`-t és az indexet nálunk **rendezett
+> leállítással** kell menteni.
+
+Ez egyben megmagyarázza a feltöltés-figyelmeztetést is (3/a pont): a kilépés
+tényleg megszakítaná a feltöltő szálat, ezért kérdez rá a program.
+
+## Mellékes lelet: Wine-felismerés
+
+A `0x00403640` a `kernel32`-ben a `wine_get_unix_file_name` függvényt keresi,
+és ettől teszi függővé a `BgFaceDetectThread` beállítást - vagyis a Picasa
+**felismeri, ha Wine alatt fut**, és a háttér-arcfelismerést másképp kezeli.
+
+## ✅ A főablaknak NINCS tálcaikonja - bizonyított negatív eredmény
+
+A `Picasa3.exe` **feloldja** a tálcaikon-API-t, de **soha nem hívja meg**.
+
+A feloldó csonk (`0x00c33c22`) a `GetVersion` alapján választ ágat - ez a
+Windows 9x/NT korszak öröksége:
+
+```asm
+call [0x00c40450]                       ; GetVersion
+mov  [0x00d6fc58], eax
+cmp  dword [0x00d6fc58], 0x80000000
+jae  9x_ag
+mov  dword [0x00d695c4], 0x009b2d00     ; NT: ANSI→wide burkoló
+ret
+9x_ag:
+mov  eax, [0x00c405fc]                  ; Shell_NotifyIconA
+mov  [0x00d695c4], eax
+ret
+```
+
+**A bizonyíték:** a `0x00d695c4` globális a teljes binárisban **pontosan
+kétszer** fordul elő - mindkétszer a fenti csonkban, ahol *beállítják*.
+`call [0x00d695c4]` **sehol nincs**, és a `Shell_NotifyIconA`
+IAT-bejegyzésére (`0x00c405fc`) sincs közvetlen hívás.
+
+> **Következtetés:** ez egy közös operációsrendszer-absztrakciós réteg
+> maradványa (ugyanaz a csonk-minta, ami a mappafigyelő burkolóját is
+> feloldja) - a főprogram nem használja. **A Picasa főablaka nem tesz ikont a
+> tálcára.** A tálcaikon a `PicasaPhotoViewer.exe` és a `MovieThumb.exe`
+> sajátja.
+>
+> **A PicasaPy-nak tehát nem kell tálcaikon** a főablak-paritáshoz.
+
+## A MI oldalunk - mért állapot (2026-08-31, #671)
+
+A PicasaPy-ban: `src/picasapy/app/qml/Main.qml` `ApplicationWindow`-ja **nem rendelkezik
+`onClosing` kezelővel** (mérés: a PicasaPy-ban: `rg -n "onClosing" src/picasapy/app/qml/` →
+csak a PicasaPy-ban: `CompactDatabaseDialog.qml:56`-ban van, ami a tömörítés-menetet
+szakítja meg). Ezért ma a főablak X-je **feltétel nélkül becsukja a
+programot** - nincs réteg-zárás (2. lépés), nincs a négy kilépési
+figyelmeztetés, és nincs mód-függő viselkedés.
+
+| pont | eredeti | nálunk (mérve) | teendő |
+|---|---|---|---|
+| főablak X | kilépési kapu: 8 lépés (mód-ablak → modális → import → eszköz → web-művelet → leállás-mentések) | **nincs `onClosing`** - azonnali bezárás | `onClosing`-kezelő + kilépési kapu sorrend |
+| feltöltés-figyelmeztetés | `Exit Now`/`Keep Going` párbeszéd | nincs (nem mérve futó feltöltéssel - nincs feltöltés nálunk) | nincs mit átvinni, amíg nincs feltöltés |
+| import-figyelmeztetés | „Képek importálása"/„Kilépés" | nincs `onClosing`, az import panelnek sincs futás-állapota | az import-állapot jelzője + párbeszéd |
+| aktív szerkesztő-eszköz megerősítés | „Alkalmazza a módosításokat…?" (Apply/Discard/Cancel) | nincs; eszközöknél van beépített alkalmazás/elvetés, de kilépésnél nem kérdez | eszköz-mód lekérdezése + párbeszéd |
+| web-művelet figyelmeztetés | `WarnClosePlugins` (Bezárás ennek ellenére / mellőzése) | nincs (nincs web-műveletünk) | később, a feltöltővel együtt |
+| lap X | `<lapid>/close` → háromválasztós megerősítés | **megvan** - a PicasaPy-ban: `DocumentTabStrip.qml` + a PicasaPy-ban: `CollageDialogs.qml` (`Piszkozat mentése`/`Módosítások elvetése`/`Mégse`) | - (kész) |
+| utolsó gyűjtemény bezárása | megerősítés + `DoNotAskOnLastCollectionClose` elnyomó-kulcs | a PicasaPy-ban: `FolderPane.qml:198` `closingHidesEverything()` - a megerősítés él; az elnyomó-kulcs nincs | `DoNotAskOnLastCollectionClose` kulcs felvitele |
+| modális lezárás kilépéskor | `CloseModal` / `WM_CLOSE` egyenként, ellenőrzéssel | nincs egységes modális-leltár | a kapu 2. lépése |
+| kilépéskori geometria-mentés | `mainwinismax` + `mainwinpos` = `rect(...)` kilépéskor | **megvan** - a PicasaPy-ban: `window_geometry.py` a `visibilityChanged(Hidden)` jelre menti (a PicasaPy-ban: `application.py` beköti); kulcsneveink eltérnek, a viselkedés (maximalizált-jelző + négyzetes rect) hasonló | - (kész; a kulcsnevek egyeztetése nem cél) |
+| kilépéskori „utolsó nézet" mentés | `LastAlbumSelected` · `LastViewRoot`/`2` | **nem mérve** ebben a körben - az indulás-oldal (#1571/#1706) körébe tartozik | az indulás/indulási kör ki méri |
+
+**A teendő szűkebben:** a megvalósítás maga a PicasaPy-ban: `Main.qml`
+`onClosing`-kezelője és egy Python-oldali „kilépési kapu" (a
+a PicasaPy-ban: `controller.py`-ban), ami a fenti sorrendben futtatja a vizsgálatokat.
+Ez a #671 megvalósítási jegye; a Windows-specifikus API-k (SC_CLOSE,
+WM_CLOSE) nálunk QML-szinten egyszerűsítendők. **Megjegyzés a
+PySide6-korlátról:** a PicasaPy-ban: `window_geometry.py` fejléce rögzíti, hogy a
+`closing` jel `QQuickCloseEvent` paraméterét a PySide6 nem tudja
+Python-oldalra konvertálni - ezért az „elfogadható-e a bezárás" döntés a
+QML-oldali `onClosing`-ben születik, és a Python-kaput jelzésen át
+kérdezi. A geometria-mentés ennek a korlátnak a megkerüléseként már a
+`visibilityChanged(Hidden)` jelre fut - az új kapunak erre a mintára kell
+épülnie.
