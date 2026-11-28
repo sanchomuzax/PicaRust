@@ -162,7 +162,7 @@ jobs:
             $bitmap.Dispose()
           }
           $exe = Join-Path $PWD 'target/release/picarust.exe'
-          function Invoke-Smoke([string]$keptar) {
+          function Invoke-Smoke([string]$nev, [string]$keptar) {
             $inditas = [System.Diagnostics.ProcessStartInfo]::new()
             $inditas.FileName = $exe
             $inditas.UseShellExecute = $false
@@ -170,9 +170,23 @@ jobs:
             $inditas.ArgumentList.Add($keptar)
             $folyamat = [System.Diagnostics.Process]::Start($inditas)
             if ($null -eq $folyamat) { throw 'A program nem indult el.' }
+            $ora = [System.Diagnostics.Stopwatch]::StartNew()
             try {
-              Start-Sleep -Seconds 20
+              # indulási idő: a folyamat indításától a főablak megjelenéséig
+              $ablak_ms = -1
+              while ($ora.ElapsedMilliseconds -lt 20000 -and -not $folyamat.HasExited) {
+                $folyamat.Refresh()
+                if ($folyamat.MainWindowHandle -ne [IntPtr]::Zero) { $ablak_ms = $ora.ElapsedMilliseconds; break }
+                Start-Sleep -Milliseconds 20
+              }
+              $hatra = 20000 - $ora.ElapsedMilliseconds
+              if ($hatra -gt 0) { Start-Sleep -Milliseconds $hatra }
               if ($folyamat.HasExited) { throw 'A program 20 másodperc előtt kilépett.' }
+              if ($ablak_ms -lt 0) { throw 'A főablak 20 másodperc alatt nem jelent meg.' }
+              $folyamat.Refresh()
+              $sor = '- {0}: ablak {1} ms, memória 20 mp után {2:N0} MB (csúcs {3:N0} MB, saját {4:N0} MB)' -f `
+                $nev, $ablak_ms, ($folyamat.WorkingSet64 / 1MB), ($folyamat.PeakWorkingSet64 / 1MB), ($folyamat.PrivateMemorySize64 / 1MB)
+              Add-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'picarust-meres.md') -Value $sor -Encoding utf8
               if (-not $folyamat.CloseMainWindow()) { throw 'Az ablak nem zárható be szabályosan.' }
               if (-not $folyamat.WaitForExit(5000)) { throw 'A program nem állt le a bezárás után.' }
               if ($folyamat.ExitCode -ne 0) { throw "Kilépési kód: $($folyamat.ExitCode)" }
@@ -184,9 +198,9 @@ jobs:
               $folyamat.Dispose()
             }
           }
-          Invoke-Smoke $ures
-          Invoke-Smoke $ekeztett
-          Invoke-Smoke $hianyzik
+          Invoke-Smoke 'üres képtár' $ures
+          Invoke-Smoke '20 kép, ékezetes útvonal' $ekeztett
+          Invoke-Smoke 'nem létező képtár' $hianyzik
 
       - name: Mérési összefoglaló
         shell: bash
@@ -195,6 +209,8 @@ jobs:
             echo "### Windows: mért idők"
             echo "- clippy: ${CLIPPY_MP} mp"
             echo "- release build: ${BUILD_MP} mp"
+            echo "### Windows: indulás és memória (a csomagolt program)"
+            cat "$RUNNER_TEMP/picarust-meres.md"
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Csomag feltöltése
