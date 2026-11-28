@@ -3,21 +3,9 @@
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
+use crate::tipusok::{Foto, Mappa};
+
 const KITERJESZTESEK: [&str; 3] = ["jpg", "jpeg", "png"];
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Foto {
-    pub ut: PathBuf,
-    pub meret: u64,
-    pub mtime_ns: u128,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Mappa {
-    pub ut: PathBuf,
-    pub nev: String,
-    pub fotok: Vec<Foto>,
-}
 
 pub fn kep_e(ut: &Path) -> bool {
     ut.extension()
@@ -62,12 +50,12 @@ fn tartalom(ut: &Path) -> (Vec<Foto>, Vec<PathBuf>) {
     (fotok, almappak)
 }
 
-pub fn almappak(ut: &Path) -> Vec<PathBuf> {
+pub(super) fn almappak(ut: &Path) -> Vec<PathBuf> {
     tartalom(ut).1
 }
 
 /// A mappa és alfái közül minden, amelyikben van kép.
-pub fn fa_beolvas(ut: &Path) -> Vec<Mappa> {
+pub(super) fn fa_beolvas(ut: &Path) -> Vec<Mappa> {
     let (fotok, almappak) = tartalom(ut);
     let mut ki = Vec::new();
     if !fotok.is_empty() {
@@ -91,24 +79,42 @@ pub fn fa_beolvas(ut: &Path) -> Vec<Mappa> {
 mod tesztek {
     use super::*;
 
-    fn ideiglenes(nev: &str) -> Result<PathBuf, String> {
-        let gyoker = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(2)
-            .ok_or_else(|| "nem talalhato a munkafa gyokere".to_string())?;
-        let ut = gyoker
-            .join(".tmp")
-            .join(format!("picarust-{nev}-{}", std::process::id()));
-        if ut.exists() {
-            std::fs::remove_dir_all(&ut).map_err(|e| e.to_string())?;
+    struct TesztMappa(PathBuf);
+
+    impl TesztMappa {
+        fn uj(nev: &str) -> Result<Self, String> {
+            let munkafa = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .ancestors()
+                .nth(2)
+                .ok_or_else(|| "nem talalhato a munkafa gyokere".to_string())?;
+            let ut = munkafa
+                .join(".tmp")
+                .join(format!("picarust-{nev}-{}", std::process::id()));
+            if ut.exists() {
+                std::fs::remove_dir_all(&ut).map_err(|e| e.to_string())?;
+            }
+            std::fs::create_dir_all(&ut).map_err(|e| e.to_string())?;
+            Ok(Self(ut))
         }
-        std::fs::create_dir_all(&ut).map_err(|e| e.to_string())?;
-        Ok(ut)
+    }
+
+    impl std::ops::Deref for TesztMappa {
+        type Target = Path;
+
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    impl Drop for TesztMappa {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
     }
 
     #[test]
     fn csak_a_kepet_tartalmazo_mappak_jonnek() -> Result<(), String> {
-        let gy = ideiglenes("fa")?;
+        let gy = TesztMappa::uj("fa")?;
         std::fs::create_dir_all(gy.join("b")).map_err(|e| e.to_string())?;
         std::fs::create_dir_all(gy.join("a")).map_err(|e| e.to_string())?;
         std::fs::create_dir_all(gy.join("ures")).map_err(|e| e.to_string())?;
@@ -125,22 +131,21 @@ mod tesztek {
         assert!(m[0].fotok[0].ut.ends_with("1.jpg"));
         assert_eq!(m[1].fotok.len(), 1);
         assert_eq!(almappak(&gy).len(), 3);
-        let _ = std::fs::remove_dir_all(&gy);
         Ok(())
     }
 
     #[test]
     fn ures_es_nem_letezo_keptar_ures() -> Result<(), String> {
-        let gy = ideiglenes("ures")?;
+        let gy = TesztMappa::uj("ures")?;
         assert!(fa_beolvas(&gy).is_empty());
-        std::fs::remove_dir_all(&gy).map_err(|e| e.to_string())?;
+        std::fs::remove_dir_all(&*gy).map_err(|e| e.to_string())?;
         assert!(fa_beolvas(&gy).is_empty());
         Ok(())
     }
 
     #[test]
     fn ekezetes_szokoztartalmu_keptar_husz_kepet_beolvas_es_nem_ir_vissza() -> Result<(), String> {
-        let gy = ideiglenes("ekezetes")?;
+        let gy = TesztMappa::uj("ekezetes")?;
         let album = gy.join("Képek próba").join("árvíztűrő");
         std::fs::create_dir_all(&album).map_err(|e| e.to_string())?;
         for index in 0..20 {
@@ -170,7 +175,6 @@ mod tesztek {
         assert_eq!(mappak[0].fotok.len(), 20);
         assert_eq!(before.len(), after.len());
         assert!(before.iter().all(|name| after.contains(name)));
-        let _ = std::fs::remove_dir_all(&gy);
         Ok(())
     }
 }

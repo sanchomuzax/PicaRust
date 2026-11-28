@@ -1,7 +1,7 @@
 //! A Slint-ablak összekötése a könyvtárral és a háttérszálakkal.
 
 use std::cell::RefCell;
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::atomic::Ordering;
@@ -13,14 +13,52 @@ use slint::{ComponentHandle, Image, ModelRc, Timer, TimerMode, VecModel};
 
 use crate::beallitas::Beallitas;
 use crate::feladat::Sorban;
-use crate::konyvtar::{self, Mappa};
-use crate::munkasok::{self, ArcSzamlalo, Eredmeny, Munka};
+use crate::munkasok::{self, ArcSzamlalo, Eredmeny, Foto, InduloAdat, Mappa, Munka};
 use crate::racsmodell::{kep_slintbe, Allapot, RacsModell};
 use crate::{elrendezes, naplo, AppWindow, MappaElem};
 use pr_faces::arcnaplo;
 
 /// Az indításkori 1000-230 képpontos rácshoz; az első ütem a valódi szélességre igazít.
 const KEZDO_OSZLOP: usize = 4;
+const MAX_MAPPANKENTI_UTEM: usize = 32;
+
+#[derive(Default)]
+struct InduloAllapot {
+    kesz: bool,
+    hiba: Option<String>,
+    arc_kesz_kulcsok: HashSet<String>,
+}
+
+struct InduloMuvelet {
+    mappak: Vec<Mappa>,
+    ismert_almappak: HashSet<PathBuf>,
+    figyelot_indit: bool,
+}
+
+impl InduloAllapot {
+    /// A háttérből kapott induló üzenetből kiszámítja a felület teendőit.
+    fn kezeld(&mut self, gyoker: &Path, eredmeny: Result<InduloAdat, String>) -> InduloMuvelet {
+        let (mappak, arc_kesz_kulcsok, hiba) = match eredmeny {
+            Ok(adat) => (adat.mappak, adat.arc_kesz_kulcsok, None),
+            Err(hiba) => (Vec::new(), HashSet::new(), Some(hiba)),
+        };
+        self.kesz = true;
+        self.hiba = hiba;
+        self.arc_kesz_kulcsok = arc_kesz_kulcsok;
+        let ismert_almappak = ismert_almappak(gyoker, &mappak);
+        InduloMuvelet {
+            mappak,
+            ismert_almappak,
+            figyelot_indit: true,
+        }
+    }
+
+    fn allapotszoveg(&self) -> Option<String> {
+        self.hiba
+            .as_ref()
+            .map(|hiba| format!("A képtár betöltése nem sikerült: {hiba}"))
+    }
+}
 
 /// Amit az ablak időzítője tart a kezében.
 struct Kezelo {
@@ -28,10 +66,13 @@ struct Kezelo {
     modell: Rc<RacsModell>,
     oldalsav: Rc<VecModel<MappaElem>>,
     be: Receiver<Eredmeny>,
+    eredmeny_ki: Sender<Eredmeny>,
     munkak: Arc<Sorban<Munka>>,
-    arc_ki: Sender<konyvtar::Foto>,
+    gyoker: PathBuf,
+    indulo: InduloAllapot,
+    mappa_sor: VecDeque<Mappa>,
+    arc_ki: Sender<Foto>,
     arc_szamlalo: Arc<ArcSzamlalo>,
-    arc_kesz_kulcsok: HashSet<String>,
     utolso_allapotsor: Instant,
 }
 
@@ -46,7 +87,7 @@ impl Kezelo {
             });
             let ujak = self.allapot.borrow_mut().hozzaad(mappa);
             for (_, foto) in &ujak {
-                if !self.arc_kesz_kulcsok.contains(&arcnaplo::kulcs(
+                if !self.indulo.arc_kesz_kulcsok.contains(&arcnaplo::kulcs(
                     &foto.ut,
                     foto.meret,
                     foto.mtime_ns,
@@ -73,6 +114,10 @@ impl Kezelo {
 
     fn utem(&mut self, app: &AppWindow) {
         self.eredmenyek(app);
+        let ut_mappak = kovetkezo_mappa_utem(&mut self.mappa_sor);
+        if !ut_mappak.is_empty() {
+            self.felvesz(ut_mappak);
+        }
         self.atmeretezes(app);
         if self.utolso_allapotsor.elapsed() >= Duration::from_millis(500) {
             self.utolso_allapotsor = Instant::now();
@@ -94,15 +139,24 @@ impl Kezelo {
                         app.set_nezo_kep(kep_slintbe(&kep));
                     }
                 }
+                Eredmeny::Indulo(eredmeny) => {
+                    let teendok = self.indulo.kezeld(&self.gyoker, eredmeny);
+                    if teendok.figyelot_indit {
+                        munkasok::indit_mappafigyelo(
+                            self.gyoker.clone(),
+                            teendok.ismert_almappak,
+                            self.eredmeny_ki.clone(),
+                        );
+                    }
+                    uj_mappak.extend(teendok.mappak);
+                }
                 Eredmeny::UjMappak(mappak) => uj_mappak.extend(mappak),
             }
         }
         for sor in erintett {
             self.modell.sor_valtozott(sor);
         }
-        if !uj_mappak.is_empty() {
-            self.felvesz(uj_mappak);
-        }
+        self.mappa_sor.extend(uj_mappak);
     }
 
     /// Más ablakszélességnél új oszlopszám, a felül látott tartalom marad felül.
@@ -128,6 +182,14 @@ impl Kezelo {
     }
 
     fn allapotsor(&self, app: &AppWindow) {
+        if let Some(szoveg) = self.indulo.allapotszoveg() {
+            app.set_allapot(szoveg.into());
+            return;
+        }
+        if !self.indulo.kesz {
+            app.set_allapot("Képtár betöltése...".into());
+            return;
+        }
         let (kepek, mappak) = {
             let a = self.allapot.borrow();
             (a.fotok.len(), a.mappak.len())
@@ -153,14 +215,14 @@ fn ismert_almappak(gyoker: &Path, mappak: &[Mappa]) -> HashSet<PathBuf> {
         .collect()
 }
 
+fn kovetkezo_mappa_utem(mappak: &mut VecDeque<Mappa>) -> Vec<Mappa> {
+    (0..MAX_MAPPANKENTI_UTEM)
+        .filter_map(|_| mappak.pop_front())
+        .collect()
+}
+
 pub fn futtat(beallitas: &Beallitas) -> Result<(), slint::PlatformError> {
     let app = AppWindow::new()?;
-    let mappak = konyvtar::fa_beolvas(&beallitas.gyoker);
-    naplo(&format!(
-        "beolvasas: {} mappa, {} kep",
-        mappak.len(),
-        mappak.iter().map(|m| m.fotok.len()).sum::<usize>()
-    ));
 
     let munkak = Arc::new(Sorban::uj());
     let (eredmeny_ki, eredmeny_be) = mpsc::channel();
@@ -184,21 +246,22 @@ pub fn futtat(beallitas: &Beallitas) -> Result<(), slint::PlatformError> {
     app.set_sorok(ModelRc::from(Rc::clone(&modell)));
     app.set_mappak(ModelRc::from(Rc::clone(&oldalsav)));
 
-    let ismert = ismert_almappak(&beallitas.gyoker, &mappak);
     let mut kezelo = Kezelo {
         allapot: Rc::clone(&allapot),
         modell,
         oldalsav,
         be: eredmeny_be,
+        eredmeny_ki: eredmeny_ki.clone(),
         munkak,
+        gyoker: beallitas.gyoker.clone(),
+        indulo: InduloAllapot::default(),
+        mappa_sor: VecDeque::new(),
         arc_ki,
         arc_szamlalo,
-        arc_kesz_kulcsok: arcnaplo::beolvas(&arcnaplo_ut),
         utolso_allapotsor: Instant::now(),
     };
-    kezelo.felvesz(mappak);
     kezelo.allapotsor(&app);
-    munkasok::indit_mappafigyelo(beallitas.gyoker.clone(), ismert, eredmeny_ki.clone());
+    munkasok::indit_indulo_beolvasas(beallitas.gyoker.clone(), arcnaplo_ut, eredmeny_ki.clone());
 
     visszahivasok(&app, &allapot, &eredmeny_ki);
 
@@ -252,4 +315,96 @@ fn visszahivasok(app: &AppWindow, allapot: &Rc<RefCell<Allapot>>, ki: &Sender<Er
         app.set_nezo_nyitva(false);
         app.set_nezo_kep(Image::default());
     });
+}
+
+#[cfg(test)]
+mod tesztek {
+    use super::*;
+    use crate::munkasok::{Foto, InduloAdat, Mappa};
+
+    #[test]
+    fn felulet_nem_hivja_a_lemezolvasokat_a_felepitesben() {
+        let vege = include_str!("felulet.rs");
+        let forras = vege
+            .split_once("#[cfg(test)]")
+            .map(|(forras, _)| forras)
+            .unwrap_or(vege);
+
+        assert!(
+            !forras.contains("fa_beolvas"),
+            "a felulet fajaban ne legyen mappafa-beolvasas"
+        );
+        assert!(
+            !forras.contains("arcnaplo::beolvas"),
+            "a felulet fajaban ne legyen arcnaplo-beolvasas"
+        );
+        assert!(
+            forras.contains("munkasok::indit_indulo_beolvasas"),
+            "az indulo lemezbeolvasast a munkasok modul inditsa"
+        );
+    }
+
+    #[test]
+    fn indulo_kezeles_arcnaplo_kulccsal_es_figyelovel_slint_nelkul() {
+        let gyoker = Path::new("keptar");
+        let foto = Foto {
+            ut: gyoker.join("album/foto.jpg"),
+            meret: 123,
+            mtime_ns: 456,
+        };
+        let mappa = Mappa {
+            ut: gyoker.join("album"),
+            nev: "album".to_string(),
+            fotok: vec![foto.clone()],
+        };
+        let kulcs = arcnaplo::kulcs(&foto.ut, foto.meret, foto.mtime_ns);
+        let mut allapot = InduloAllapot::default();
+
+        let muvelet = allapot.kezeld(
+            gyoker,
+            Ok(InduloAdat {
+                mappak: vec![mappa.clone()],
+                arc_kesz_kulcsok: HashSet::from([kulcs.clone()]),
+            }),
+        );
+
+        assert!(muvelet.figyelot_indit);
+        assert_eq!(
+            muvelet.ismert_almappak,
+            HashSet::from([gyoker.join("album")])
+        );
+        assert_eq!(muvelet.mappak, vec![mappa]);
+        assert!(allapot.arc_kesz_kulcsok.contains(&kulcs));
+        assert_eq!(allapot.allapotszoveg(), None);
+    }
+
+    #[test]
+    fn indulo_hibanal_magyar_allapotot_es_figyelot_ad() {
+        let gyoker = Path::new("keptar");
+        let mut allapot = InduloAllapot::default();
+        let muvelet = allapot.kezeld(gyoker, Err("teszt hiba".to_string()));
+
+        assert!(muvelet.figyelot_indit);
+        assert!(muvelet.mappak.is_empty());
+        assert_eq!(
+            allapot.allapotszoveg().as_deref(),
+            Some("A képtár betöltése nem sikerült: teszt hiba")
+        );
+    }
+
+    #[test]
+    fn egy_idozito_utem_legfeljebb_a_nevezett_mennyisegu_mappat_veszi_fel() {
+        let mut mappak = (0..MAX_MAPPANKENTI_UTEM + 2)
+            .map(|index| Mappa {
+                ut: PathBuf::from(format!("album-{index}")),
+                nev: format!("album-{index}"),
+                fotok: Vec::new(),
+            })
+            .collect::<std::collections::VecDeque<_>>();
+
+        let elso_utem = kovetkezo_mappa_utem(&mut mappak);
+
+        assert_eq!(elso_utem.len(), MAX_MAPPANKENTI_UTEM);
+        assert_eq!(mappak.len(), 2);
+    }
 }

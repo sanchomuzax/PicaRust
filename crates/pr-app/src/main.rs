@@ -8,10 +8,10 @@ mod beallitas;
 mod elrendezes;
 mod feladat;
 mod felulet;
-mod konyvtar;
 mod munkasok;
 mod prioritas;
 mod racsmodell;
+mod tipusok;
 
 use std::path::Path;
 use std::process::ExitCode;
