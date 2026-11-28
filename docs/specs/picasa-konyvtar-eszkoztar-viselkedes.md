@@ -1,0 +1,749 @@
+# A könyvtár-eszköztár öt gombja - VISELKEDÉS (nem geometria)
+
+**Ez a lap a MŰKÖDÉST írja le.** A gombok mérete és pozíciója a
+[`konyvtar-ablak-meretek.md`](konyvtar-ablak-meretek.md) „A fő eszköztár -
+mért geometria" szakaszában van (`respack.yt`, megerősített). A jegy, ami a
+hiányukat felvetette: **#853**. Ez a lap az ott nyitva hagyott kérdést
+("a `folderviewpopup` mit tartalmaz") és a másik négy gomb **teljes
+viselkedését** (mit aktivál, mit ír, milyen feltétellel engedélyezett,
+milyen hibaesetek vannak) zárja le.
+
+Módszer: a megosztott név-diszpécser függvény (`0x005d9cc0`, 7153 bájt) a
+felület minden `thumbui/<név>` kattintását ide vezeti; innen ágazik el az
+öt gombra. Minden cím a `Picasa3.exe` (3.9.141.259) betöltési címe szerint
+értendő (image base szerinti VA, nem RVA).
+
+## 1. `importbutton` - Import
+
+- **Kezelő:** `0x005d3010` (223 bájt), a `0x005d9cc0` diszpécserből a
+  `"thumbui/importbutton"` sztringre hívva.
+- **Mit csinál:**
+  1. Növel egy számlálót a fő objektum `+0x24c` mezőjén, és nullázza a
+     `+0x250` mezőt (munkamenet-jellegű "hányszor váltottunk importra"
+     jelző - a pontos felhasználása nincs tovább követve).
+  2. Ha az objektum `+0xed0` mezőjén át elérhető egy vtable, meghívja azt
+     (`[[+0xed0]+0x258][0]+0xc]`) - egy generikus "előző mód lezárása"
+     hívás, valószínűleg az aktuális szerkesztő/nézet állapot mentése
+     váltás előtt.
+  3. **Csak ha egy globális debug-kapcsoló (`[0x00d67914]`) be van
+     kapcsolva** (kiadási build-ben feltehetően 0): frissíti az
+     `editpanel/preview` vezérlő engedélyezett állapotát a jól ismert
+     `[control+0x20e]` letiltás-bájt konvención át. **Ez NEM
+     produkciós logika** - kihagyható.
+  4. Létrehoz egy esemény-objektumot (`call 0xc07db2` fix
+     típus-mutatópárral: `0xd3b8a0`/`0xd3b8d8`), majd egy belső
+     eseménysoron (`+0x344c`) keresztül **eseményt küld**, ami a UI-t az
+     Import/Acquire panelre kapcsolja.
+- **`.tre` oldal:** az `importbutton` a `m_acquire_enable` makróval van
+  megjelölve, ami a `panelroot/acquiretab` panelt teszi láthatóvá/célzottá
+  - ez egyezik a fenti "esemény az Import panelra vált" olvasattal.
+- **Menüegyenérték:** nincs bizonyíték rá ebben a diszpécserben; a
+  `Fájl` menüben Picasa 3-ban nincs "Import" tétel (a valós programban a
+  gomb az EGYETLEN belépési pont).
+- **Engedélyezés/láthatóság:** a `.tre`-ben nincs feltételes
+  `disable`/`setvisible` bejegyzés az `importbutton`-on - mindig aktív.
+- **Hibaeset:** nincs kód-szintű hibaág (nem néz kamerát/scannert - az
+  Acquire panel maga kezeli az eszközkeresést, az egy másik, itt nem
+  vizsgált alrendszer).
+
+## 2. `newalbum` - Új album
+
+- **Kezelő:** `0x005eb810` (245 bájt); a `0x005d9cc0` név-diszpécser a
+  `thumbui/newalbum` műveletnél hívja.
+- **A párbeszéd útja:** a `0x0055cf70` leíró-konstruktor a `+0x08` mezőt
+  `-1`-re állítja (`0x0055cf78`), a nevet pedig az
+  `IDS_DEFAULT_ALBUM_NAME` szöveg-erőforrásból tölti (`0x8a` = 138;
+  `0x0055cfbf` → `0x009ae710`) - a felvételen ez „Untitled”. A kezelő
+  ezután meghívja a `0x006dc030(doc, leíró, 1, 0)` rutint
+  (`0x005eb877`). A `+0x08 == -1` ág felépíti a `CEditAlbum` párbeszédet
+  (`0x006db4e0`, konfigurálás `0x008496c0`) és megjeleníti; a jóváhagyás
+  igaz, a Mégse hamis eredménnyel tér vissza. Ezen az argumentum-úton a
+  címe **„Album Properties”** (ld. a menüviselkedés-lap #4534-es
+  kiegészítését). A mezők elrendezése megegyezik a
+  `Picasa3/runtime/album.fen` fájléval; a binárisbeli közvetlen fájlnév-
+  hivatkozás nincs meg.
+- **Mi történik utána:** csak a párbeszéd sikeres visszatérése után hívja
+  a `0x0055d120` rutint (`0x005eb888`). A `0x005eb810` nem kap át kijelölt
+  fényképlista-paramétert. A job-250 felvétel külön, futásidejű mérése
+  szerint a jóváhagyott album a felvétel tesztalbuma 0 taggal néven jelenik meg, a
+  kijelölt kép tagsága nélkül.
+- **Menüút:** a `Fájl → Új album…` parancsazonosítója `0x9d67`
+  (menürekord `0x00d6d960`; Ctrl+N, ld. `picasa-menu-leltar.md`). A
+  `0x005cb990` kapcsolótáblája a parancsot a `0x005cc5bb` ágra oldja fel;
+  az ág a `thumbui/newalbum` műveletet a `0x009cd8a0` diszpécsernek adja.
+  Ez a gombéval egyező műveletkulcs. A `0x009cd8a0` utáni virtuális
+  visszahívás célját a helyi statikus xref nem köti bizonyíthatóan a
+  `0x005d9cc0` név-diszpécserhez; a menüpont és a handler közti utolsó
+  dinamikus lépés ezért feltételes.
+- **Helyi menük és külön út:** az eredeti kép-indexkép helyi menüjében
+  „Hozzáadás az albumhoz” van, „Új album” tétel nincs
+  (`ui-audit-context-menus.md` 2.). Az Albumok bal panel
+  `newalbumprompt` sora viszont külön fogd-és-vidd út: `lb_drop` →
+  `0x005e39a0` → `0x005ea770` → `0x006dc030`; siker után a ledobott
+  elemeket a `0x005ea420` dolgozza fel. Ez nem a `thumbui/newalbum`
+  gomb/menü műveletkulcsa (részletek a 7. szakaszban). A `0x005cb990`
+  második kapcsolótáblájában a `0xa03f` parancság (index `0x11`, selector
+  byte `0x05` a `0x5cdff1` címen) a `0x5cdf10` sloton át a `0x5cd7a7`
+  ágra jut, amely közvetlenül hívja a `0x005eb810`-et. Ennek a parancsnak
+  a binárisbeli UI-címkéje nincs azonosítva; helyi menühöz rendelni nem
+  bizonyított.
+- **Tárolás:** a job-250 mérése szerint a művelet után a
+  `.picasa.ini` nem változott. A binárisban a `0x0055d120` →
+  `0x004ada80` albumállapot-út követhető, de ebből nem azonosítható
+  bizonyítottan a tartós fájl vagy adatbázis/tábla. Az üres album
+  futásidejű megjelenése nem bizonyítja, hogy újraindítás után is megmarad.
+- **Engedélyezés:** a `thumbui/newalbum` `.tre`-bejegyzésén nincs feltétel.
+
+> **Helyesbítés a #2911 olvasatához:** a `0x005eb810` nem párbeszéd
+> nélkül hoz létre „Untitled” albumot. A párbeszédet a `0x006dc030` nyitja;
+> a `0x004ada80` az utána következő albumállapot-út része, nem a
+> párbeszédnyitó.
+
+## 3. `flatview` / `folderview` - a nézetváltó pár
+
+- **Közös kezelő (kattintás + engedélyezés-frissítés):** `0x00575130`
+  (1332 bájt). Ez **nem csak a két gombot** szolgálja ki, hanem a teljes
+  `folderviewpopup` menüt is (ld. 4. pont) - egyetlen, szövegkulccsal
+  paraméterezett függvény.
+- **A mechanizmus:** a hívás egy string-kulccsal érkezik
+  (`"all"` / `"flat"` / `"watched"` / `"mypics"` / `"mydocs"` /
+  `"desktop"`), és:
+  - beolvassa/frissíti a **`Preferences\SimplifiedHierarchy`** kulcsot
+    (`0x00407a20` generikus olvasó, ugyanaz, mint a projekt összes
+    `Preferences\*` olvasása - 348 hívóhely a bináris egészében),
+  - a `"flat"` kulcsra a `SimplifiedHierarchy` értéket **1**-re állítja
+    (lapos nézet), másra (fanézet) töröl,
+  - a mappalista **gyökér-hatókörét** is beállítja: `"all"` →
+    `"ViewRoot::All"` / `"My Computer"` gyökér, `"watched"` →
+    `"ViewRoot::AllFolders"` / `"Default View"` gyökér - a `"mypics"` /
+    `"mydocs"` / `"desktop"` kulcsok egy közös ágon át szintén a
+    gyökér-hatókört állítják be (a pontos cél-elérési út string.
+    összefésülése ezen a mélységen nem lett tovább bontva - ld. „Ami
+    nyitva marad").
+- **Az engedélyezett állapot** (`0x00574b70`, a globális UI-frissítő,
+  amit a `flatview`/`folderview` maguk is meghívnak kattintáskor).
+
+  > ⛔ **HELYESBÍTÉS (2026-08-24).** Ez a szakasz korábban azt állította,
+  > hogy a `flatview` parancsazonosítója `0x9c8b`, a `folderview`-é
+  > `0x9cbd`, és hogy a kettő mód-mező szerint kölcsönösen kizáró.
+  > **Mindkét azonosító TÉVES volt** - a menüépítő (`0x00559150`)
+  > rekordtömbjének végigjárásával a valódi feloldás:
+  >
+  > | cmd | menükulcs | felirat (HU) |
+  > |---|---|---|
+  > | `0x9c8b` | `eMenuView::ID_VIEWBYDATE` | Rendezés létrehozási dátum alapján |
+  > | `0x9cbd` | `eMenuView::ID_VIEWBYRECENT` | Rendezés a legutóbbi változtatások alapján |
+  > | `0x9c8c` | `eMenuView::ID_VIEWBYNAME` | Rendezés név alapján |
+  > | `0x9dc8` | `eMenuView::ID_VIEWBYSIZE` | Rendezés méret alapján |
+  > | **`0x9db6`** | **`eMenuView::ID_VIEW_FOLDERS`** | **&Egyszerű mappanézet** |
+  > | **`0x9db9`** | **`eMenuView::ID_VIEW_ALL`** | **&Fanézet** |
+  >
+  > Vagyis a `0x00574b70` a **RENDEZÉS** menütételeit tiltja/engedi a
+  > mód-mező (`[dokumentum+0x2c0+0xd8]`, értékei 0/1/2/5) szerint, a két
+  > **mappanézet-módot** pedig egyetlen közös jelzőn (`[+0x9d]`) - nem
+  > kölcsönösen kizáróan, ahogy korábban írtuk.
+  >
+  > **Miből derült ki:** a menürekord 20 bájtos, a `+0x0a` a
+  > parancsazonosító, és a `0x00559150`-ben a rekord **címkéjét** a
+  > kulcs-push UTÁN írják. A rekordbázisok végigjárásával 160
+  > parancsazonosító oldódott fel egyértelműen - köztük mind a hat fenti.
+- **Menüegyenérték:** **IGEN** - a `0x005cb990` menü-diszpécserben a
+  View menü megfelelő tételei ugyanezt a `0x00575130`-at hívják a
+  `"all"`/`"flat"` kulccsal.
+- **A `.tre` oldala - HELYESBÍTVE:** ellenőrizve közvetlenül a
+  `thumbui.tre`-ben: **csak a `folderview`-n** van külön jelölés
+  (`Property prenotify 1` - **MEGFEJTVE (2026-08-30), ld. lent**, NEM
+  azonos a `mousedown`-nal), a `flatview`-n **semmi**. A pár tehát **NEM**
+  tagja a #885 49 elemes `mousedown`-listájának - ott ellenőrizhetően
+  csak a `folderviewpopup` szerepel (ld. lent). Ez a lap egy korábbi
+  fogalmazásban tévesen mindkettőre mousedown-t állított; itt javítva.
+
+### ✅ A `prenotify` tulajdonság - MEGFEJTVE (2026-08-30)
+
+A `.tre`-parszer (`0x009ca5e0`, 7899 b) a `prenotify` kulcsszót a
+`0x009c7840` setterbe vezeti, amely az elem `+0x380` bájtjára **`1`-et
+ír** (a többi interakciós property párhuzamos settereivel együtt:
+`hiddentimer`→`0x009c7700`, `throb`→`0x009c7870`, `enableclip`→
+`0x009c78a0`). A `picasa-eger-es-kijeloles.md` 1.3 szakaszának megfejtése
+(„a váltás ELŐTT értesít") **megerősítve a binárisból**: a
+`prenotify 1` egy **belső jelző-mezőt** állít (nem felirat, nem
+mousedown-kezelő), a folderview elemen a kattintás-váltás előtti
+értesítés engedélyezésére.
+
+*Bizonyítottsági fok: **megerősített** - a parszer-kulcsszó-tábla
+(`prenotify` string `0x0087cbd8`) és a `0x009c7840` setter diszasszemblálva.*
+
+## 4. `folderviewpopup` - Nézet-beállítások (▾)
+
+- **Kezelő:** `0x005e2000` (1689 bájt), ugyanabból a `0x005d9cc0`
+  diszpécserből, a `"thumbui/folderviewpopup"` névre.
+- **Ez ÉRDEMBEN megválaszolja a #853 nyitva hagyott kérdését** ("a
+  nézet-beállítások gomb megnyit valamit, de a menü tartalma nem derült
+  ki ebből a forrásból"):
+  - A kezelő a **közös `0x00575130`** scope-kulcsos mechanizmust
+    (ld. 3. pont) hívja meg - vagyis a `▾` gomb **NEM egy önálló
+    beállítás-panelt**, hanem egy **lenyíló menüt** nyit, aminek a
+    tételei **ugyanazok a gyökér-hatókör-kulcsok**, amiket a
+    scope-függvény ismer: **Mind / My Computer** (`"all"`), **Figyelt
+    mappák** (`"watched"`), **Saját képek** (`"mypics"`), **Saját
+    dokumentumok** (`"mydocs"`), **Asztal** (`"desktop"`).
+  - Emellett ugyanez a kezelő olvassa a **`Preferences\
+    ShowAlbumThumbnails2`** kulcsot is - ez valószínűleg egy külön
+    jelölőnégyzet-tétel a menüben ("Show album thumbnails" jellegű), de
+    ennek a konkrét feliratát/hatását ez a kör nem azonosította.
+  - A menü tételeinek engedélyezett állapotát numerikus
+    parancsazonosítókkal frissíti, közös „parancs engedélyezése" híváson
+    (`[0x00c40810]`) át - ugyanúgy, mint a `0x00574b70`.
+
+### 4/b ⭐ A MENÜ TÉTELEI - feloldva (2026-08-24)
+
+A korábbi „a pontos feliratszöveg nem dönthető el" megállapítás
+**MEGDŐLT**. A menüépítő (`0x00559150`) rekordtömbjének végigjárásával
+mind a tizenegy azonosító feloldódott, és a feliratok a honosítási
+táblából jönnek. **Ez a `Nézet ▸ Mappanézet` almenü**
+(`eMenuView::FolderView` = „&Mappanézet").
+
+**Mappanézet-módok - HÁROM, nem kettő:**
+
+| cmd | kulcs | angol | **magyar** |
+|---|---|---|---|
+| `0x9db6` | `ID_VIEW_FOLDERS` | &Flat Folder View | **&Egyszerű mappanézet** |
+| `0x9db8` | `ID_VIEW_WATCHED` | &Simplified Tree View | **&Egyszerűsített fanézet** |
+| `0x9db9` | `ID_VIEW_ALL` | &Tree View | **&Fanézet** |
+
+> ⚠️ **A HARMADIK mód eddig sehol nem szerepelt nálunk.** A lap 3. pontja
+> (és a PicasaPy-ban: `FolderHierarchyView.qml` fejléce) **két** egymást kizáró módról
+> ír. Valójában **három** van - ez magyarázza a mód-mező 0/1/2/5
+> értékkészletét is.
+
+**Gyökér-hatókörök - a scope-kulcsok felirata:**
+
+| scope-kulcs (`0x00575130`) | cmd | kulcs | **magyar felirat** |
+|---|---|---|---|
+| `"all"` | `0x9dcb` | `ID_VIEW_MYCOMPUTER` | **&Sajátgép** |
+| `"mydocs"` | `0x9db7` | `ID_VIEW_MYDOCS` | **Do&kumentumok** |
+| `"mypics"` | `0x9e3a` | `ID_VIEW_MYPICTURES` | **&Képek** |
+| `"desktop"` | `0x9dba` | `ID_VIEW_DESKTOP` | **&Asztal** |
+| `"watched"` | - | `ViewRoot::AllFolders` | **Alapértelmezett nézet** |
+
+*(A kezelő az `"all"` ághoz szó szerint a `ViewRoot::All` = „My Computer"
+/ **„Sajátgép"** feliratot használja, a `"watched"`-hez a
+`ViewRoot::AllFolders` = „Default View" / **„Alapértelmezett nézet"**-et -
+ez zárja a kört a `0x00575130`-ban látott sztringekkel.)*
+
+**Rendezés-tételek** (ugyanennek a menünek a része, a mód-mező szerint
+tiltva/engedve):
+
+| cmd | kulcs | **magyar** |
+|---|---|---|
+| `0x9c8b` | `ID_VIEWBYDATE` | Rendezés létre&hozási dátum alapján |
+| `0x9cbd` | `ID_VIEWBYRECENT` | Rendezés a leg&utóbbi változtatások alapján |
+| `0x9c8c` | `ID_VIEWBYNAME` | Rendezés &név alapján |
+| `0x9dc8` | `ID_VIEWBYSIZE` | Rendezés &méret alapján |
+| `0xa0cf` | `ID_VIEWREVERSE` | Rendezés megfordítása |
+
+**Ami ebből NEM oldódott fel:** `0x9e18`, `0x9e19`, `0x9e38` - ezek a
+menüsáv-építőben nem szerepelnek, tehát egy **helyi menü** építőjében
+élnek. *(2026-08-31: **LEZÁRVA** - a személy-lista rendezésének három
+módja, `Preferences\peoplesort`; ld.
+`picasa-menu-parancsok-viselkedes.md` 36.3.)* Ez nem blokkol semmit: a ▾ menü nyolc tétele + öt rendezés
+megvan.
+
+*Bizonyítottsági fok: **megerősített** - a menürekord-tömb gépi
+végigjárása (160 azonosító egyértelműen feloldva), a feliratok a
+honosítási táblából. A `0x9db8` ↔ „Egyszerűsített fanézet" ugyanebből a
+körből, ugyanazzal a módszerrel.*
+
+
+
+### 4/c ⭐ A `folderviewpopup` kezelő teljes parancstérképe (2026-08-30)
+
+A kezelő (`0x005e2000`, 1689 b) a menü **megnyitásakor** fut, és minden
+tétel pipa-állapotát a **dokumentum-mezőkből** építi. Ez lezárja a 4/b
+„ami ebből NEM oldódott fel" megjegyzését és az alábbi NYITVA 2 és 3
+pontokat is.
+
+| parancs | menükulcs | mit pipáz a kezelő | a pipa forrása |
+|---|---|---|---|
+| `0x9c8b` | `eMenuView::ID_VIEWBYDATE` | Rendezés létrehozási dátum | `[+0x2c0+0xd8] == 0` |
+| `0x9cbd` | `eMenuView::ID_VIEWBYRECENT` | Rendezés legutóbbi változtatások | `[+0x2c0+0xd8] == 1` |
+| `0x9c8c` | `eMenuView::ID_VIEWBYNAME` | Rendezés név alapján | `[+0x2c0+0xd8] == 2` |
+| `0x9dc8` | `eMenuView::ID_VIEWBYSIZE` | Rendezés méret alapján | `[+0x2c0+0xd8] == 5` |
+| `0xa0cf` | `eMenuView::ID_VIEWREVERSE` | Rendezés megfordítása | `[+0x2c0+0x165]` (bájt) |
+| `0x9e18` | (a menüsáv-építőben nincs) | a ▾ menü harmadik csoportjának 1. tétele | `[+0x2c0+0xdc] == 0` |
+| `0x9e19` | (a menüsáv-építőben nincs) | … 2. tétele | `[+0x2c0+0xdc] == 1` |
+| `0x9e38` | (a menüsáv-építőben nincs) | … 3. tétele | `[+0x2c0+0xdc] == 2` |
+| `0x9db8` | `eMenuView::ID_VIEW_WATCHED` | &Egyszerűsített fanézet | `Preferences\SimplifiedHierarchy` |
+| `0x9db6` | `eMenuView::ID_VIEW_FOLDERS` | &Egyszerű mappanézet | `[+0x2c0+0x9d] == 0` |
+| `0x9db9` | `eMenuView::ID_VIEW_ALL` | &Fanézet | `[+0x2c0+0x9d] != 0` |
+| `0x9dba` | `eMenuView::ID_VIEW_DESKTOP` | &Asztal | a gyökér-hatókör `"desktop"` |
+| `0x9e3a` | `eMenuView::ID_VIEW_MYPICTURES` | &Képek | a gyökér-hatókör `"mypics"` |
+| `0x9db7` | `eMenuView::ID_VIEW_MYDOCS` | Do&kumentumok | a gyökér-hatókör `"mydocs"` |
+| `0x9cd7` | `eMenuView::ID_VIEW_THUMBNAILS` ("Show &Thumbnails in Library") | pipa | `Preferences\ShowAlbumThumbnails2` |
+
+A diszasszemblálás bizonyítéka: `0x005e2000` minden tételnél a
+`[0xc40810]` `CheckMenuItem`-importot hívja, `MF_CHECKED`-flaggel (a
+`push … 8` az MF_CHECKED), a feltétel pedig a fenti mező-összehasonlítás
+(a `neg`/`sbb`/`and eax, 8` idióma az „érték egyezik-e" kérdésre).
+
+### ✅ A `ShowAlbumThumbnails2` preferencia pontos szerepe - LEZÁRVA
+
+**Ez a fenti parancstábla egy pipa-tétele**: „Indexképek &megjelenítése a
+könyvtárban" (`eMenuView::ID_VIEW_THUMBNAILS` = „Show &Thumbnails in
+Library"). A kezelő a `Preferences\ShowAlbumThumbnails2` kulcsot
+`GetPreference`-szel olvassa (`0x407a20`, alapérték: `0`), és az alapján
+pipázza a `0x9cd7` parancsot (`0x005e25ef`-`0x005e2628`). **A tétel léte a
+menüben és a preferencia-bekötése így MEGERŐSÍTVE** - nem kell többé
+feltételezés.
+
+A `0x9cd7` parancs tulajdonosai és a teljes életciklus:
+- a menüsáv-építő `0x00559150` felveszi a rekordját (`[0xd6df54]` körüli
+  tömb; kulcsa `eMenuView::ID_VIEW_THUMBNAILS`, felirata „Show &Thumbnails
+  in Library", a string-címek `0xc8cd5c`/`0xc8cd7c`);
+- a kezelő `0x005c93d0` (**nem** a fenti `0x005e2000`!) a parancs
+  **bekapcsolását** végzi: ezt a `0x005cb990` menüsáv-diszpécser `0x9cd7`
+  ága hívja (`0x005cbbc7`). A `0x005c93d0` a `GetPreference`-ből olvas, a
+  `[+0xd4c]+0x20` bájtot állítja a beolvasott értékre, majd a nézetet
+  frissíti (`0x00574b70`-en át) - a pipáló `0x005e2000` a menü NETTO
+  pipa-állapotát ebből a preferenciából olvassa újra;
+- a `0x00761870` konstruktor az induláskori állapot beolvasását végzi
+  (`mov byte [obj+0x20], al` a `GetPreference` után - az album-nézet
+  objektum +0x20 látszólagos „mutasd az indexképeket" flagje).
+
+### ✅ A mód-mező (`+0x2c0+0xd8`) 0/1/2/5 értéke - LEZÁRVA
+
+A fenti tábla rendezés-soraiból **kiolvasható a teljes kódolás**: a
+`[+0x2c0+0xd8]` mező nem „külön nézetmód", hanem **a rendezés-mód kódja**:
+`0` = Dátum, `1` = Legutóbbi változtatások, `2` = Név, `5` = Méret. A
+`0x005e2000` és a `0x00574b70` ugyanezeket az értékeket pipázza a
+rendezés-parancsokra.
+
+*Bizonyítottsági fok: **megerősített** - minden állítás a `0x005e2000`
+annotált diszasszemblálásából (a `[0xc40810]` CheckMenuItem-hívás, a
+mező-összehasonlítások, a `neg`/`sbb` idiómák) és a `0x00559150`
+menüsáv-építő rekordjaiból.*
+
+## 5. `webcambutton` - Webkamera-felvétel
+
+- **Kezelő:** `0x0062c340` (183 bájt).
+- **Mit csinál:**
+  1. **Szingleton-ellenőrzés**: `EnumWindows`-szerű bejárás
+     (`call [0x00c40878]`) egy 4 bájtos "wCPG" (`0x47504377`) jelölővel
+     - ugyanaz a minta, amit korábban a lebegő értesítősáv
+     szingletonjánál is azonosítottunk. Ha **már fut** egy webkamera-
+     ablak, egyszerűen előtérbe hozza (`call [0x00c408c8]`,
+     valószínűleg `BringWindowToTop`/`SetForegroundWindow`), és
+     **visszatér - nem hoz létre másodikat**.
+  2. Ha nincs élő ablak: lefoglal egy 0x5c8 (1480) bájtos objektumot
+     (`0x0097c5d0`), nullázza (`0x00bf37c0`, memset), majd megkonstruálja
+     (`0x0062b0c0`) - ez a webkamera-előnézet panel objektuma.
+  3. Létrehozza magát az ablakot a projekt jól ismert modál/felugró
+     gyár-hívásán át: `call 0x009d4a80(panel, "capturemoviepanelpopup",
+     0, 1)` - a panel **neve/azonosítója tehát `capturemoviepanelpopup`**
+     (ugyanaz a gyár, mint a `U3`/`initialscan` felugró ablaknál).
+- **Kapcsolódó függvény - hardver-érzékelés:** `0x0067d720` (218 bájt)
+  dinamikusan engedélyezi/tiltja magát a `webcambutton` vezérlőt a jól
+  ismert `[control+0x20e]` letiltás-bájt konvención át, attól függően,
+  hogy talál-e webkamera-eszközt - vagyis **csak akkor kattintható**, ha
+  van csatlakoztatott eszköz.
+- **A funkció tartalma** (élő előnézet, Live Video/Snapshot mód,
+  eszközválasztó, felbontás-beállítás): teljeskörűen dokumentálva a
+  #466-ban - ott 2026-ban **P4, "javaslat: kihagyni"** döntés született
+  (Windows-specifikus eszközkezelés, a projekt hatókörén kívül). Ez a kör
+  nem változtat ezen a döntésen, csak a **kattintás-mechanikát** teszi
+  hozzá (szingleton-ablak, panel-azonosító, hardver-kapu).
+
+## Eredeti / nálunk / teendő
+
+| gomb | eredeti viselkedés | nálunk (a PicasaPy-ban: `app/qml/PicasaPy/`) | teendő |
+|---|---|---|---|
+| **Import** | esemény → Acquire panelre vált, számlálót növel | `toolbarImportButton` LÉTEZIK (a PicasaPy-ban: `MainToolbar.qml:49`) | ellenőrizni, hogy a kattintás valóban az import/acquire folyamatot indítja-e - funkcionális teszttel |
+| **Új album** | eszköztár: `thumbui/newalbum` → `0x005eb810`; File/Ctrl+N (`0x9d67`): ugyanazt a műveletkulcsot küldi ki, a végső visszahívás célja statikusan nyitott; párbeszéd, alapnév „Untitled”, a felvételen 0 tag | van fejlécgomb, File menü/ Ctrl+N és kép-helyi menü; mind a `FileOpsDialogs.openNewAlbum(rows)` → `createAlbum(name, rows)` úton megy, a kijelölt képek tagságával; üres kijelölésnél nincs létrehozás | a toolbar és File/Ctrl+N út nyisson tulajdonságok párbeszédet és készítsen üres albumdefiníciót; a PicasaPy kép-helyi menü kijelölt képekből készítő útját különítsük el; eredeti tárolási cél nyitott |
+| **Nézetváltó pár** (flatview/folderview) | kölcsönösen kizáró rádiógomb-pár, `SimplifiedHierarchy` preferenciát ír, menüegyenértéke is van (a `folderview` oldalán egy **MEGFEJTVE** `prenotify` jelzés, ld. 3. pont) | **az ADATRÉTEG megvan** (`FolderHierarchyController`, `treeViewMode` property, a PicasaPy-ban: `FolderHierarchyView.qml` - #702-ből), de **nincs UI-vezérlő, ami átkapcsolná**: a PicasaPy-ban: `Main.qml:978` `treeViewMode: false`-ra van **beégetve**, sehol nem íródik felül | pótolni a két fejléc-gombot (#853 méret-táblája szerint), bekötni a meglévő `treeViewMode`-ra |
+| **Nézet-beállítások (▾)** | lenyíló menü: Mind/My Computer, Figyelt mappák, Saját képek, Saját dokumentumok, Asztal - gyökér-hatókör váltás | **nincs** semmilyen formában | pótolni: gomb + lenyíló menü öt tétellel; a pontos feliratok forrása még hiányzik (ld. „Ami nyitva marad") |
+| **Webkamera** | szingleton előnézet-ablak, hardver-kapuzott, `capturemoviepanelpopup` panel | **nincs**, és a #466/#853 szerint **szándékosan kihagyva** | nincs teendő - a döntés érvényben marad |
+
+## Kész, ha
+
+- [ ] a fejléc **Új album** gombja és a `Fájl → Új album…` / Ctrl+N
+      út nyissa meg az eredeti „Album Properties” párbeszédét, és készítsen
+      üres albumot; a PicasaPy mostani kijelöléses `createAlbum` útja ezt
+      nem teljesíti
+- [ ] megjelenik a **flatview/folderview** gombpár (2 × 30 × 22, x 160 és
+      190), és a meglévő `pane.treeViewMode` property-t kapcsolja -
+      NEM új állapotot vezet be
+- [ ] a `folderviewpopup` (Nézet-beállítások ▾) gomb **mousedown**-ra
+      (nem kattintásra) reagál (#885 általános feltétele - a nézetváltó
+      pár NEM tartozik ide, ld. helyesbítés fent)
+- [ ] a két gomb **kölcsönösen kizáró**: csak az az egyik van
+      engedélyezve/kiemelve, amelyik a MÁSIK állapotra váltana
+- [ ] a webkamera-gomb **hiánya** dokumentált, tudatos döntésként marad
+      (#466/#853 - ehhez a körhöz nincs új teendő)
+- [ ] a **Nézet-beállítások (▾)** gomb és az öt tételes lenyíló menü
+      pótlása **külön jegyben** történik (ld. lent), mert a pontos
+      feliratszöveg még nyitott kérdés
+
+## Bizonyítottsági fok
+
+- **Import, nézetváltó pár mechanizmusa, webkamera kattintás-mechanika:**
+  *megerősített* - teljes függvénytest olvasva, konkrét sztring- és
+  mező-hivatkozásokkal.
+- **Új album eszköztárútja:** *megerősített* - a
+  `0x005d9cc0` → `0x005eb810` → `0x006dc030` bináris út és a job-250
+  futásidejű felvétel egyezik: a tulajdonságok párbeszéd OK-ja után 0 tagú
+  album jelenik meg. A File menü azonos műveletkulcsot küld ki, de a
+  `0x009cd8a0` utáni virtuális callback célja *feltételes*; az album
+  tartós tárolója nyitott.
+- **`folderviewpopup` menütartalma:** *megerősített* - a 4/b a
+  parancsazonosítókat, a 4/c a **teljes pipa-térképet** (minden tétel
+  pipa-forrása a dokumentum-mezőkből) a `0x005e2000` kezelő
+  diszasszemblálásából.
+- **A `ShowAlbumThumbnails2` és a mód-mező (`+0x2c0+0xd8`) értékei:**
+  *megerősített* - ld. 4/c (a rendezés-parancsok pipa-kódjai; 0=Dátum,
+  1=Legutóbbi változtatások, 2=Név, 5=Méret).
+
+## Ami NYITVA marad
+
+1. ~~**A `folderviewpopup` menü tételeinek pontos felirata**~~
+2. ~~**A `ShowAlbumThumbnails2` preferencia pontos hatása**~~ -
+   **LEZÁRVA (2026-08-30), ld. 4/c.** A „Indexképek megjelenítése a
+   könyvtárban" (`0x9cd7`) pipa-tétele a ▾ menüben; a teljes életciklus a
+   4/c-ben.
+3. ~~**A mód-mező (`+0x2c0+0xd8`) 2-es és 5-ös értéke**~~ - **LEZÁRVA
+   (2026-08-30), ld. 4/c**: 2 = név, 5 = méret rendezés; a rendezés-tételek
+   pipa-kódjai, a `0x005e2000`/`0x00574b70` diszasszemblálásából.
+4. ~~**A `0x9e18`/`0x9e19`/`0x9e38` hármas konkrét felirata**~~ -
+   **LEZÁRVA (2026-08-31)**, ld. `picasa-menu-parancsok-viselkedes.md`
+   **36.3**: a `[+0x2c0+0xdc]` mező a `Preferences\peoplesort`
+   registry-kulcs (betöltő `0x004a1560`, mentő `0x004a3790`), a három
+   felirat pedig a `0x00733480`-ban áll: `0x9e18` = **Sort &People by
+   Name** (0), `0x9e19` = **Sort People by &Amount** (1), `0x9e38` =
+   **Sort People by Top &10** (2). Vagyis nem mappanézet, hanem a
+   **személy-lista rendezése**.
+5. **#5121 - a `CAlbumList` 4-es típusú `newalbumprompt` sora meglévő album
+   mellett is bekerül-e, és melyik függvény milyen feltétellel illeszti be?**
+   A sor felirata, renderelése és ejtési útja bizonyított; a lista
+   feltöltője és az albumszám szerinti feltétele még nincs azonosítva.
+   Részletek: 7. szakasz.
+
+## Amit KIZÁRTAM
+
+- Hogy a `folderviewpopup` egy **önálló beállítás-dialógust** nyitna -
+  **nem**, a közös scope-kulcsos függvényt hívja, tehát **menü**, nem
+  panel.
+- Hogy az `importbutton` a `.tre`-ben feltételesen tiltva lenne - nincs
+  ilyen bejegyzés, mindig aktív.
+- Hogy a webkamera-gomb kattintás-mechanikája bármiben eltérne a
+  lebegő értesítősáv már ismert szingleton-mintájától - **nem tér el**,
+  ugyanaz az `EnumWindows` + "wCPG" jelölő.
+
+## 6. ⛳ MEGVAN a jelölt albumnév - és három HELYESBÍTÉS a 2. szakaszhoz (2026-09-14, 302. kör, #2911)
+
+*Forrás: a kezelő `0x005eb810`-`0x005eb902`, a leíró-konstruktor
+`0x0055cf70`, a szöveg-erőforrás betöltője `0x009ae710`, a név azonosítója
+`0x00c8e44c` = `IDS_DEFAULT_ALBUM_NAME` (id `0x8a` = 138), a nézetfrissítő
+`0x0065b840`, a jelző egyetlen olvasója `0x004afcfd`.*
+
+A #2911 első teendője a jelölt NÉV forrásának kimérése volt - a 2. szakasz
+korábbi szövege „feltehetően"-t írt, és emiatt a terméki fele nem épült meg.
+A név megvan, és közben a szakasz három állítása megdőlt.
+
+### 6.1 A név: `IDS_DEFAULT_ALBUM_NAME` - „Untitled" / „Névtelen"
+
+```
+0x0055cfaa  push 0xc8e44c        ; "IDS_DEFAULT_ALBUM_NAME"
+0x0055cfb2  push 0x8a            ; = 138, a szöveg-erőforrás azonosítója
+0x0055cfbf  call 0x009ae710      ; LoadString-szerű betöltő (0x400 bájtos puffer)
+0x0055cfc4  mov edx, [ebp]       ; ebp = leíró+0x14 - ide kerül a név
+```
+
+A `0x009ae710` a `[ebp+8]` azonosítót és a `[ebp+0xc]` nevet veszi, és a
+`[0xc40784]` importon át tölti a szöveget. A szövegtárunkban ugyanez:
+
+| azonosító | angol | magyar |
+|---|---|---|
+| `IDS_DEFAULT_ALBUM_NAME` | `Untitled` | `Névtelen` |
+
+*(`referencia/stringres-en-hu.tsv:1513`, `referencia/i18n-hu/stringres.xml:411`.)*
+
+⇒ **A jelölt név nem generált és nem dátum-alapú: egyetlen, honosított
+felirat.** Az ütközés-kezelés (számozott utótag) ezen az úton **nincs** -
+a `0x0055cf70` a nevet változtatás nélkül veszi át.
+
+### 6.2 HELYESBÍTÉS 1 - a „`Labels` kulcs 6-os indexe" félreolvasás
+
+```
+0x005eb81b  push 0xc7ec5c        ; a literál: "Labels"
+0x005eb820  mov eax, 6           ; a HOSSZA (strlen), nem index
+0x005eb825  lea edi, [esp+0x58]  ; a cél sztring-objektum
+0x005eb839  call 0x00985ff0      ; sztring-konstruktor (mutató, hossz)
+```
+
+A `0x00985ff0` a bináris általános **sztring-konstruktora** (ugyanez az alak
+áll például a kollázs-írónál, `0x008347c1 push 0xc8979c` + `lea eax,[esi+7]`
+a hét betűs `"collage"`-hoz). Nincs tehát „6-os indexű érték": a `"Labels"`
+egy **kulcsnév**, amivel a `0x00452a30` a `[doc+0x2bc]` kategória-táblából
+kér indexet.
+
+### 6.3 HELYESBÍTÉS 2 - a `0x0065b840` NEM névbekérő párbeszéd
+
+A függvény a `searchcontainer/searchbutton` és a `searchcontainer/searchclr`
+elemekre hivatkozik (`referencia/binary-index/string_xrefs.csv`), és a
+negyedik argumentuma az, ami a `+0x166` jelzőt beállítja
+(`0x0065b85f mov byte [eax+0x166], 1`). ⇒ könyvtárnézet-frissítő, nem
+párbeszéd.
+
+És a **`0x006dc030` maga is meghívja** - a SIKER ágán, közvetlenül az
+`al = 1` visszatérés előtt:
+
+```
+0x006dc0f3  push 1 / push 0 / push 0 / push edi
+0x006dc0fa  call 0x0065b840
+0x006dc112  mov al, 1            ; -> true
+0x006dc120  ...                  ; a HAMIS ág: 0x6dc12b xor al,al, hívás nélkül
+```
+
+### 6.4 HELYESBÍTÉS 3 - az ágak SORRENDJE fordítva volt
+
+```
+0x005eb877  call 0x006dc030
+0x005eb87c  test al, al
+0x005eb87e  je 0x005eb8e7        ; SIKERTELEN -> egyenesen a takarításra, return 0
+0x005eb888  call 0x0055d120      ; SIKER -> a második lépés
+0x005eb891  je 0x005eb8ad        ; ha az 0-t ad -> jelző + 0x0065b840
+```
+
+⇒ A „csak kudarckor kérdez nevet" leírásnak **nincs bináris alapja**: a
+kudarc ága nem csinál semmit, a jelző + frissítés pedig a **siker** ágán fut.
+
+### 6.5 A `+0x166` jelző: általános újrarajzolás-kérés, egyetlen fogyasztóval
+
+Indextől független `.text`-pásztázás (`paszta.py`, kontroll: a
+`call 0x65b840` hívóhelyek száma **101**):
+
+| | darab |
+|---|---|
+| ÍRÓ (`mov byte [reg+0x166], 1`), a teljes felületről szétszórva | **62** |
+| OLVASÓ | **1** - `0x004afcfd cmp byte [esi+0x166], 0` |
+
+Az egyetlen olvasó a `0x004afcb0` tétlenségi rutin: ha a jelző (vagy a
+`+0x161` párja) áll, elvégzi a frissítést (`0x004afd1a call 0x004aae90`), és
+a végén **nullázza** (`0x004afd41 mov byte [esi+0x166], 0`). ⇒ a mező nem az
+albumkészítéshez tartozik; a 2. szakasz „album létrehozás folyamatban"
+elnevezése téves volt.
+
+### 6.6 ⛔ Amit ez NEM mond ki
+
+- **Mikor ad `0` a `0x0055d120`**, és mit jelent ez a felhasználónak: nincs
+  kimérve. A függvény a `[doc+0x2bc]` album-nyilvántartáson dolgozik
+  (undo-egyesítéssel, `]facealbum:%d` hivatkozással) - a vizsgálat horgonya
+  a `0x0055d183 call 0x004ada80` visszatérése.
+- **Mi történik két azonos nevű albummal:** a `0x0055cf70` nem számoz, de
+  hogy a `0x006dc030` elutasítja-e a duplikátumot, **nincs kimérve**.
+- A `[doc+0xeb0]+0x30c`-be írt „Labels”-index szerepe (kijelölés? görgetés?)
+  nincs megnevezve.
+- A `0x005eb810` → `0x0055d120` → `0x004ada80` út tartós írója és a
+  mögöttes fájl/adatbázis-tábla **nincs meg**. A job-250 mérésben
+  `.picasa.ini`-változás nem volt. A `0x004ada80` → `0x00443c00` →
+  `0x00445b80` láncban látszik `P2category`-ág a `0x0045c0a0` felé,
+  de hogy ez a gomb útján tartós fájlírás-e, nincs bizonyítva; a
+  fájlhozzáférési és mentési ágakat kell tovább követni.
+
+### 6.7 #5808 - Eszköztár, Fájl menü és Album Properties
+
+**A. Eszköztár:** a `thumbui.tre` a `thumbui/newalbum_icon` ikont a
+`thumbui/newalbum` művelethez rendeli, a tooltip „Create a new album”. A
+`0x005d9cc0` név-diszpécser ezt a műveletet a `0x005eb810` handlerre küldi.
+Ez a handler a `0x0055cf70` által előtöltött „Untitled” leírót adja a
+`0x006dc030`-nak. A `+0x08 == -1` érték az új leíróban a `CEditAlbum`
+ablakágat választja; a rutin megnyitja az „Album Properties” párbeszédet.
+Az elrendezés megfelel a `Picasa3/runtime/album.fen` mezőinek. A közvetlen
+`0x006dc030` → `album.fen` fájlnév-kötés nincs bizonyítva.
+
+**B. Fájl menü / Ctrl+N:** a `picasa-menu-leltar.md` rekordja a
+`0x00d6d960` menüadaton `0x9d67` parancsazonosítót és `&New Album...`
+feliratot rögzít, Ctrl+N gyorsbillentyűvel. A `0x005cb990` parancs-
+diszpécser a `0x9d67` parancsot a `0x005cc5bb` ágra oldja; ez a
+`thumbui/newalbum` nevet küldi a `0x009cd8a0` művelet-diszpécsernek. Ezzel
+a File menü az A útjával azonos műveletkulcsot küld ki. A
+`0x009cd8a0` utáni virtuális callback célját a helyi statikus xref nem
+köti bizonyíthatóan a `0x005d9cc0`-hoz, ezért a teljes menü→handler hop
+**feltételes**. A menürekord és a kapcsolótábla címe/byte-ja külön-külön
+visszaolvasva: `0x9d67` → selector `0x19` → `0x005cc5bb`. A Ctrl+N
+billentyűút külön is a `thumbui/newalbum` műveletet küldi ki a
+`0x005e60d0` kezelő `0x005e6462` ágán (ld. `picasa-gyorsbillentyuk.md`
+10.1).
+
+**C. Kép-helyi menü és Albumok sáv:** az eredeti indexkép-helyi menüben
+„Hozzáadás az albumhoz” szerepel, „Új album” nincs. Az Albumok bal panel
+`newalbumprompt` sora drag-and-drop belépő, nem a gomb vagy a File menü
+álneve; a sikeres ág a ledobott elemek feldolgozásához a `0x005ea420`
+rutinba jut. A PicasaPy saját kép-helyi menüjének „New Album...” eleme
+viszont létezik, és jelenleg ugyanazt a `FileOpsDialogs.openNewAlbum(rows)`
+→ `createAlbum(name, rows)` útvonalat használja, mint a saját eszköztár
+és File menü. A `0x005cb990` második kapcsolótáblájában a `0xa03f`
+parancs a selector byte (`0x5cdff1` = `0x05`) és a `0x5cdf10` slot révén
+a `0x5cd7a7` ágba jut, ahol közvetlenül meghívja a `0x005eb810`-et; a
+vizsgált menüleltárban nincs hozzá UI-címke rendelve, ezért nem
+azonosítható helyi menüként.
+
+**Job-250 összevetés:** a mért eszköztár-kattintásnál a „Name: Untitled”
+mező kijelölt, és látszanak Date, Music/Browse, Place taken, Description,
+OK/Cancel mezők. OK után a felvétel tesztalbuma 0 taggal jelenik meg; a kijelölt kép
+kimarad, `.picasa.ini`-írás nincs. Ez egyezik a bináris vezérlési sorrenddel:
+a párbeszédnyitó hívás előtt nincs kép-lista argumentum, a
+`0x0055d120` csak a jóváhagyás után fut.
+
+**Tárolási határ:** a `0x0055d120` albumállapot-útja elér a
+`0x004ada80` `CAlbumState::newalbum` rutinig; ez önmagában nem bizonyítja,
+hogy az album melyik adatbázisfájlba vagy táblába íródik. A job-250 mérés
+csak a `.picasa.ini` változatlanságát támasztja alá. A tartós tárolási cél
+nyitott kérdés.
+
+**Cáfoló kör:** a „nincs párbeszéd” hipotézis cáfolatához ellenőriztem a
+`0x006dc030` másik ágát is. Ha a leíró `+0x08` mezője nem `-1`, a rutin
+közvetlen album-ágra tér (`0x006db730`); a tényleges
+`0x0055cf70` konstruktor viszont `-1`-et ír, ezért a `thumbui/newalbum`
+út nem ezt az ágat választja. A mért job-250 képernyőn ténylegesen megjelenő
+párbeszéd ezt a következtetést a bináristól függetlenül alátámasztja.
+Az ellenőrzés nem magyarázza meg a `0xa03f` ág UI-címkéjét, sem a File menü
+`0x009cd8a0` utáni dinamikus callbackjét; ezek nyitva maradnak.
+
+## 7. #5121 - A `CAlbumList` újalbum-sora és ejtési útja (2026-10-16)
+
+*Forrás: a megadott eredeti `Picasa3.exe`; minden cím betöltési cím (VA).
+Az utasításokat a `functions` indexből vett függvényhatárokon belül olvastam.*
+
+### 7.1 A külön sor: `CAlbumList::newalbumprompt`
+
+- A `0x00765d30` a `0x004ae4e0`-val beolvassa a listarekordot. A kimeneti
+  rekord `+0x30` mezőjét (`[esp+0x60]`) `4`-hez hasonlítja
+  (`0x00765e62`-`0x00765e69`). Egyezéskor a
+  `CAlbumList::newalbumprompt` kulcshoz (`0x00cb2878`) tartozó
+  *“You can drag and drop pictures here to make a new album.”* feliratot
+  (`0x00cb283c`) tölti be (`0x00765e6b`-`0x00765e75`). A mező-hozzárendelést
+  a közös rekordmásoló `0x004ae600` igazolja: a forrás `+0x30` mezőjét a
+  kimeneti `+0x30` mezőbe másolja.
+- Az `Albums` szakasz fejléce külön erőforrás:
+  `CAlbumList::liststicky5` (`0x00cb26d8`) → *“Albums”* (`0x00cb26d0`),
+  betöltése a `0x00762540`-ben, `0x00762b6e`-`0x00762b78` között. A
+  newalbum-felirat tehát a `4`-es típusú listaelemhez tartozik; az
+  `Albums` fejléc külön megnevezett elem.
+- A `CAlbumList` rajzolófüggvénye (`0x00763150`) külön `4`-es ágat kezel
+  (`0x007636df`-`0x007636e4`), ami megerősíti, hogy a `4`-es elemnek
+  önálló sorrajzolási útja van.
+
+### 7.2 A `lb_drop` a 4-es soron új albumot készít
+
+- A `0x005d3290` esemény-diszpécser az `lb_drop` kulcsot
+  (`0x00c95e80`) felismeri, majd a `0x005e39a0` ejtéskezelőt hívja
+  (`0x005d3f1c`-`0x005d3f57`).
+- A `0x005e39a0` ugyanazzal a `0x004ae4e0` rekordlekérővel olvassa a
+  cél-elemet; a kimeneti rekord `+0x30` mezőjének `4` értékénél
+  (`0x005e3a88`-`0x005e3a8f`) a `0x005ea770` albumkészítő útjára lép
+  (`0x005e3aaa`-`0x005e3aaf`). Ez a függvény meghívja a
+  `0x006dc030` album-létrehozó segédet (`0x005ea7e0`).
+- A `0x005e39a0` ezen ágában nincs albumszám-feltétel. Ez a tény a
+  4-es sorra érkező Drop működését bizonyítja; önmagában nem bizonyítja,
+  hogy a nem üres szakaszban is van ilyen sor vagy találati terület.
+
+### 7.3 Eredeti / nálunk / teendő
+
+| | Megállapítás |
+|---|---|
+| **Eredeti** | A `CAlbumList` 4-es típusú `newalbumprompt` sorának `lb_drop` eseménye az album-létrehozó útvonalra jut. A `liststicky5` / “Albums” fejléc nem ez a 4-es sor. |
+| **Nálunk** | Az a PicasaPy-ban: `AlbumsSection.qml`-ben az `albumDropArea` a súgó-`Text` gyereke, a szöveg pedig csak üres albumlistánál látható; ezért ezzel együtt az ejtési terület is eltűnik az első album után. |
+| **Teendő** | A 4-es sor megjelenési és találati feltételét nem üres listánál még ki kell olvasni / mérni. Utána a célterületet az eredeti sorhoz kell kötni, és valódi egérhúzással igazolni meglévő album mellett. |
+
+**Bizonyítottság:** a promptszöveg 4-es listarekordhoz kötése és a 4-es célrekord Drop → `0x006dc030` albumkészítési út két külön kódútból megerősített. A #5121 bináris kérdésének nem üres albumlistára vonatkozó fele nyitott: a `0x00762540` listafelépítő és az élő hit-test pontos listapozíciója nincs végigkövetve; az eredeti Picasán nem történt egérhúzásos mérés.
+
+**Ghidra-kör kell: 0x00762540 - a `CAlbumList` mikor és milyen listapozícióra teszi a 4-es típusú sort, ha már van album; melyik képernyőterület hit-testje adja át neki az `lb_drop` eseményt? [blokkoló]**
+
+## 7/b #5121 - A `CAlbumList` újalbum-sora: felirat, ejtés és beszúrási feltétel (2026-10-16, 2. kör)
+
+*Forrás: az eredeti `Picasa3.exe`; minden cím betöltési cím (VA). A
+függvénytesteket a bináris-index szerinti határokon belül olvastam, a
+`+0x30` írókat az indextől független, memóriakapus `paszta.py`-pásztázás
+ellenőrizte.*
+
+### 7/b.1 A 4-es sor felirata és rajzolása - megerősített
+
+- A `0x00765d30` a `0x004ae4e0`-val lekéri az aktuális listaelemet
+  (`0x00765dd1`-`0x00765e35`), majd a rekord `+0x30` mezőjét `4`-hez
+  hasonlítja (`0x00765e62`-`0x00765e69`). Egyezéskor a
+  `CAlbumList::newalbumprompt` kulcshoz (`0x00cb2878`) tartozó *“You can
+  drag and drop pictures here to make a new album.”* feliratot
+  (`0x00cb283c`) tölti be (`0x00765e6b`-`0x00765e75`).
+- A közös rekordmásoló `0x004ae600` a forrásrekord `+0x30` mezőjét a
+  célrekord `+0x30` mezőjébe másolja (`0x004ae6ca`-`0x004ae6cf`). Ez az
+  olvasott rekord formáját igazolja; nem azonosítja, ki készíti el a
+  4-es forrásrekordot.
+- A `CAlbumList` rajzolófüggvénye, `0x00763150`, külön 4-es ágat kezel
+  (`0x007636df`-`0x007636e4`). Az `Albums` fejléc külön listaelem:
+  `CAlbumList::liststicky5` (`0x00cb26d8`) → *“Albums”* (`0x00cb26d0`),
+  a címke lekérése a `0x00762540`-ben (`0x00762b6e`-`0x00762b78`). A
+  fejléc tehát nem bizonyítéka a 4-es sornak, és nem nevezi meg a sor
+  találati területét.
+
+### 7/b.2 A `lb_drop` út - megerősített
+
+- A `0x005d3290` esemény-diszpécser felismeri az `lb_drop` kulcsot
+  (`0x00c95e80`), és meghívja a `0x005e39a0` ejtéskezelőt
+  (`0x005d3f1c`-`0x005d3f57`).
+- A `0x005e39a0` az ejtés célrekordjának `+0x30` mezőjét `4`-hez
+  hasonlítja (`0x005e3a88`-`0x005e3a8f`). Egyezéskor a
+  `0x005ea770` albumkészítő útjára lép (`0x005e3aaa`-`0x005e3aaf`),
+  amely meghívja a `0x006dc030` album-létrehozó segédet (`0x005ea7e0`).
+- Ebben a Drop-ágban nincs albumdarabszám-feltétel. Ez csak a már
+  létező 4-es célrekord kezelését mutatja; a rekord jelenlétét nem.
+
+### 7/b.3 A lista feltöltője és a meglévő album melletti feltétel - nyitott
+
+- A `0x00762540` és a `0x00765d30` a saját `+0x24` mezőjükön át kapott
+  objektum `+0x2c0` listájából olvas rekordot (`0x00762608`-`0x0076264c`,
+  illetve `0x00765dd1`-`0x00765e35`). E két olvasó nem állítja elő a sort.
+- A teljes `.text` memóriakapus pásztázása 2 884 879 utasítást dekódolt;
+  a `[reg+0x30]` mezőt érintő 3 804 írásból a `4`-re vezethető közvetlen
+  vagy egyszerű regiszter-konstans írás 21 jelöltet adott. A két nem
+  veremalapú jelölt `0x009d53b8` és `0x00ad10b0`: az első környezetében
+  az objektum `+0x170` állapotmezőjét és a `+0x174`-et kezeli
+  (`0x009d5370`), a második egy `+0x28`, `+0x108`, `+0x110`, `+0x111`
+  és `+0xcc` mezőkkel rendelkező állapotobjektum ágában ír (`0x00ad1040`).
+  A diszasszemblálás egyik írást sem köti a `CAlbumList` rekordtömbjéhez;
+  nem tekinthetők a keresett beszúrás bizonyítékának.
+- A `CAlbumBuilder::updated` címkéjű `0x004b3770` a `0x004ae600`
+  rekordmásolót használja, ezért követendő jelölt. A vizsgált függvényben
+  nem találtam a rekord `+0x30` mezőjének 4-re állítását, és a másolt
+  rekordtömb `CAlbumList` `+0x2c0` listájához vezető kapcsolata sem
+  bizonyított. A mezőazonosság önmagában nem bizonyít azonos
+  objektumtípust.
+  ⚠️ **HELYESBÍTÉS (#7351, `picasa-hasab-csoportfejlecek-7351.md`):** a `0x004b3770` **nem albumépítő és nem jelölt** a `+0x30 = 4` sor beszúrójának keresésében: a bal hasáb **csoportfejléc-gyártója** (év, illetve `Updated <hónap> <év>` fejléc, típus-2 sorok). A `CAlbumBuilder::updated` kulcs ennek a fejlécnek az előtagja. Az alábbi "Ghidra-kör kell: 0x004b3770" kérdés ezzel lezárva.
+- Következtetés: **nem dőlt el**, hogy a 4-es `newalbumprompt` sor csak
+  üres albumlistánál, vagy nem üres listánál is megjelenik, illetve hogy
+  melyik vizuális terület fogad ejtést. A listaépítő és a hívási lánc
+  dekompilátumos követése blokkoló.
+
+### 7/b.4 QEMU-mérés
+
+A meglévő `qemu_harness` a bináris egyes függvényeit kézzel épített
+állapottal képes futtatni; a dokumentált példái képfeldolgozó függvények.
+Nincs kész Picasa UI-/album-modell inicializálója vagy 0/1/több albumot
+beállító forgatókönyve. A listaépítő és annak belépési állapota nélkül egy
+kézzel épített rekord futtatása nem mérné az eredeti albumszám-feltételt,
+ezért ez a kör nem végzett QEMU-futást.
+
+### 7/b.5 Eredeti / nálunk / teendő
+
+| | Megállapítás |
+|---|---|
+| **Eredeti** | A 4-es `newalbumprompt` rekord felirata és ejtési célként való kezelése bizonyított. A meglévő album melletti megjelenés és a célterület neve/helye nyitott. |
+| **Nálunk** | Az a PicasaPy-ban: `AlbumsSection.qml` `albumDropArea` eleme a súgószöveg gyereke; a szöveg csak üres listánál látszik, ezért az ejtési cél is eltűnik az első album után. |
+| **Teendő** | Előbb az eredeti listaépítő és a 4-es sor beszúrási feltétele azonosítandó; utána ahhoz igazítható a célterület, majd meglévő albummal is valódi egérhúzásos teszt kell. |
+
+**Bizonyítottsági fok:** a 4-es rekord felirata, külön rajzolási ága és a Drop → `0x006dc030` út *megerősített*; a #5121 bináris kérdése a sor beszúrásáról és meglévő album melletti célterületéről *nyitott*. Az egyik független út a sorolvasó/Drop függvények utasításszintű vizsgálata; a másik az egész `.text` `+0x30` íróira végzett memóriakapus pásztázás és a `CAlbumBuilder::updated` jelölt ellenőrzése. Ezek a keresett beszúró feltételről nem adnak egyező, döntő eredményt.
+
+**Cáfoló kör:** az „első album után a sor biztosan eltűnik” állítást próbáltam cáfolni azzal, hogy a `0x00765d30` felirat-olvasóban és a `0x005e39a0` Drop-ágban albumszám-vizsgálatot kerestem. Egyik sem vizsgál albumszámot, de mindkettő már létező listaelemet fogyaszt, ezért ez nem cáfolja a csak üres listánál történő beszúrást. A megfigyelést ugyanazzal a mércével ellenőrizve a két funkció nem a listaépítő; a kérdés nyitva marad.
+
+**Ghidra-kör kell: 0x004b3770 - a `CAlbumBuilder::updated` által másolt 0x38 bájtos rekordtömb azonos-e a `CAlbumList` `+0x2c0` modelljével, és melyik hívó/ág állítja elő a `+0x30 = 4` rekordot meglévő albumok esetén? [blokkoló]** **LEZÁRVA (#7351):** a `0x004b3770` csoportfejléc-gyártó, nem albumépítő; a `+0x30 = 4` sor beszúrója nem ez a függvény.
+
+**Ghidra-kör kell: 0x00565920 - a `CAlbumList`-konstruktor szülőobjektumának melyik útja tölti fel a `+0x2c0` listát, és a beszúrás függ-e a meglévő albumok számától? [blokkoló]**

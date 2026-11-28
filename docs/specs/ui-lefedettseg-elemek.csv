@@ -1,0 +1,453 @@
+elem,allapot,bizonyitek,megjegyzes
+thumbui/buttonbarsets,megvan,PicasaPy/MainToolbar.qml;tests/app/qml_functional/test_toolbar_single_row.py;tests/app/qml_functional/test_felso_sav_horgonyzas_3603.py,A fő eszköztársáv hátterének és elemeinek gyűjtőrétege; nincs önálló művelete (#4193)
+thumbui/buttongroup1,nem-cel,docs/specs/picasa-fo-ablak-elrendezes.md:254;docs/specs/picasa-fo-ablak-elrendezes.md:1191,A fullview/albumview vezérlők gyűjtőcsoportja; önálló felületi művelete nincs (#4193)
+thumbui/fullview,nem-cel,docs/specs/picasa-fo-ablak-elrendezes.md:254;docs/specs/ui-audit-mainwindow.md:1937-1939,A rejtett szerkesztési művelet megjelenítési eseménye nincs feltárva; a szerkesztés a menüből és Ctrl+3-mal elérhető (#4193)
+thumbui/listdecrect,megvan,PicasaPy/FolderPane.qml;tests/app/qml_functional/test_fo_ablak_elrendezes_587.py,A mappapanel téglalapja már megvalósult és a főablak-teszt lefedi; a jegy 516-os hivatkozása a hlistsizerre mutat (#4193)
+thumbui/next,nem-cel,docs/specs/konyvtar-ablak-meretek.md:156-168;docs/specs/picasa-fo-ablak-elrendezes.md:1232-1272,Offscreen parancsproxy; nincs önállóan látható „View the next Photo” vezérlő (#4193)
+thumbui/prev,nem-cel,docs/specs/konyvtar-ablak-meretek.md:156-168;docs/specs/picasa-fo-ablak-elrendezes.md:1232-1272,Offscreen parancsproxy; nincs önállóan látható „View the previous Photo” vezérlő (#4193)
+thumbui/searchgroup,megvan,PicasaPy/MainToolbar.qml;tests/app/qml_functional/test_thumbui_maradek_4193.py,A meglévő szűrőgombok sora az eredeti objectName-t kapta; valódi kattintásos kimeneti teszt (#4193)
+thumbui/single_action_message,megvan,PicasaPy/TraySingleActionBar.qml;tests/app/qml_functional/test_thumbui_maradek_4193.py,"A klipgyűjtő üzenet eredeti angol forrása és hivatalos magyar fordítása, valódi gombkattintással ellenőrizve (#4193)"
+thumbui/toggle_right_drawer,megvan,Main.qml;tests/app/qml_functional/test_thumbui_maradek_4193.py,A rejtett kattintható fiókváltó eredeti objectName-t kapta; valódi nyitás és negatív kontroll (#4193)
+thumbui/webcambutton,nem-cel,docs/specs/picasa-konyvtar-eszkoztar-viselkedes.md:306-335,A Windows-specifikus eredeti webkamerafunkció P4-en tulajdonosi döntéssel kimaradt (#466); a jelenlegi kamera-panel külön funkció (#4193)
+searchcontainer/starsearch,megvan,PicasaPy/MainToolbar.qml,"Csillag-szűrő: nálunk a ★ jel a keresősáv mellett (controller.showStarred), felirat nélkül"
+searchcontainer/geotagsearch,megvan,PicasaPy/MainToolbar.qml,Geo-szűrő: objectName geoFilter + icons/geo-pin.svg (controller.showGeotagged)
+searchcontainer/searchclr,megvan,PicasaPy/MainToolbar.qml,Keresés törlése: objectName searchClear (a ✕ gomb a mezőben)
+searchcontainer/search,megvan,PicasaPy/MainToolbar.qml;tests/app/qml_functional/test_search_lefedettseg_4202.py,A keresőmező objectName-je searchField; a valódi főablakos keresés és a találati sáv kimeneti próbája
+searchcontainer/searchautocomplete,megvan,Main.qml;PicasaPy/SearchSuggestions.qml;tests/app/qml_functional/test_search.py;tests/app/qml_functional/test_search_lefedettseg_4202.py,A SearchSuggestions javaslatsora a főablakban kattintással kiválasztható és kiüríti a keresőt
+searchcontainer/searchbutton,megvan,PicasaPy/MainToolbar.qml;tests/app/qml_functional/test_search_lefedettseg_4202.py,"A keresési beállítások gombja fókuszált vagy kitöltött keresőmezőnél jelenik meg; valódi kattintással nyitja az arc- és másodpéldány-módot, Ctrl+F-fel is elérhető"
+searchcontainer/webview,nem-cel,docs/decisions/keresosav-webview-szuro-kimarad.md,A Picasa Web Albums szolgáltatás megszűnt; az elfogadott döntés szerint nincs feltöltési állapot amit szűrni lehetne
+outputlayout/ebutton,megvan,PicasaPy/TrayActionArea.qml,"Nálunk „E-Mail” a felirata, az eredetiben „Email” — kötőjel miatt nem egyezik szó szerint"
+outputlayout/folderbutton,megvan,PicasaPy/TrayActionArea.qml;PicasaPy/ExportDialogs.qml,Az „Export” tálcagomb az Exportálás párbeszédet nyitja
+throttle/throttlethumb,megvan,PicasaPy/PicasaScrollBar.qml,A görgetősáv fogantyúja — nálunk névtelen Rectangle a PicasaScrollBar-ban
+acquirepanel/rotate1button,megvan,PicasaPy/ImportSourceDialog.qml,Forgatás importáláskor: objectName importRotateRight:<index> a bélyegkép-rácson (399. sor)
+acquirepanel/rotate2button,megvan,PicasaPy/ImportSourceDialog.qml,Forgatás importáláskor (balra): objectName importRotateLeft:<index> (397. sor)
+acquirepanel/startoggle,megvan,PicasaPy/ImportSourceDialog.qml,Csillagozás importáláskor: objectName importStar:<index> (424. sor)
+acquirepanel/excludetoggle,megvan,PicasaPy/ImportSourceDialog.qml,Kihagyás/felvétel képenként: importSourceToggle:<index> + Exclude All / Include All (335/340/453. sor)
+acquirepanel/import_selected,megvan,PicasaPy/ImportSourceDialog.qml,"A kijelöltek importálása: a kihagyás-kapcsolóval szűrt készlet megy át, egyetlen Import gombbal (629. sor)"
+acquirepanel/anowbutton,megvan,PicasaPy/ImportSourceDialog.qml,Az összes importálása: Include All után az Import gomb (341/629. sor)
+acquirepanel/acancelbutton,megvan,PicasaPy/ImportSourceDialog.qml,Mégse: a Close gomb (638. sor)
+acquirepanel/delete_menu,megvan,PicasaPy/ImportSourceDialog.qml,After Copying hármas rádió: Leave card alone / Delete only copied photos / Delete everything on card (548/555/562. sor)
+acquirepanel/searchstatus,megvan,PicasaPy/ImportSourceDialog.qml,Keresési állapot: importSourceBusyIndicator + importSourceCountText + importSourceEmptyText (304/311/319. sor)
+acquirepanel/subfolder_menu,megvan,PicasaPy/ImportSourceDialog.qml,"Almappa-elnevezés hármasa: kézi cím / dátum szerint / mai dátum — importSourceNamingManualRadio, ...ByDateRadio, ...TodayRadio (503/521/528. sor)"
+collagepanel/makedesktop,megvan,PicasaPy/CollagePanel.qml,"„Desktop Background” gomb (collageMakeDesktopButton, 190. sor); a buboréksúgó szövege majdnem szó szerint az eredetié, de nem betűre — ezért nem párosult gépi úton"
+collagepanel/sharebutton,megvan,PicasaPy/CollagePanel.qml,"„Create Collage” gomb (collageShareButton, 201. sor); buboréksúgója az eredetiét követi (Collages album, Projects gyűjtemény)"
+collagepanel/tab2,megvan,PicasaPy/CollagePanelTabBar.qml,"„Clips (%1)” fül (collageClipsTabButton, 51. sor) — a darabszám miatt nem egyezik szó szerint a „Clips”-szel"
+collagepanel/deleteclips,megvan,PicasaPy/CollageClipsTab.qml,„Remove the selected pictures from the tray” buboréksúgó (119. sor) — az eredeti szövege „Remove selected clips from the tray”
+collagepanel/caption_checkbox,megvan,PicasaPy/CollageSettingsTab.qml,"Képfelirat-kapcsoló: collageCaptionCheckbox (499. sor), a controller collageCaptions tulajdonságával (70. sor)"
+collagepanel/portrait,megvan,PicasaPy/CollageSettingsTab.qml,"Álló tájolás gomb: collagePortraitButton, a collageOrientation ==  portrait állapottal"
+collagepanel/landscape,megvan,PicasaPy/CollageSettingsTab.qml,"Fekvő tájolás gomb: collageLandscapeButton (344. sor), collageOrientation == landscape (352. sor)"
+quicktagconfig/recent_checkbox,megvan,PicasaPy/QuickTagsConfigDialog.qml,"quickTagsReserveRecentCheck (84. sor); a felirat nálunk „Reserve the top two buttons…”, az eredetiben „Reserve top two buttons…” — egy szó eltérés miatt nem párosult"
+quicktagconfig/recent_checkbox_label,megvan,PicasaPy/QuickTagsConfigDialog.qml,"ua., a jelölőnégyzet felirata (86. sor)"
+quicktagconfig/autofill,megvan,PicasaPy/QuickTagsConfigDialog.qml,quickTagsAutoFillButton (153. sor): egyszeri Autofill gomb (#7053)
+thumbui/smallthumbs,megvan,PicasaPy/PicasaMenuBar.qml,"Kis indexkép: a Nézet menü thumbSizePreset(96) tétele (301. sor) — nálunk menütétel, az eredetiben eszköztárgomb"
+thumbui/largethumbs,megvan,PicasaPy/PicasaMenuBar.qml,"Nagy indexkép: thumbSizePreset(144) (306. sor) — ua., menütételként"
+thumbui/hide,megvan,PicasaPy/PicasaMenuBar.qml;Main.qml;tests/app/qml_functional/test_felsomenupontok_kep_4329.py,A Kép ▸ Hide valódi kattintással hidden=yes értéket ír a kijelölt kép .picasa.ini fájljába (#4409)
+thumbui/unhide,megvan,PicasaPy/PicasaMenuBar.qml;Main.qml;tests/app/qml_functional/test_felsomenupontok_kep_4329.py,A Kép ▸ Unhide valódi kattintással törli a kijelölt kép hidden kulcsát a .picasa.ini fájlból (#4409)
+thumbui/rotateleft,megvan,PicasaPy/PhotoContextMenu.qml;PicasaPy/PicasaMenuBar.qml,Forgatás balra: a Kép menüben és a fotó helyi menüjében; az eredetiben eszköztárgomb is
+thumbui/rotateright,megvan,PicasaPy/PhotoContextMenu.qml;PicasaPy/PicasaMenuBar.qml,Forgatás jobbra: ua.
+thumbui/scratchhold,megvan,PicasaPy/TrayScratchPanel.qml,A képtálca „Hold” gombja (trayHold)
+thumbui/scratchclear,megvan,PicasaPy/TrayScratchPanel.qml,A képtálca „Clear” gombja (trayClear)
+thumbui/newalbum,megvan,PicasaPy/FolderPane.qml;PicasaPy/AlbumsSection.qml,Új album létrehozása a bal hasábról
+thumbui/newfolder,megvan,PicasaPy/PicasaMenuBar.qml;PicasaPy/FileOpsDialogs.qml,„Áthelyezés új mappába…” a Fájl menüben
+editpanel/croptext,megvan,PicasaPy/EditorCropPanel.qml,"Vágás-útmutató: „Choose a size below, then drag on the picture to…” (56. sor) — az eredeti „Select a dimension below and then click and drag…” szövegével egyező tartalom, más megfogalmazásban"
+editpanel/crop_aspect_menu,megvan,PicasaPy/EditorCropPanel.qml,Képarány-választó: cropAspectCombo (81. sor) + cropAspectList (109.)
+editpanel/crop_delete_custom,megvan,PicasaPy/EditorCropPanel.qml,"Egyéni képarány törlése: cropAspectDelete<index> (164. sor), megerősítéssel („Delete this custom aspect ratio?”, 186.)"
+editpanel/cropsug_preview1,megvan,PicasaPy/EditorCropPanel.qml,"Vágás-javaslat 1: cropSuggestion0 (270. sor), a „Suggested crops” sorban (237.)"
+editpanel/cropsug_preview2,megvan,PicasaPy/EditorCropPanel.qml,Vágás-javaslat 2: cropSuggestion1 (271. sor)
+editpanel/cropsug_preview3,megvan,PicasaPy/EditorCropPanel.qml,Vágás-javaslat 3: cropSuggestion2 (272. sor)
+editpanel/retouchtext,megvan,PicasaPy/EditorRetouchPanel.qml,"Retus-útmutató (56. sor), az eredeti szövegének megfelelő tartalommal"
+editpanel/redeyetext,megvan,PicasaPy/EditorRedeyePanel.qml,Vörösszem-útmutató (64. sor) + az automatikus javítás visszajelzése (79–80.)
+editpanel/retouch_label,megvan,PicasaPy/EditorRetouchPanel.qml,„Retouch” fejléc (47. sor)
+editpanel/redeye_label,megvan,PicasaPy/EditorRedeyePanel.qml,„Redeye” fejléc (55. sor)
+editpanel/filllight_icon,megvan,PicasaPy/EditorFinetunePanel.qml,"Derítőfény: SliderCaption „Fill Light” + finetuneFillSlider (105., 108. sor)"
+editpanel/droppertoggle,megvan,PicasaPy/EditorFinetunePanel.qml,"Semleges színválasztó: finetuneNeutralPicker (208. sor), buboréksúgója az eredetiét követi („Pick a neutral gray or white area of the photo to…”, 211.)"
+editpanel/faces_button,megvan,PicasaPy/PhotoViewer.qml,"Arcok megjelenítése/elrejtése: facesToggleButton (1490. sor), a facesVisible kapcsolóval (165–166.)"
+editpanel/filter_name,megvan,PicasaPy/EditorParamPanel.qml,Az aktív effekt neve: effectParamTitle (191. sor) a paraméter-panel fejlécében
+unknownfaceheaderpanel/ignore,megvan,PicasaPy/UnnamedFacesView.qml,Kijelöltek mellőzése: ignoreFacesButton buboréksúgóval; a párja az unignoreFacesButton („Stop ignoring”).
+unknownfaceheaderpanel/showignored,megvan,PicasaPy/UnnamedFacesView.qml;Main.qml;tests/app/qml_functional/test_maradek_arc_video_4229.py,A „Show ignored faces” váltó a Mellőzött emberek albumra kapcsol; a Main.qml a bal oldali albumállapotot is frissíti. Valódi főablakos kattintáspróba: #4229.
+unknownfaceheaderpanel/showunknown,megvan,PicasaPy/UnnamedFacesView.qml;Main.qml;tests/app/qml_functional/test_maradek_arc_video_4229.py,"A „Back to Unnamed” váltó visszatér a Névtelenek albumhoz, és a fejléc a megfelelő módot mutatja. Valódi főablakos kattintáspróba: #4229."
+peoplepanel/manual_add,megvan,PicasaPy/PeoplePanel.qml;PicasaPy/PhotoViewer.qml;tests/app/qml_functional/test_peoplepanel_manual_add_4574.py,A „Személy kézi hozzáadása” panelgomb megnyitja a kijelölt képet kézi arcmódban; az útmutató és a Mégse gomb a panelben jelenik meg. Valódi főablakos kattintáspróba három ablakmagassággal (#4574).
+tagpanel/add_tag_label,megvan,PicasaPy/TagsPanel.qml,"Címke-beviteli mező helyőrzővel: tagInput (87. sor), „Add a tag…” (91.)"
+tagpanel/addtag,megvan,PicasaPy/TagsPanel.qml,Címke hozzáadása gomb: tagAddButton (97. sor)
+tagpanel/quick_config,megvan,PicasaPy/TagsPanel.qml,"Gyorscímkék beállítása: quickTagsGearButton (201. sor), a QuickTagsConfigDialog-ot nyitja"
+gedialog/tagall,megvan,PicasaPy/PlacesPanel.qml,"Az összes kijelölt geocímkézése: a PlacesPanel a controller.setGeotagRows(appWindow.selectedIndexes, lat, lon)-t hívja (109. sor) — egy hely a TELJES kijelölésre"
+editpanel/1to1,megvan,PicasaPy/TrayTopRow.qml:547;PicasaPy/PhotoViewerGeometryActions.qml:302,„Valódi méret”: `zoomActualButton` + `zoomActual()`; a #6 építette meg
+editpanel/fit,megvan,PicasaPy/TrayTopRow.qml:526;PicasaPy/PhotoViewerGeometryActions.qml:296,„Befér a nézetbe”: `zoomFitButton` + `zoomFit()`; dupla kattintásra is
+editpanel/aa_2up_toggle,megvan,PicasaPy/PhotoViewerTopBar.qml:457,Kettős nézet: az `A A` szegmens (`viewerLayoutAa`) élő QML-vezérlő; kirajzolt és egérrel működő ellenőrzése: `test_kettos_nezet_gombsor_helye_3663.py` és a #3013/#3014 nézetpróbái.
+editpanel/ab_2up_toggle,megvan,PicasaPy/PhotoViewerTopBar.qml:447,Kettős nézet: az `A B` szegmens (`viewerLayoutAb`) élő QML-vezérlő; kirajzolt és egérrel működő ellenőrzése: `test_kettos_nezet_gombsor_helye_3663.py` és a #3013/#3014 nézetpróbái.
+editpanel/swap_2up_focus,megvan,PicasaPy/PhotoViewerTopBar.qml:470,"A két kép szerkesztési fókuszát váltó (`viewerSwapFocus`) vezérlő, csak kettős nézetben; kirajzolt ellenőrzése a #3663, viselkedését a #3014-es próbák fedik le."
+editpanel/swap_2up_layout,megvan,PicasaPy/PhotoViewerTopBar.qml:497,"A kettős nézet vízszintes/függőleges elrendezését váltó (`viewerSwapLayout`) vezérlő; kirajzolt ellenőrzése a #3663, viselkedését a #3014-es próbák fedik le."
+editpanel/only_1up_toggle,megvan,PicasaPy/PhotoViewerTopBar.qml:429,Egyképes nézet: az `A` szegmens (`viewerLayoutOnly1up`) élő QML-vezérlő; kirajzolt és egérrel működő ellenőrzése: `test_kettos_nezet_gombsor_helye_3663.py`.
+editpanel/fxpreview1,megvan,PicasaPy/ToolTile.qml:76,Az effekt-csempe képe — nálunk STATIKUS SVG (44x30); él-e az eredetiben: #1869 (blokkolt)
+makemoviepanel/recompute,megvan,tests/app/qml_functional/test_film_panel_4125.py,Újraszámolás: a klipforrások újraolvasása és visszaváltás az előnézethez (#4125).
+makemoviepanel/sizelist,megvan,tests/app/qml_functional/test_film_panel_4125.py,Hét eredeti méret; a választott méret a kész film kimenetében is megmarad (#4125).
+makemoviepanel/add_audio,megvan,tests/movie/test_slideshow_transitions_4125.py,Hangfájl hozzáadása és a három hangsáv-opció a létrehozott MP4-ben (#4125).
+makemoviepanel/insert_slide,megvan,tests/app/qml_functional/test_film_panel_4125.py;tests/app/qml_functional/test_film_text_slide_infotext_4402.py,"A beszúrt szöveges dia a kész videóban és az .mxf projektben is megjelenik, a filmszalagon és a listában Text Slide néven látszik (#4125/#4402)."
+makemoviepanel/infotext,megvan,tests/app/qml_functional/test_film_text_slide_infotext_4402.py,"Valódi kattintással ellenőrzi a fotó és a Text Slide nevét, képpontméretét és filmsorszámát (#4402)."
+titledialog/captionchk,megvan,tests/app/qml_functional/test_titledialog_4198.py,"A jelölőnégyzet valódi kattintással a képfeliratot tölti be, és a szöveg a kész videó kimenetében is megmarad (#4198)."
+makemoviepanel/transtype_label,megvan,tests/movie/test_slideshow_transitions_4125.py,A választott képváltási stílus a renderelt átmenetet és az .mxf-et állítja (#4125).
+makemoviepanel/tab3,megvan,tests/app/qml_functional/test_film_panel_4125.py,"A Klipek fül hozzáadása, törlése, újrarendezése és újraszámolása (#4125)."
+printpanel/3x5button,megvan,PicasaPy/PrintSettingsPanel.qml:95,„printPresetSize” delegátum a méretkészlet 3.5×5-ös elemét választja
+printpanel/printlayoutlabel,megvan,PicasaPy/PrintFitPanel.qml:19;PicasaPy/PrintFitPanel.qml:27;PicasaPy/PrintFitPanel.qml:36,A „Fit to page” mező két rádiója választ a teljes kép és az oldalhoz igazítás között.
+printpanel/copieslabel,megvan,PicasaPy/PrintDialogContent.qml:66,»Copies of each picture:« — képenkénti példányszám; a mért eredeti szemantika
+printpanel/subprintsbutton,megvan,PicasaPy/PrintDialogContent.qml:71,printCopiesMinusButton — a példányszám csökkentése
+printpanel/croptoggle,megvan,PicasaPy/PrintFitPanel.qml,»Fill the page (crop)« rádió (:36) — a fitMode FILL ága
+printpanel/croptogglelabel,megvan,PicasaPy/PrintFitPanel.qml,ugyanannak a rádiónak a felirata (:36)
+printpanel/fittoggle,megvan,PicasaPy/PrintFitPanel.qml,»Whole picture« rádió (:27) — a fitMode FIT ága
+printpanel/fittogglelabel,megvan,PicasaPy/PrintFitPanel.qml,ugyanannak a rádiónak a felirata (:27)
+printpanel/preview,megvan,PicasaPy/PrintPreviewPanel.qml,printPreviewImage (:14) — laponkénti előnézeti kép
+printpanel/previewlabel,megvan,PicasaPy/PrintPreviewPanel.qml,a printPreviewBlock (:8) maga az előnézet-blokk
+printpanel/previewnumber,megvan,PicasaPy/PrintPreviewPanel.qml,printPreviewPageText (:41) — a mért »%d / %d« alak
+printpanel/prevbutton,megvan,PicasaPy/PrintPreviewPanel.qml,printPreviewPrevButton (:29)
+printpanel/nextbutton,megvan,PicasaPy/PrintPreviewPanel.qml,printPreviewNextButton (:56)
+printpanel/pcancelbutton,megvan,PicasaPy/PrintButtonRow.qml,»Close« (:26) — a párbeszéd bezárása
+printpanel/selectprinterbutton,megvan,PicasaPy/PrintPrinterPanel.qml,printerBox ComboBox (:37) — az elérhető nyomtatók listája plusz PDF-cél
+printpanel/printsetuplabel,megvan,PicasaPy/PrintPrinterPanel.qml,»Printer:« (:31) — a nyomtatóválasztó felirata
+editpanel/fxpreview2,megvan,PicasaPy/EditorEffectsTab1.qml,thumbSource: panel.effectThumbSource(...) — az effekt-csempék ÉLŐ előnézeti képe (#338); Tab1/2/3 12-12 csempe
+editpanel/fxpreview3,megvan,PicasaPy/EditorEffectsTab1.qml,ugyanaz a csempe-készlet (:56-:105)
+editpanel/fxpreview4,megvan,PicasaPy/EditorEffectsTab1.qml,ugyanaz a csempe-készlet
+editpanel/fxpreview5,megvan,PicasaPy/EditorEffectsTab1.qml,ugyanaz a csempe-készlet
+editpanel/fxpreview6,megvan,PicasaPy/EditorEffectsTab1.qml,ugyanaz a csempe-készlet
+editpanel/fxpreview7,megvan,PicasaPy/EditorEffectsTab2.qml,ugyanaz a csempe-készlet a 2. effekt-fülön
+editpanel/fxpreview8,megvan,PicasaPy/EditorEffectsTab2.qml,ugyanaz a csempe-készlet a 2. effekt-fülön
+editpanel/fxpreview9,megvan,PicasaPy/EditorEffectsTab2.qml,ugyanaz a csempe-készlet a 2. effekt-fülön
+editpanel/fxpreview10,megvan,PicasaPy/EditorEffectsTab3.qml,ugyanaz a csempe-készlet a 3. effekt-fülön
+editpanel/fxpreview11,megvan,PicasaPy/EditorEffectsTab3.qml,ugyanaz a csempe-készlet a 3. effekt-fülön
+editpanel/fxpreview12,megvan,PicasaPy/EditorEffectsTab3.qml,ugyanaz a csempe-készlet a 3. effekt-fülön
+editpanel/magic_lighting,megvan,PicasaPy/EditorFinetunePanel.qml,finetuneLightingWand (:165) buboréksúgó »One-click lighting fix« — HELYESBÍTÉS: a 95c7fb7c hianyzik-nak jelölte; a vezérlő 486e4a4e (2026-08-12) óta megvan
+editpanel/magic_color,megvan,PicasaPy/EditorFinetunePanel.qml,finetuneColorWand (:220) buboréksúgó »One-click color fix« — HELYESBÍTÉS: ugyanaz mint a magic_lighting sorban
+editpanel/editcircle1,megvan,PicasaPy/EditorFinetunePanel.qml,finetuneNeutralSwatch (:199) — a semleges szín mintája
+editpanel/editcircle1_well,megvan,PicasaPy/EditorFinetunePanel.qml,ugyanannak a mintának a foglalata (:199 körül)
+editpanel/editcheckbox1,megvan,PicasaPy/EditorParamPanel.qml,effectParamCheckbox<N> (:289) — a paraméteres effektek logikai vezérlői
+editpanel/editcheckbox2,megvan,PicasaPy/EditorParamPanel.qml,ugyanaz a repeater (:289)
+editpanel/editcontrols,megvan,PicasaPy/EditorParamPanel.qml,effectParamColumn (:171) — a paraméter-vezérlők oszlopa
+editpanel/editcontrol_well,megvan,PicasaPy/EditorParamPanel.qml,editorEffectParamScroll (:98) — a vezérlők foglalata
+editpanel/slidercircle0,megvan,PicasaPy/EditorParamPanel.qml,effectParamColor (:297) — színválasztó a csúszkasoron
+editpanel/slidercircle1,megvan,PicasaPy/EditorParamPanel.qml,ugyanaz a repeater (:297)
+editpanel/tabs,megvan,PicasaPy/EditorTabBar.qml,a fülsáv hét gombja (:51-:135) — tudatos eltérés: hét fül öt helyett
+editpanel/tab_bkg,megvan,PicasaPy/EditorTabBar.qml,a fülsáv háttere
+editpanel/tabpanel1,megvan,PicasaPy/EditorTabCommonFixes.qml,az 1. fül lapja (Gyakori javítások)
+editpanel/tabpanel2,megvan,PicasaPy/EditorFinetunePanel.qml,a 2. fül lapja (Finomhangolás)
+editpanel/tabpanel3,megvan,PicasaPy/EditorEffectsTab1.qml,a 3. fül lapja (effektek)
+editpanel/tabpanel4,megvan,PicasaPy/EditorEffectsTab2.qml,a 4. fül lapja (további effektek)
+editpanel/tabpanel5,megvan,PicasaPy/EditorEffectsTab3.qml,az 5. fül lapja (további effektek)
+editpanel/preview,megvan,PicasaPy/PhotoViewer.qml,viewerPhotoArea (:1075) — a szerkesztett kép területe
+editpanel/previewimage,megvan,PicasaPy/PhotoViewer.qml,a photo Image (:1086) — maga a megjelenített kép
+editpanel/prev,megvan,PicasaPy/PhotoViewer.qml,viewerPrevButton (:641) — előző kép a fejlécben
+editpanel/next,megvan,PicasaPy/PhotoViewer.qml,viewerNextButton (:709) — következő kép a fejlécben
+editpanel/zoomsliderrect,megvan,PicasaPy/PhotoViewer.qml,a nagyítás-csúszka sávja az alsó vezérlősorban (#1420)
+editpanel/edittextpanel,megvan,PicasaPy/EditorTextPanel.qml,a teljes szöveg-eszköz panel (:15-:186) — tartalom · betűtípus · méret · félkövér/dőlt/aláhúzott · három igazítás · kitöltő színek
+pickerpanel/mru_0,megvan,PicasaPy/TextColorSwatches.qml;tests/app/qml_functional/test_color_picker_recent_4283.py,#4283: a legutóbb választott szín (0. rekesz) — QSettings: picker/mru_0
+pickerpanel/mru_1,megvan,PicasaPy/TextColorSwatches.qml;tests/app/qml_functional/test_color_picker_recent_4283.py,#4283: a második legutóbbi szín — QSettings: picker/mru_1
+pickerpanel/mru_2,megvan,PicasaPy/TextColorSwatches.qml;tests/app/qml_functional/test_color_picker_recent_4283.py,#4283: a harmadik legutóbbi szín — QSettings: picker/mru_2
+pickerpanel/mru_3,megvan,PicasaPy/TextColorSwatches.qml;tests/app/qml_functional/test_color_picker_recent_4283.py,#4283: a negyedik legutóbbi szín — QSettings: picker/mru_3
+pickerpanel/mru_4,megvan,PicasaPy/TextColorSwatches.qml;tests/app/qml_functional/test_color_picker_recent_4283.py,#4283: az ötödik legutóbbi szín — QSettings: picker/mru_4
+quicktagconfig/edit_0,megvan,PicasaPy/QuickTagsConfigDialog.qml,quickTagField0 (:86) — a #1788 óta EXPLICIT tíz mező (_QUICK_TAG_SLOTS = 10)
+quicktagconfig/edit_1,megvan,PicasaPy/QuickTagsConfigDialog.qml,quickTagField1 (:86)
+quicktagconfig/edit_2,megvan,PicasaPy/QuickTagsConfigDialog.qml,quickTagField2 (:86)
+quicktagconfig/edit_3,megvan,PicasaPy/QuickTagsConfigDialog.qml,quickTagField3 (:86)
+quicktagconfig/edit_4,megvan,PicasaPy/QuickTagsConfigDialog.qml,quickTagField4 (:86)
+quicktagconfig/edit_5,megvan,PicasaPy/QuickTagsConfigDialog.qml,quickTagField5 (:86)
+quicktagconfig/edit_6,megvan,PicasaPy/QuickTagsConfigDialog.qml,quickTagField6 (:86)
+quicktagconfig/edit_7,megvan,PicasaPy/QuickTagsConfigDialog.qml,quickTagField7 (:86)
+quicktagconfig/edit_8,megvan,PicasaPy/QuickTagsConfigDialog.qml,quickTagField8 (:86) — a #1788 hozta a 9. helyet
+quicktagconfig/edit_9,megvan,PicasaPy/QuickTagsConfigDialog.qml,quickTagField9 (:86) — a #1788 hozta a 10. helyet
+quicktagconfig/cancel,megvan,PicasaPy/QuickTagsConfigDialog.qml,standardButtons: Dialog.Ok | Dialog.Cancel (:36) — a #1788 óta elvethető a szerkesztés
+quicktagconfig/cancel-label,megvan,PicasaPy/QuickTagsConfigDialog.qml,a Cancel gomb felirata (:36)
+quicktagconfig/ok-label,megvan,PicasaPy/QuickTagsConfigDialog.qml,az Ok gomb felirata (:36)
+thumbui/hviewtoggle,megvan,PicasaPy/MainToolbar.qml:198,A `toolbarFolderViewToggle` a két egymást kizáró mappanézet-gombot tartalmazza; működését és a kirajzolt eszköztár-helyét a #1421/#3603 tesztjei ellenőrzik.
+editpanel/picnik_fx,nem-cel,ui-audit-editor.md,Nem cél: a Picnik szolgáltatás 2013-ban megszűnt; a hozzá tartozó effekt-választó nem épül meg.
+editpanel/picnik_fx_label,nem-cel,ui-audit-editor.md,Nem cél: a Picnik szolgáltatás 2013-ban megszűnt; a hozzá tartozó effekt-felirat nem épül meg.
+keywords/addbutton,megvan,PicasaPy/TagsPanel.qml:83,A `tagAddButton` (`+`) a `panel.submit()` útján hozzáadja a címkét; a címkekezelés és tesztje a TagsPanel komponensben él
+keywords/addkeywords_label,megvan,PicasaPy/TagsPanel.qml:77,"Az `Add Tag:` mezőprompt szerepét a `Type in a tag to add:` helyőrző tölti be; ugyanazt a címkebevitelt vezeti be, nincs külön statikus sor"
+keywords/closebutton,megvan,PicasaPy/RightDrawer.qml:100,A Címkék panel a jobb oldali fiókban van; a közös `rightDrawerClose` gomb zárja be a panelt
+keywords/readonly_label,megvan,PicasaPy/TagsPanel.qml:94,A `tagsReadOnlyNotice` jeleníti meg a hivatalos írásvédett állapotot; a fordítás a picasapy_hu.ts-ben szerepel
+keywords/removebutton,megvan,PicasaPy/TagsPanel.qml:150,A címkesor dinamikus `tagRemove-*` gombja eltávolítást kér; a Main.qml a kijelölés címkéjét törli
+makemoviepanel/font_label,megvan,tests/app/qml_functional/test_film_panel_4125.py,A szöveges dia betűtípus-választója (#4125).
+makemoviepanel/size_label,megvan,tests/app/qml_functional/test_film_panel_4125.py,A szöveges dia méretválasztója (#4125).
+makemoviepanel/style_label,megvan,tests/app/qml_functional/test_film_panel_4125.py,A 12 eredeti szövegstílus magyar listája (#4125).
+outputlayout/orderbutton,megvan,PicasaPy/TrayActionArea.qml:388,"A `trayOrderButton` a mért cellában megvan, de letiltott és csak kivezetett szolgáltatásként jelenik meg; az online nyomat-rendelés a spec szerint nem cél"
+outputlayout/sharewith,megvan,PicasaPy/TrayActionArea.qml:405,"A `trayShareButton` a mért cellában megvan, letiltott helyőrzőként; a Hello-integráció megszűnt, aktív backend nem cél"
+publish/backup_help,nem-cel,biztonsagi-mentes.md 14.1; 14.4,"Az eredeti `publish.tre` `m_hidden` állapotú vezérlője; a Picasa 3.9 állapotfrissítője sem jeleníti meg, ezért külön súgógomb nem készül."
+publish/backupcdheader2,megvan,PicasaPy/PublishPanel.qml;tests/app/qml_functional/test_publish_sugok_4177.py,"A `Choose folders & albums to back up` fejléc a főablakban látható, hivatalos magyar fordítását a kimeneti próba ellenőrzi."
+publish/backuptext3,megvan,PicasaPy/PublishPanel.qml;tests/app/qml_functional/test_publish_sugok_4177.py,A mért mentési útmutató angol és hivatalos magyar kimenete a valódi főablakban ellenőrzött.
+publish/giftcdtext,megvan,PicasaPy/PublishPanel.qml;tests/app/qml_functional/test_publish_sugok_4177.py,Az Ajándék-CD útmutató angol és hivatalos magyar kimenete a valódi főablakban ellenőrzött.
+publish/label_rpoptionbox1,megvan,tests/app/qml_functional/test_publish_feltoltes_mod_4126.py,A Feltöltés felirata és az 1-es mód valódi kattintással ellenőrzött; a hozzá tartozó eredeti buboréksúgót a #4177-es főablakpróba méri.
+publish/label_rpoptionbox2,megvan,tests/app/qml_functional/test_publish_feltoltes_mod_4126.py,Az Opciók módosítása felirata és a 2-es mód valódi kattintással ellenőrzött; a hozzá tartozó eredeti buboréksúgót a #4177-es főablakpróba méri.
+publish/label_rpoptionbox3,megvan,tests/app/qml_functional/test_publish_feltoltes_mod_4126.py,Az Eltávolítás: online elemek felirata és a 3-as mód valódi kattintással ellenőrzött; a hozzá tartozó eredeti buboréksúgót a #4177-es főablakpróba méri.
+publish/presentcd_help,nem-cel,biztonsagi-mentes.md 14.1; 14.4,"Az eredeti `publish.tre` `m_hidden` állapotú vezérlője; a Picasa 3.9 állapotfrissítője sem jeleníti meg, ezért külön súgógomb nem készül."
+publish/replicate_button_group,nem-cel,biztonsagi-mentes.md 10.3; 14.4,A tároló az online OK/Mégse műveletek része; a webes közzététel a megszűnt szolgáltatás miatt nem cél.
+publish/rpoptionbox1,megvan,tests/app/qml_functional/test_publish_feltoltes_mod_4126.py;tests/app/qml_functional/test_publish_sugok_4177.py,"Az 1-es mód és a Feltöltés rádiógombja megvan; a valódi főablakos próbában a kattintás módot vált, a ráálláskor az eredeti súgó jelenik meg."
+publish/rpoptionbox2,megvan,tests/app/qml_functional/test_publish_feltoltes_mod_4126.py;tests/app/qml_functional/test_publish_sugok_4177.py,"A 2-es mód és az Opciók módosítása rádiógombja megvan; a valódi főablakos próbában a kattintás módot vált, a ráálláskor az eredeti súgó jelenik meg."
+publish/rpoptionbox3,megvan,tests/app/qml_functional/test_publish_feltoltes_mod_4126.py;tests/app/qml_functional/test_publish_sugok_4177.py,"A 3-as mód és az Online eltávolítás rádiógombja megvan; a valódi főablakos próbában a kattintás módot vált, a ráálláskor az eredeti súgó jelenik meg."
+publish/webpublish_cancel,nem-cel,biztonsagi-mentes.md 10.3; 14.4,"A webes közzétételhez tartozó Mégse gomb; a Picasa Webalbumok szolgáltatás megszűnt, ezért az online ág és annak gombja nem cél."
+searchcontainer/timecontainer_label,megvan,PicasaPy/MainToolbar.qml:402,A `dateRangeHover` a `Filter by date range` súgót a `toolbarFiltersLabel` feliratban mutatja; a magyar fordítás hivatalos
+searchoptions/dupesearch,megvan,PicasaPy/MainToolbar.qml;Main.qml;tests/app/qml_functional/test_dupe_kapcsolo_2174.py;tests/app/qml_functional/test_search_lefedettseg_4202.py,A beállítási panel másodpéldány-művelete a főablak találati rácsára szűr; valódi kattintás visszaállítja az összes képet
+searchoptions/facesearch,megvan,PicasaPy/MainToolbar.qml;tests/app/qml_functional/test_arc_szuro_gomb_1830.py;tests/app/qml_functional/test_search_lefedettseg_4202.py,"A beállítási panel arcosképek-művelete valódi kattintással szűr, majd visszaállítja a főablak fotólistáját"
+searchoptions/searchcenter,megvan,PicasaPy/MainToolbar.qml;Main.qml;tests/app/qml_functional/test_search_lefedettseg_4202.py,A keresési beállítások középső konténere és a főablak meglévő találati sávja is megvan
+searchoptions/searchresult,megvan,PicasaPy/MainToolbar.qml;Main.qml;tests/app/qml_functional/test_kereses_nezet_frissul_1515.py;tests/app/qml_functional/test_search_lefedettseg_4202.py,A keresési eredmény és darabszám a beállítási panelen és a főablak fejlécében is megjelenik
+searchoptions/label_searchresult,megvan,PicasaPy/MainLibraryCanvas.qml:82,"A `filterStatusText` a találati sáv eredményfelirata; az eredeti külön `label_searchresult` eleme m_hidden, így nem igényel külön statikus szöveget"
+searchoptions/viewallbutton,megvan,PicasaPy/MainLibraryCanvas.qml:42,A `Back to View All` gomb a szűrt nézetből `controller.clearFilter()` hívással visz vissza az összes elemhez
+setup/ui_option3,megvan,PicasaPy/PhotoViewerSettingsDialog.qml;tests/app/qml_functional/test_fotonezo_beallitasok_4333.py,"Az eredeti `SETUPTEXT.XML` `setup/ui_option3` jelölőnégyzete alapból bejelölt; valós kattintás menti a 0/1 értéket, újranyitáskor visszaolvasódik, és az ablakos/teljes képernyős nézőmódot is ellenőrzi."
+thumbui/visitweb,nem-cel,picasa-fo-ablak-elrendezes.md,"Nem cél: a `visitweb` képernyőn kívüli parancs-proxy, a hozzá tartozó Picasa webes szolgáltatás megszűnt; nincs élő webes cél, amelyhez felületet kellene építeni."
+video_control_bar/moviemode1,megvan,PicasaPy/VideoPlayerControls.qml:62,"A közös videólejátszó teljes képernyős gombja fedi le; ugyanaz a „Play full screen” művelet, mint a video_control_bar2/fullscreen"
+video_control_bar/setin,megvan,PicasaPy/VideoPlayerView.qml:160,A `videoSetInButton` a lejátszás aktuális pozícióját kezdetként menti; a működését a #1838-as tesztek ellenőrzik
+video_control_bar/setout,megvan,PicasaPy/VideoPlayerView.qml:169,A `videoSetOutButton` a lejátszás aktuális pozícióját végpontként menti; a működését a #1838-as tesztek ellenőrzik
+video_control_bar2/1to1,megvan,PicasaPy/VideoPlayerControls.qml:48,"A `videoActualSizeButton` a képkocka természetes méretére vált, a `VideoViewport` középre igazítja és levágja a nézőterületen kívüli részt"
+video_control_bar2/fullscreen,megvan,PicasaPy/VideoPlayerControls.qml:62,A `videoFullscreenButton` teljes képernyőre vált; ugyanazt a gombot használja a közös videólejátszó mindkét eredeti sáv funkciójához
+video_control_bar2/scaleslider,megvan,PicasaPy/VideoPlayerView.qml;tests/app/qml_functional/test_maradek_arc_video_4229.py,"A videoSeekSlider a lejátszási pozíciót állítja; a főablakos, valódi egérkattintás a lejátszó pozícióját ellenőrzi (#4229)."
+video_control_bar2/volumeslider,megvan,PicasaPy/VideoPlayerView.qml;tests/app/qml_functional/test_maradek_arc_video_4229.py,"A videoVolumeSlider a videó AudioOutput hangerőértékét állítja; valódi főablakos kattintáspróba, három ablakmagassággal (#4229)."
+movieeditpanel/export_movie,megvan,PicasaPy/VideoEditPanel.qml;PicasaPy/PhotoViewer.qml;tests/app/qml_functional/test_maradek_arc_video_4229.py;tests/app/qml_functional/test_video_panel_4566.py,"Az „Export Clip” a videó-panelen van (#4566), vágott klipnél aktív. Linuxon az eredeti LinuxNomovie üzenet jelenik meg; a kattintás és a visszajelzés valódi főablakban ellenőrzött (#4229, #4566)."
+movieeditpanel/export_youtube,nem-cel,,A régi Picasa–YouTube feltöltési kapcsolat megszűnt; a #4229 ezért nem kér feltöltőgombot.
+thumbui/cdmode,megvan,PicasaPy/PicasaCreateMenu.qml:48;PicasaPy/GiftCdHost.qml:67;PicasaPy/PublishPanel.qml:181,"A Gift CD művelet a Létrehozás menüből nyitja meg a `GiftCdHost`/`PublishPanel` felületet; az eredeti `cdmode` gomb a PicasaPy-ban nem ezen a panelen, hanem a menüben érhető el. Kimenet- és bekötéspróba: a #3503-as Gift CD tesztek."
+thumbui/lightbox_esolo_button,nem-cel,binaris-regeszet-modszertan.md 19.,"Az album-szukitett kereses ures allapotanak Search All gombja. A Picasa3.exe NEM tartalmazza sem a nevet, sem a levelnevet, sem a feliratot, sem nevelloallito sablont; m_hidden, tehat kod nelkul nem jelenhet meg. Kivett funkcio maradvanya (#2027)."
+thumbui/lightbox_esolo_text,nem-cel,binaris-regeszet-modszertan.md 19.,Ugyanannak az ures allapotnak a No results found in this album felirata. Ugyanaz a negy negativ ellenorzes (#2027).
+thumbui/albumsback,nem-cel,binaris-regeszet-modszertan.md 19.,A ket fenti elem kozos szuloje. A neve sincs a binarisban; a gyerekei nelkul onmagaban nincs funkcioja (#2027).
+thumbui/hlistsizer,megvan,PicasaPy/MainWindowWorkspace.qml:180,A `mainSplit` két könyvtárhasáb közötti húzható elválasztója; a valós szélességváltozást a `test_folder_pane_width.py` ellenőrzi.
+thumbui/hlisthandle,megvan,PicasaPy/MainWindowWorkspace.qml:219,"A `folderPaneHandle` kirajzolt, húzható fogantyú a `SplitView` elválasztóján; a működését a `test_folder_pane_width.py` ellenőrzi."
+thumbui/acquirebutton,megvan,PicasaPy/MainToolbar.qml:119,Az eredeti elem képernyőn kívüli import-parancs-proxy; a felhasználói út a látható eszköztár-Import gombon és az `ImportSourceDialog` párbeszéden keresztül megvan.
+printpanel/photoindexbutton,megvan,PicasaPy/PrintSettingsPanel.qml;tests/app/qml_functional/test_nyomtatas_egyseges_meretlista_3712.py;tests/app/qml_functional/test_publish_sugok_4177.py,"Az `eContact` a nyomatméret-lista tétele; a valódi főablakban választható, magyarul „Indexképek” felirattal."
+editpanel/movietab,megvan,PicasaPy/PhotoViewerTopBar.qml:138,"Videó kiválasztásakor a fülsáv eltűnik, helyén a videó-panel áll (#4566, `VideoEditPanel.qml`); a szerkesztő-eszközök letiltva maradnak. A lejátszó kimenetét a `test_qml_video.py` ellenőrzi."
+editpanel/movietabpanel,megvan,PicasaPy/VideoPlayerView.qml:116;PicasaPy/PhotoViewerTopBar.qml:138,"A videó kezelősávja lejátszást, pozíciót, be-/kimeneti pontot, időt és hangerőt ad; a visszaállítást, a képkockamentést és az exportot a videó-panel (`VideoEditPanel.qml`, #4566) adja. Kimenetpróba: `test_qml_video.py`; a bekötéseket a #1838-as videótesztek őrzik."
+editpanel/modaldialogblur,megvan,PicasaPy/PhotoViewerContextActions.qml:232,"A teljes szerkesztő fölötti, párbeszéd nyitásához kötött elhomályosító réteg (`editorModalDialogBlur`); kirajzolt méretét, láthatóságát és modalitását a `test_szerkeszto_homalyositas_2480.py` ellenőrzi."
+editpanel/picnikapply,nem-cel,ui-audit-editor.md,Nem cél: a Picnik szolgáltatás 2013-ban megszűnt; az Alkalmaz gomb az elérhetetlen szolgáltatáshoz tartozik.
+editpanel/preview2,megvan,PicasaPy/PhotoViewer.qml,"A második képterület a PhotoViewer kétképes elrendezésében jelenik meg; a két oldal kirajzolt és kattintással fókuszálható (#3013, #3014, #3663)."
+editpanel/edithelpbutton,nem-cel,docs/specs/ui-audit-editor.md,"A gomb él, de az eredeti Picasa az ikonját kikommentezte és a feliratát elvette; a specifikáció szerint nálunk nincs szükség súgógombra."
+editpanel/edittextghost,megvan,PicasaPy/PhotoViewer.qml;tests/app/qml_functional/test_editor_maradek_4183.py,"Az eredetiben szerkezeti szövegréteg-gyerek, nem külön vezérlő (`picasa-eger-es-kijeloles.md`, `keepcentered`); a meglévő előnézet rajzolja ki a szöveget, a főablakos kimeneti próba valódi kattintással elrejti és visszaállítja."
+editpanel/eraserbutton,megvan,PicasaPy/EditorParamPanel.qml;tests/app/test_qml_ecset_felulet_1908.py;tests/app/qml_functional/test_ini_ecset_megjelenik_4067.py,"Az eredeti radírkapcsoló megfelelője az `effectParamEraserCheckbox`; a komponenspróba az állapotváltást, a főablak-próba a kapcsolódó ecsetkimenetet ellenőrzi."
+editpanel/picnik,nem-cel,docs/specs/ui-audit-editor.md,"A Kreatív készlet/Picnik online szolgáltatása megszűnt, ezért a hozzá tartozó gomb nem cél."
+editpanel/previewimage2,megvan,PicasaPy/PhotoViewer.qml;tests/app/qml_functional/test_kettos_nezet_gombsor_helye_3663.py;tests/app/qml_functional/test_aa_utkozes_3014.py,A második előnézeti rekesz a `viewerImageElotte`/`viewerImage` képpárral működik; a próbák a kétoldalas nézetet kirajzolják és valódi kattintással váltanak fókuszt.
+editpanel/quickupload,nem-cel,docs/decisions/nincs-webalbum-feltoltes-gomb.md,A Webalbum Drop Box feltöltése megszűnt szolgáltatáshoz kötött; a tulajdonosi döntés alapján nem épül meg.
+editpanel/showtextcheckbox,megvan,PicasaPy/EditorTabCommonFixes.qml;tests/app/qml_functional/test_editor_maradek_4183.py,"A `showtextcheckbox` a mentett szöveg előnézeti láthatóságát kapcsolja munkameneten belül; valódi főablak-képkimeneten, egérkattintással ellenőrizve."
+editpanel/toggle_left_drawer,megvan,PicasaPy/PhotoViewer.qml;tests/app/qml_functional/test_editor_maradek_4183.py,A bal fiókot 279 px-es animált eltolással csukja össze és nyitja vissza; a főablak képe és a képterület jelenet-koordinátája valódi kattintás után ellenőrzött.
+editpanel/uploadchanges,nem-cel,docs/decisions/nincs-webalbum-feltoltes-gomb.md,A Webalbum online másolat frissítése megszűnt szolgáltatáshoz kötött; nem cél a hibás vagy elérhetetlen feltöltési funkció visszaépítése.
+editpanel/weblink,nem-cel,docs/specs/ui-audit-editor.md,"Az eredeti gomb rejtett, és csak egy nem azonosított, 1 karakternél hosszabb sztringnél jelenik meg; a fotómodellben nincs társított webcímmező, ezért nincs támogatott célhivatkozás."
+uploadmgr/cleanup,nem-cel,picasa-feltolteskezelo.md,"Megszűnt online szolgáltatás (Picasa Web Albums, 2016). A tulajdonosi döntés dokumentálva: src/picasapy/help/features/meg-nem-erheto-el.md »Megszűnt szolgáltatások — ezek nem is fognak elkészülni«, és a PicasaMenuBar.qml:1596 retired: true (#638). A viselkedésük mérve: picasa-feltolteskezelo.md (#2529)."
+uploadmgr/itemlist,nem-cel,picasa-feltolteskezelo.md,"Megszűnt online szolgáltatás (Picasa Web Albums, 2016). A tulajdonosi döntés dokumentálva: src/picasapy/help/features/meg-nem-erheto-el.md »Megszűnt szolgáltatások — ezek nem is fognak elkészülni«, és a PicasaMenuBar.qml:1596 retired: true (#638). A viselkedésük mérve: picasa-feltolteskezelo.md (#2529)."
+uploadmgr/minibutton,nem-cel,picasa-feltolteskezelo.md,"Megszűnt online szolgáltatás (Picasa Web Albums, 2016). A tulajdonosi döntés dokumentálva: src/picasapy/help/features/meg-nem-erheto-el.md »Megszűnt szolgáltatások — ezek nem is fognak elkészülni«, és a PicasaMenuBar.qml:1596 retired: true (#638). A viselkedésük mérve: picasa-feltolteskezelo.md (#2529)."
+uploadmgr/pause,nem-cel,picasa-feltolteskezelo.md,"Megszűnt online szolgáltatás (Picasa Web Albums, 2016). A tulajdonosi döntés dokumentálva: src/picasapy/help/features/meg-nem-erheto-el.md »Megszűnt szolgáltatások — ezek nem is fognak elkészülni«, és a PicasaMenuBar.qml:1596 retired: true (#638). A viselkedésük mérve: picasa-feltolteskezelo.md (#2529)."
+uploadmgr/resume,nem-cel,picasa-feltolteskezelo.md,"Megszűnt online szolgáltatás (Picasa Web Albums, 2016). A tulajdonosi döntés dokumentálva: src/picasapy/help/features/meg-nem-erheto-el.md »Megszűnt szolgáltatások — ezek nem is fognak elkészülni«, és a PicasaMenuBar.qml:1596 retired: true (#638). A viselkedésük mérve: picasa-feltolteskezelo.md (#2529)."
+uploadmgr/throttlechk,nem-cel,picasa-feltolteskezelo.md,"Megszűnt online szolgáltatás (Picasa Web Albums, 2016). A tulajdonosi döntés dokumentálva: src/picasapy/help/features/meg-nem-erheto-el.md »Megszűnt szolgáltatások — ezek nem is fognak elkészülni«, és a PicasaMenuBar.qml:1596 retired: true (#638). A viselkedésük mérve: picasa-feltolteskezelo.md (#2529)."
+headerpanel/sync_label,nem-cel,picasa-feltolteskezelo.md,"Megszűnt online szolgáltatás (Picasa Web Albums, 2016). A tulajdonosi döntés dokumentálva: src/picasapy/help/features/meg-nem-erheto-el.md »Megszűnt szolgáltatások — ezek nem is fognak elkészülni«, és a PicasaMenuBar.qml:1596 retired: true (#638). A viselkedésük mérve: picasa-feltolteskezelo.md (#2529)."
+headerpanel/sync_options,nem-cel,picasa-feltolteskezelo.md,"Megszűnt online szolgáltatás (Picasa Web Albums, 2016). A tulajdonosi döntés dokumentálva: src/picasapy/help/features/meg-nem-erheto-el.md »Megszűnt szolgáltatások — ezek nem is fognak elkészülni«, és a PicasaMenuBar.qml:1596 retired: true (#638). A viselkedésük mérve: picasa-feltolteskezelo.md (#2529)."
+headerpanel/view_online,nem-cel,picasa-feltolteskezelo.md,"Megszűnt online szolgáltatás (Picasa Web Albums, 2016). A tulajdonosi döntés dokumentálva: src/picasapy/help/features/meg-nem-erheto-el.md »Megszűnt szolgáltatások — ezek nem is fognak elkészülni«, és a PicasaMenuBar.qml:1596 retired: true (#638). A viselkedésük mérve: picasa-feltolteskezelo.md (#2529)."
+headerpanel/websync1,nem-cel,picasa-feltolteskezelo.md,"Megszűnt online szolgáltatás (Picasa Web Albums, 2016). A tulajdonosi döntés dokumentálva: src/picasapy/help/features/meg-nem-erheto-el.md »Megszűnt szolgáltatások — ezek nem is fognak elkészülni«, és a PicasaMenuBar.qml:1596 retired: true (#638). A viselkedésük mérve: picasa-feltolteskezelo.md (#2529)."
+acquirepanel/add_groups_button,nem-cel,picasa-feltolteskezelo.md,"Megszűnt online szolgáltatás (Picasa Web Albums, 2016). A tulajdonosi döntés dokumentálva: src/picasapy/help/features/meg-nem-erheto-el.md »Megszűnt szolgáltatások — ezek nem is fognak elkészülni«, és a PicasaMenuBar.qml:1596 retired: true (#638). A viselkedésük mérve: picasa-feltolteskezelo.md (#2529)."
+acquirepanel/selected_groups_label,nem-cel,picasa-feltolteskezelo.md,"Megszűnt online szolgáltatás (Picasa Web Albums, 2016). A tulajdonosi döntés dokumentálva: src/picasapy/help/features/meg-nem-erheto-el.md »Megszűnt szolgáltatások — ezek nem is fognak elkészülni«, és a PicasaMenuBar.qml:1596 retired: true (#638). A viselkedésük mérve: picasa-feltolteskezelo.md (#2529)."
+acquirepanel/share_with_label,nem-cel,picasa-feltolteskezelo.md,"Megszűnt online szolgáltatás (Picasa Web Albums, 2016). A tulajdonosi döntés dokumentálva: src/picasapy/help/features/meg-nem-erheto-el.md »Megszűnt szolgáltatások — ezek nem is fognak elkészülni«, és a PicasaMenuBar.qml:1596 retired: true (#638). A viselkedésük mérve: picasa-feltolteskezelo.md (#2529)."
+acquirepanel/upload_label,nem-cel,picasa-feltolteskezelo.md,"Megszűnt online szolgáltatás (Picasa Web Albums, 2016). A tulajdonosi döntés dokumentálva: src/picasapy/help/features/meg-nem-erheto-el.md »Megszűnt szolgáltatások — ezek nem is fognak elkészülni«, és a PicasaMenuBar.qml:1596 retired: true (#638). A viselkedésük mérve: picasa-feltolteskezelo.md (#2529)."
+makemoviepanel/previewimage,megvan,tests/app/qml_functional/test_film_panel_4125.py,A kijelölt első klip képelőnézete a tényleges forrásképet tölti (#4125).
+makemoviepanel/previewpanel,megvan,tests/app/qml_functional/test_film_panel_4125.py,Klipképet és Előnézet gombot tartalmazó panel (#4125).
+makemoviepanel/tabs,megvan,tests/app/qml_functional/test_film_panel_4125.py,A Mozgófilm / Dia / Klipek fülek valódi főablakból nyithatók (#4125).
+makemoviepanel/tabpanel1,megvan,tests/app/qml_functional/test_film_panel_4125.py,Az első fül a mozgófilm vezérlőit tartalmazza (#4125).
+makemoviepanel/tabpanel3,megvan,tests/app/qml_functional/test_film_panel_4125.py,A Klipek fül panelje (#4125).
+thumbui/editpanel,megvan,PicasaPy/MainWindowWorkspace.qml:180,A rejtett eredeti alap-panelnek nincs külön gombja; a PicasaPy könyvtárnézetének panelgyökere a `mainSplit` a `MainWindowWorkspace.qml`-ben.
+thumbui/listdetail,megvan,PicasaPy/LightboxFeed.qml:13,Az album tartalmi nézete a `LightboxFeed` listában jelenik meg; az eredeti rejtett alternatív állapot nem külön művelet.
+buttonmgr/browse,nem-cel,docs/specs/picasa-menu-parancsok-viselkedes.md,"A gombcsomag online keresése a picasa.smo szolgáltatásra mutat, amely megszűnt; a helyi párbeszéd nem telepít online gombcsomagot."
+buttonmgr/cancel,megvan,PicasaPy/ConfigureButtonsDialog.qml,A Dialog.Cancel szabványgomb a főablakból megnyitott párbeszédben látszik; a kimeneti teszt a Mégse feliratot ellenőrzi. Tesztek: tests/app/qml_functional/test_gombsav_testreszabas_1792.py.
+buttonmgr/done,nem-cel,docs/specs/picasa-menu-parancsok-viselkedes.md,"A Done csak szöveg-erőforrás, a buttonmgr párbeszéd szerkezeti fája nem helyezi ki; a megvalósított párbeszéd normatív lezárója az OK."
+buttonmgr/leftlist,megvan,PicasaPy/ConfigureButtonsDialog.qml,A rendelkezésre álló elemek ListView-ja configButtonsAvailableList néven jelenik meg; a kétlista-viselkedést teszt fedi. Tesztek: tests/app/qml_functional/test_gombsav_testreszabas_1792.py.
+buttonmgr/leftlist_text,megvan,PicasaPy/ConfigureButtonsDialog.qml,A főablak párbeszédében az Available buttons: felirat kimeneti tesztje megvan. Tesztek: tests/app/qml_functional/test_gombsav_testreszabas_1792.py.
+buttonmgr/ok,megvan,PicasaPy/ConfigureButtonsDialog.qml,A Dialog.Ok szabványgomb OK felirata qsTr-rel fordítható és főablakos kimeneti teszttel ellenőrzött. Tesztek: tests/app/qml_functional/test_gombsav_testreszabas_1792.py.
+buttonmgr/rightlist,megvan,PicasaPy/ConfigureButtonsDialog.qml,A jelenlegi elemek ListView-ja configButtonsCurrentList néven jelenik meg; a kétlista-viselkedést teszt fedi. Tesztek: tests/app/qml_functional/test_gombsav_testreszabas_1792.py.
+buttonmgr/rightlist_text,megvan,PicasaPy/ConfigureButtonsDialog.qml,A főablak párbeszédében a Current buttons: felirat kimeneti tesztje megvan. Tesztek: tests/app/qml_functional/test_gombsav_testreszabas_1792.py.
+buttonmgr/add,megvan,PicasaPy/ConfigureButtonsDialog.qml,A hozzáadás a kijelölt bal oldali listaelemet átteszi a szerkesztett jobb listába; a meglévő párbeszédteszt ellenőrzi. Tesztek: tests/app/qml_functional/test_gombsav_testreszabas_1792.py.
+buttonmgr/remove,megvan,PicasaPy/ConfigureButtonsDialog.qml,A törlés a kijelölt jobb oldali elem eltávolítását teszteli. Tesztek: tests/app/qml_functional/test_gombsav_testreszabas_1792.py.
+buttonmgr/moveup,megvan,PicasaPy/ConfigureButtonsDialog.qml,A lista sorrendjének felfelé rendezését a meglévő párbeszédteszt fedi. Tesztek: tests/app/qml_functional/test_gombsav_testreszabas_1792.py.
+buttonmgr/movedown,megvan,PicasaPy/ConfigureButtonsDialog.qml,A lista sorrendjének lefelé rendezését a meglévő párbeszédteszt fedi. Tesztek: tests/app/qml_functional/test_gombsav_testreszabas_1792.py.
+buttonmgr/usedefaults,megvan,PicasaPy/ConfigureButtonsDialog.qml,Az alapértelmezett gombsorrend visszaállítását a meglévő párbeszédteszt ellenőrzi. Tesztek: tests/app/qml_functional/test_gombsav_testreszabas_1792.py.
+editoneup/captionbutton,megvan,PicasaPy/PhotoViewer.qml,A felirat megjelenítését a néző feliratváltó gombja szabályozza; működési teszt fedi. Tesztek: tests/app/qml_functional/test_felirat_kapcsolo_2587.py.
+editoneup/next,megvan,PicasaPy/PhotoViewer.qml,A következő kép gombja a PhotoViewer lapozási útját használja; a lapozásteszt fedi. Tesztek: tests/app/qml_functional/test_home_end_lapozas_1147.py.
+editoneup/prev,megvan,PicasaPy/PhotoViewer.qml,Az előző kép gombja a PhotoViewer lapozási útját használja; a lapozásteszt fedi. Tesztek: tests/app/qml_functional/test_home_end_lapozas_1147.py.
+oneup/captionbutton,megvan,PicasaPy/PhotoViewer.qml,Az egyképes nézet a néző feliratváltó gombját használja; működési teszt fedi. Tesztek: tests/app/qml_functional/test_felirat_kapcsolo_2587.py.
+oneup/next,megvan,PicasaPy/PhotoViewer.qml,A következő kép gombja a PhotoViewer lapozási útját használja; a lapozásteszt fedi. Tesztek: tests/app/qml_functional/test_home_end_lapozas_1147.py.
+oneup/prev,megvan,PicasaPy/PhotoViewer.qml,Az előző kép gombja a PhotoViewer lapozási útját használja; a lapozásteszt fedi. Tesztek: tests/app/qml_functional/test_home_end_lapozas_1147.py.
+editoneup/bcklabel,megvan,PicasaPy/PicasaMenuBar.qml;PicasaPy/SlideshowView.qml,"Az Exit menüfelirat és vetítési vezérlő meglévő, a PhotoViewerből elérhető kilépési útja tesztelt. Tesztek: tests/app/qml_functional/test_viewer.py."
+editoneup/tllabel,megvan,PicasaPy/PicasaMenuBar.qml;PicasaPy/TimelineView.qml,A Nézet menü aktív Időrend menüpontja a teljes képernyős bemutatót nyitja. Teszt: tests/app/qml_functional/test_nezet_menu_valodi_5150.py; tests/app/qml_functional/test_idorend_bemutato_5377.py.
+oneup/bcklabel,megvan,PicasaPy/PicasaMenuBar.qml;PicasaPy/SlideshowView.qml,"Az Exit menüfelirat és vetítési vezérlő meglévő, a PhotoViewerből elérhető kilépési útja tesztelt. Tesztek: tests/app/qml_functional/test_viewer.py."
+oneup/tllabel,megvan,PicasaPy/PicasaMenuBar.qml;PicasaPy/TimelineView.qml,A Ctrl+5 gyorsbillentyű kijelölés nélkül nyitja a teljes képernyős Időrend bemutatót. Teszt: tests/app/qml_functional/test_idorend_bemutato_5377.py.
+faceheaderpanel/set_thumbnail,megvan,PicasaPy/PhotoContextMenu.qml,Az eredeti faceheaderpaneltext.xml-súgó a valódi fotó-helyi menüben jelenik meg (600 ms Theme.tooltipDelay); a külön hivatalos magyar alak: „Beállítás indexképként az Emberek albumban”. A tételfelirat hivatalos fordítása ettől különbözik. A kimeneti teszt a szöveget és a −5/0/+5 px ablakmagasságot ellenőrzi. Teszt: tests/app/qml_functional/test_people_album_thumbnail_tooltip_4138.py.
+headerpanel/create_movie,megvan,PicasaPy/TrayActionArea.qml,"A Movie gomb buboréksúgója a főablak alsó sávján látható, qsTr-rel és három ablakmagasságon hover-teszttel. Tesztek: tests/app/qml_functional/test_header_sugok_4156.py."
+headerpanel/play,megvan,PicasaPy/LightboxHeader.qml,"A diavetítés gomb buboréksúgója a főablak mappafejlécén látható, qsTr-rel és három ablakmagasságon hover-teszttel. Tesztek: tests/app/qml_functional/test_header_sugok_4156.py."
+headerpanel/websync0,nem-cel,docs/specs/picasa-feltolteskezelo.md;docs/specs/ui-audit-menus.md,"A jövőbeli webes változások feltöltése Picasa Web Albums szolgáltatáshoz kötődik, amely 2016-ban megszűnt."
+peoplepanel/manual_cancel,megvan,PicasaPy/PeoplePanel.qml;PicasaPy/PhotoViewer.qml;tests/app/qml_functional/test_peoplepanel_maradek_4156.py,A panel Mégse gombja törli a piszkozatot és kilép a kézi arcmódból; főablakos kattintáspróba három ablakmagassággal (#4574).
+peoplepanel/peoplelist,megvan,PicasaPy/PeoplePanel.qml;PicasaPy/PeoplePanelRow.qml,A people lista Repeaterből épül fel PeoplePanelRow sorokkal; főablakos kimeneti tesztje megvan. Tesztek: tests/app/qml_functional/test_people_panel_eredmenysor_ag_4045.py.
+peoplepanel/status_label,megvan,PicasaPy/PeoplePanel.qml,Mappa nélküli állapotban az eredeti státusz jelenik meg; főablakos kimeneti teszt ±5 px ablakmagassággal. Tesztek: tests/app/qml_functional/test_peoplepanel_maradek_4156.py.
+peoplepanel/addname,megvan,PicasaPy/PeoplePanelRow.qml;PicasaPy/PeoplePanel.qml;PicasaPy/FacesOverlay.qml;PicasaPy/UnnamedFacesView.qml,A névtelen sor Add a name mezője a jobb oldali Emberek-panelből is használható; az új személy párbeszéde és a meglévő nevek megadása kattintásos teszttel lefedett. Tesztek: tests/app/qml_functional/test_people_panel_new_person_4522.py; tests/app/qml_functional/test_people_panel_4573.py; tests/app/qml_functional/test_viewer_faces_edit.py; tests/app/qml_functional/test_unnamed_faces_view.py.
+peoplepanel/ignore,megvan,PicasaPy/PeoplePanelRow.qml;PicasaPy/PeoplePanel.qml;PicasaPy/UnnamedFacesView.qml,A névtelen sor X-e és a Névtelenek album mellőzése is tesztelt; a panel megerősítő párbeszédet használ. Tesztek: tests/app/qml_functional/test_people_panel_26.py; tests/app/qml_functional/test_people_panel_4573.py; tests/app/qml_functional/test_unnamed_faces_view.py.
+peoplepanel/suggestion_yes,megvan,PicasaPy/PeoplePanelRow.qml;PicasaPy/PeoplePanel.qml,"A névtelen archoz tartozó névjavaslat pipája a faceScanControllerrel ráírja a javasolt nevet, és a sor eltűnését kattintásos teszt ellenőrzi. Teszt: tests/app/qml_functional/test_people_panel_4573.py."
+peoplepanel/suggestion_no,megvan,PicasaPy/PeoplePanelRow.qml;PicasaPy/PeoplePanel.qml,"A javaslat X-e csak a név-javaslatot törli, az arc névtelen marad; a 27×22-es gombot és a kattintás kimenetét teszt ellenőrzi. Teszt: tests/app/qml_functional/test_people_panel_4573.py."
+gedialog/done,nem-cel,docs/specs/ui-audit-menus.md;docs/specs/picasa-menu-parancsok-viselkedes.md,"A Done a Google Earth önálló geocímkéző párbeszédjének zárása; ez az online/külső integráció nem cél, a helyi Geotag menü megmarad."
+gedialog/next,nem-cel,docs/specs/ui-audit-menus.md;docs/specs/picasa-menu-parancsok-viselkedes.md,A képváltás a Google Earth önálló geocímkéző párbeszédjéhez tartozik; ilyen külső párbeszéd nincs a helyi Helyek panelben.
+gedialog/prev,nem-cel,docs/specs/ui-audit-menus.md;docs/specs/picasa-menu-parancsok-viselkedes.md,A képváltás a Google Earth önálló geocímkéző párbeszédjéhez tartozik; ilyen külső párbeszéd nincs a helyi Helyek panelben.
+gedialog/tag,megvan,PicasaPy/PicasaMenuBar.qml;PicasaPy/PlacesPanel.qml,A helyi Geotag parancs megvan és a Places panel geocímke-műveletéhez kapcsolódik.
+foldermgr/cancel,megvan,PicasaPy/FolderManagerDialog.qml,A mappakezelő Cancel művelete meglévő és működési teszttel fedett. Tesztek: tests/app/test_qml_folder_manager.py.
+foldermgr/instructions_text,megvan,PicasaPy/FolderManagerDialog.qml,A teljes hivatalos mappakeresési és figyelési utasítás a párbeszédben megjelenik; forrás- és kimeneti teszt fedi. Tesztek: tests/app/test_mappakezelo_utasitas_3614.py.
+foldermgr/remove_label,megvan,PicasaPy/FolderContextMenu.qml;PicasaPy/FolderHierarchyView.qml;PicasaPy/FolderStatePanel.qml,A Remove from Picasa művelet címkéje és kattintási útja a mappafán és állapotpanelen tesztelt. Tesztek: tests/app/test_qml_folder_manager_kattintas_1200.py.
+foldermgr/scan_once_label,megvan,PicasaPy/FolderStatePanel.qml,A Scan Once felirat és művelet a mappakezelő panelen megvan. Tesztek: tests/app/test_qml_folder_manager.py.
+foldermgr/status_label,megvan,PicasaPy/FolderStatePanel.qml,A For the current folder: státuszfelirat a mappakezelő panelen megvan. Tesztek: tests/app/test_qml_folder_manager.py.
+foldermgr/watch_label,megvan,PicasaPy/FolderStatePanel.qml,A Scan Always felirat és művelet a mappakezelő panelen megvan. Tesztek: tests/app/test_qml_folder_manager.py.
+foldermgr/watched_label,megvan,PicasaPy/FolderStatePanel.qml,A Watched Folders címke és listája a mappakezelőben megvan. Tesztek: tests/app/test_qml_folder_manager.py.
+activity/activitybutton,nem-cel,docs/specs/picasa-feltolteskezelo.md;docs/specs/ui-audit-mainwindow.md,A mért gomb a megszűnt Picasa Web Albums Feltöltéskezelőjét nyitotta; a helyi ActivityBadge ettől független háttérművelet-jelző.
+nav/close,megvan,PicasaPy/ZoomNavigator.qml;PicasaPy/PhotoViewer.qml,A szerkesztői nagyítás-navigátor ablaka bezárható; a vezérlő a ZoomNavigator.qml-ben van (#4568).
+instructionpanel/close,nem-cel,docs/specs/binaris-regeszet-modszertan.md,"A bezárás a nem létező Picasa-betanító buborék vezérlője; nincs helyi panel, amelyet bezárhatna."
+instructionpanel/learn_more,nem-cel,docs/specs/picasa-menu-parancsok-viselkedes.md,A Learn more hivatkozás a Picasa támogatási weboldalára vezetett; a helyi alkalmazásban nincs ilyen betanító panel.
+uploadallinstructionpanel/close,nem-cel,docs/specs/binaris-regeszet-modszertan.md;docs/specs/picasa-feltolteskezelo.md,A Close a megszűnt csoportos online feltöltés betanító paneljéhez tartozik.
+bigslider/bigslider,megvan,PicasaPy/PicasaSlider.qml,A nagyítási csúszkát a közös PicasaSlider valósítja meg; csúszka-viselkedési tesztek fedik. Tesztek: tests/app/qml_functional/test_effect_sliders.py; tests/app/qml_functional/test_csuszka_veset_2641.py.
+brushslider/scaleslider,megvan,PicasaPy/PicasaSlider.qml,Az ecset méretvezérlése közös PicasaSlider-komponensre épül; csúszka-viselkedési tesztek fedik. Tesztek: tests/app/qml_functional/test_effect_sliders.py; tests/app/qml_functional/test_csuszka_veset_2641.py.
+burstslider/scaleslider,megvan,PicasaPy/PicasaSlider.qml,A burst/capture méretvezérlése közös PicasaSlider-komponensre épül; csúszka-viselkedési tesztek fedik. Tesztek: tests/app/qml_functional/test_effect_sliders.py; tests/app/qml_functional/test_csuszka_veset_2641.py.
+editslider1/editslider,megvan,PicasaPy/PicasaSlider.qml,A szerkesztő első csúszkája a közös PicasaSlider-komponens; teszt fedi. Tesztek: tests/app/qml_functional/test_effect_sliders.py; tests/app/qml_functional/test_csuszka_veset_2641.py.
+flightslider1/scaleslider,megvan,PicasaPy/PicasaSlider.qml,A filmkészítő tempócsúszkája a közös PicasaSlider-komponens; teszt fedi. Tesztek: tests/app/qml_functional/test_effect_sliders.py; tests/app/qml_functional/test_csuszka_veset_2641.py.
+lengthslider/scaleslider,megvan,PicasaPy/PicasaSlider.qml,A hosszcsúszka a közös PicasaSlider-komponens; teszt fedi. Tesztek: tests/app/qml_functional/test_effect_sliders.py; tests/app/qml_functional/test_csuszka_veset_2641.py.
+outlineweightslider/scaleslider,megvan,PicasaPy/PicasaSlider.qml,A körvonalvastagság csúszkája a közös PicasaSlider-komponens; teszt fedi. Tesztek: tests/app/qml_functional/test_effect_sliders.py; tests/app/qml_functional/test_csuszka_veset_2641.py.
+printborderslider/scaleslider,megvan,PicasaPy/PicasaSlider.qml,A nyomtatási keret csúszkája a közös PicasaSlider-komponens; teszt fedi. Tesztek: tests/app/qml_functional/test_effect_sliders.py; tests/app/qml_functional/test_csuszka_veset_2641.py.
+scaleslider/scaleslider,megvan,PicasaPy/PicasaSlider.qml,A fő nézet méretcsúszkája a közös PicasaSlider-komponens; teszt fedi. Tesztek: tests/app/qml_functional/test_effect_sliders.py; tests/app/qml_functional/test_csuszka_veset_2641.py.
+initialscan/cancel,megvan,PicasaPy/InitialScanDialog.qml,Az Escape-es bezárás megszakítja az első indítás választását; a Mégse gomb rejtett marad (test_jegy_4150_ui.py)
+initialscan/radio_complete,megvan,PicasaPy/InitialScanDialog.qml,A teljes gép rádiógombja (initialScanWide); valódi egérkattintással lefedve (test_jegy_4150_ui.py)
+initialscan/radio_limited,megvan,PicasaPy/InitialScanDialog.qml,A korlátozott mappakeresés rádiógombja (initialScanNarrow); valódi egérkattintással lefedve (test_jegy_4150_ui.py)
+initialscan/radiogroup,megvan,PicasaPy/InitialScanDialog.qml,"A két választógomb közös, kizáró csoportja; kattintási próbával lefedve (test_jegy_4150_ui.py)"
+throttle/prevalbum,megvan,PicasaPy/PicasaScrollBar.qml:137,Az előző albumra ugró felső gomb (scrollPrevAlbum); valódi egérkattintással lefedve (test_jegy_4150_ui.py)
+throttle/nextalbum,megvan,PicasaPy/PicasaScrollBar.qml:146,A következő albumra ugró alsó gomb (scrollNextAlbum); valódi egérkattintással lefedve (test_jegy_4150_ui.py)
+throttle/albumscrolltop,nem-cel,docs/decisions/gorgetosav-album-ugro.md,A fel nyíl nincs megépítve: az elfogadott #857 döntés kifejezetten kihagyja a két fel/le nyilat; a csak párosítandó jegyállítás pontatlan.
+throttle/albumscrollbottom,nem-cel,docs/decisions/gorgetosav-album-ugro.md,A le nyíl nincs megépítve: az elfogadott #857 döntés kifejezetten kihagyja a két fel/le nyilat; a csak párosítandó jegyállítás pontatlan.
+rightdrawerpanel/size_toggle,megvan,PicasaPy/RightDrawer.qml:71,Méretsúgóval és valódi kis/nagy váltással lefedve (test_jegy_4150_ui.py)
+rightdrawerpanel/title_text,megvan,PicasaPy/RightDrawer.qml:84,A fejléc a kiválasztott lap nevét mutatja: Properties / Tulajdonságok. A specifikáció helyesbítő része ezt írja elő; a Metadata kérés ettől eltér (test_jegy_4150_ui.py)
+rightdrawerpanel/close,megvan,PicasaPy/RightDrawer.qml:99,Bezárósúgóval és valódi bezáró kattintással lefedve (test_jegy_4150_ui.py)
+printpanel/captionoptionsbutton,megvan,PicasaPy/PrintSettingsPanel.qml:17,"A hivatalos Border and Text Options gomb, eredeti Tooltip szöveggel és beállítás-panelre kattintással (test_jegy_4150_ui.py)"
+printpanel/phelpbutton,megvan,PicasaPy/PrintButtonRow.qml:12,A Help gomb a párbeszéd meglévő nyomtatási súgóablakát nyitja (test_jegy_4150_ui.py)
+printpanel/froogle,nem-cel,picasa-nyomtatas.md,A Froogle megszűnt szolgáltatás; a felhasználó döntése alapján nem cél
+edittextpanel/centeralign,megvan,PicasaPy/EditorTextPanel.qml,A Center justify text súgójú gomb a szöveg igazítását változtatja; kimeneti igazítás-ellenőrzés: tests/render/test_text_fonts.py.
+edittextpanel/colorpicker_bevel,megvan,PicasaPy/EditorTextPanel.qml;PicasaPy/TextColorSwatches.qml,A szövegszín-paletta megnyílik és színválasztáskor a szövegszínt módosítja; vezérlőjelenlét-ellenőrzés: tests/app/qml_functional/test_editor.py.
+edittextpanel/leftalign,megvan,PicasaPy/EditorTextPanel.qml,A Left justify text súgójú gomb a szöveg igazítását változtatja; kimeneti igazítás-ellenőrzés: tests/render/test_text_fonts.py.
+edittextpanel/rightalign,megvan,PicasaPy/EditorTextPanel.qml,A Right justify text súgójú gomb a szöveg igazítását változtatja; kimeneti igazítás-ellenőrzés: tests/render/test_text_fonts.py.
+edittextpanel/sizelist,megvan,PicasaPy/EditorTextPanel.qml,A textFontSizeBox betűméret-választó a szöveg eszközben.
+geopanel/map_menu,megvan,PicasaPy/PlacesPanel.qml;PicasaPy/PlacesMap.qml,A PicasaComboBox a támogatott térképtípusok között vált; a valódi főablakos keresőteszt ellenőrzi a látható térképpanelt.
+geopanel/marker,megvan,PicasaPy/PlacesMarker.qml,A geocímkézett fotó bélyegképe valódi térképjelölőként jelenik meg; a kattintást a tests/app/qml_functional/test_hely_jelolo_buborek_4582.py ellenőrzi.
+geopanel/marker_bubble,megvan,PicasaPy/PlacesMarker.qml,"A jelölő buboréka a fotódarabszámot, a Search for these photos in Picasa műveletet és az Erase location info műveletet mutatja; mindhárom a valódi főablakban tesztelt (#4582)."
+geopanel/search,megvan,PicasaPy/PlacesPanel.qml,A Search gomb a helyi keresést alkalmazza; kimeneti ellenőrzés: tests/app/test_qml_helyek_kereses_4147.py.
+geopanel/search_group,megvan,PicasaPy/PlacesPanel.qml,A Search feliratot mezőt és gombot közös keresőcsoport rendezi.
+geopanel/search_label,megvan,PicasaPy/PlacesPanel.qml,A helyi képkeresés felirata Search; hivatalos magyar fordítása „Keresés”; kimeneti ellenőrzés: tests/app/test_qml_helyek_kereses_4147.py.
+geopanel/searchinput,megvan,PicasaPy/PlacesPanel.qml,A helyi keresőmező a fotónevekben feliratokban kulcsszavakban és mappaútvonalakban szűr; tests/app/test_qml_helyek_kereses_4147.py.
+collagepanel/picker_panel,megvan,PicasaPy/CollageSettingsTab.qml;PicasaPy/CollageBackgroundBox.qml,A collagePickerPanel színválasztó-panel kattintásra megjelenik és bezárul; tests/app/qml_functional/test_collage_settings_tab_946.py.
+collagepanel/previewinset,megvan,PicasaPy/CollageCanvas.qml,A lap illesztett előnézeti geometriája a previewinset szerepét tölti be; teszt: tests/app/qml_functional/test_collage_panel_layout_945.py. A külön rétegszerkezet R2 eltérésként dokumentált.
+collagepanel/previewroot,megvan,PicasaPy/CollageCanvas.qml;PicasaPy/CollageSheet.qml,A kép-csomópontok a lappal együtt frissülő előnézetben jelennek meg; kimeneti tesztek: tests/app/qml_functional/test_collage_panel_layout_945.py;tests/app/qml_functional/test_collage_view_and_edit_1001.py. A külön rétegszerkezet R2 eltérésként dokumentált.
+collagepanel/tabpanel1,megvan,PicasaPy/CollagePanel.qml;PicasaPy/CollageSettingsTab.qml,A Beállítások lap az első fülön látható; layout- és wiring-teszt: tests/app/qml_functional/test_collage_panel_layout_945.py;tests/app/qml_functional/test_collage_panel_wiring_985.py.
+collagepanel/tabpanel2,megvan,PicasaPy/CollagePanel.qml;PicasaPy/CollageClipsTab.qml,A Klipek lap a második fülön látható; layout- és wiring-teszt: tests/app/qml_functional/test_collage_panel_layout_945.py;tests/app/qml_functional/test_collage_panel_wiring_985.py.
+collagepanel/tabs,megvan,PicasaPy/CollagePanelTabBar.qml,A kétlapos fülváltó tesztje: tests/app/qml_functional/test_collage_panel_wiring_985.py.
+collagepanel/view_and_edit,megvan,PicasaPy/CollageRandomRow.qml;PicasaPy/CollageNode.qml;PicasaPy/CollageContextMenus.qml,A három belépési pont a valódi Main ablakban a kiválasztott képet nyitja meg a szerkesztőben; kimeneti teszt: tests/app/qml_functional/test_collage_view_and_edit_1001.py.
+acquirepanel/buttons,nem-cel,docs/specs/picasa-importalas.md,"Szerkezeti gyűjtő, nem önálló feliratú vagy műveletű vezérlő; a Picasa importgombjait külön elemenként sorolja fel a spec."
+acquirepanel/import_from_menu,megvan,PicasaPy/ImportSourceDialog.qml,"Forrásválasztás: importSourceFromMenu, importSourceRecentBox + importSourceChooseSourceButton; a kattintás a sourceFolder kimenetét állítja (0x005154f0; test_import_vezerlok_4145.py)."
+acquirepanel/import_folder_menu,megvan,PicasaPy/ImportSourceDialog.qml,"Célválasztás: importSourceFolderMenu, importSourceRecentDestBox + importSourceChooseDestButton; a kattintás a destFolder kimenetét állítja (0x00517f90; test_import_vezerlok_4145.py)."
+acquirepanel/nextbutton,megvan,PicasaPy/ImportSourceDialog.qml,importSourceNextButton: hivatalos „View the next Photo” súgóval lépteti a kijelölt előnézeti képet; teszt: test_import_vezerlok_4145.py (0x0051f070).
+acquirepanel/previousbutton,megvan,PicasaPy/ImportSourceDialog.qml,importSourcePreviousButton: hivatalos „View the previous Photo” súgóval lépteti a kijelölt előnézeti képet; teszt: test_import_vezerlok_4145.py (0x0051f070).
+acquirepanel/sync_options_button,megvan,PicasaPy/ImportSourceDialog.qml,"importSourceOptionsButton: „Options” / „Opciók”, „Online options” súgóval; kattintásra megnyitja a „Sync starred photos only” letiltott online beállítást (picasa-eger-es-kijeloles.md, 0x00518b40; test_import_vezerlok_4145.py)."
+acquirepanel/togglegroup,megvan,PicasaPy/ImportSourceDialog.qml,A namingModeGroup és afterCopyingGroup kizáró rádiógombjai fedik le a két mért importálási választócsoportot (picasa-importalas.md 41.2/41.4).
+acquirepanel/upload_checkbox,megvan,PicasaPy/ImportSourceDialog.qml,"importSourceUploadCheckBox: látható, letiltott „Upload” / „Feltöltés” jelölő; Picasa Web Albums-súgóval, mert az online feltöltés nem elérhető (0x00518840)."
+capturemoviepanelpopup/audio_label,megvan,PicasaPy/CaptureMoviePanelPopup.qml,A külön választható hangforrás hivatalos címkéje: Hang (#4137).
+capturemoviepanelpopup/camchange,megvan,PicasaPy/CaptureMoviePanelPopup.qml,A kamera- és hangforrás beállításlapját nyitja meg (#4137).
+capturemoviepanelpopup/capture,megvan,PicasaPy/CaptureMoviePanelPopup.qml;PicasaPy/CaptureMovieMedia.qml,Videoklip-felvételt indít és állít le (#4137).
+capturemoviepanelpopup/done,megvan,PicasaPy/CaptureMoviePanelPopup.qml,A Kész gomb bezárja a panelt (#4137).
+capturemoviepanelpopup/live_video,megvan,PicasaPy/CaptureMoviePanelPopup.qml,Visszavált az élő kameraképre (#4137).
+capturemoviepanelpopup/next,megvan,PicasaPy/CaptureMoviePanelPopup.qml;PicasaPy/CaptureMovieMedia.qml,A filmszalag következő klipjét játssza le (#4137).
+capturemoviepanelpopup/prev,megvan,PicasaPy/CaptureMoviePanelPopup.qml;PicasaPy/CaptureMovieMedia.qml,A filmszalag előző klipjét játssza le (#4137).
+capturemoviepanelpopup/settings_apply,megvan,PicasaPy/CaptureMoviePanelPopup.qml,"Véglegesíti és tartósan menti a kamera-, hangforrás- és méretbeállításokat (#4137)."
+capturemoviepanelpopup/settings_cancel,megvan,PicasaPy/CaptureMoviePanelPopup.qml,Elveti a beállításlap módosításait (#4137).
+capturemoviepanelpopup/size_label,megvan,PicasaPy/CaptureMoviePanelPopup.qml,A felvételi méret hivatalos címkéje: Méret (#4137).
+capturemoviepanelpopup/video_label,megvan,PicasaPy/CaptureMoviePanelPopup.qml,A videofelvételi mód hivatalos címkéje: Videoklip (#4137).
+choose_mail/cancelbutton,megvan,PicasaPy/EmailChoiceDialog.qml:236,A Mégse gomb elutasítja a párbeszédet (#4135).
+choose_mail/checkbox,megvan,PicasaPy/EmailChoiceDialog.qml:198,A beállítás megjegyzése jelölőnégyzete; küldéskor a vezérlő tárolja a választást (#4135).
+choose_mail/gmailsignup1,megvan,PicasaPy/EmailChoiceDialog.qml:182,A hivatalos Gmail-fiók létrehozási hivatkozás (#4135).
+choose_mail/help,megvan,PicasaPy/EmailChoiceDialog.qml:225,A Súgó felirata a súgógombon (#4135).
+choose_mail/helpbutton,megvan,PicasaPy/EmailChoiceDialog.qml:221,A súgógomb megjeleníti/elrejti a rövid útmutatót (#4135).
+choose_mail/mail1,megvan,PicasaPy/EmailChoiceDialog.qml:120,Az alapértelmezett levelezőprogram választásának címe (#4135).
+choose_mail/mail1a,megvan,PicasaPy/EmailChoiceDialog.qml:128,Az alapértelmezett levelezőprogram leírása (#4135).
+choose_mail/mail2,megvan,PicasaPy/EmailChoiceDialog.qml:160,A Google Mail út neve; a megszűnt belépési út letiltott (#4135).
+choose_mail/mail2a,megvan,PicasaPy/EmailChoiceDialog.qml:168,A Google-fiókos út leírása; a megszűnt belépési út letiltott (#4135).
+choose_mail/mailcancel,megvan,PicasaPy/EmailChoiceDialog.qml:240,A Mégse gomb hivatalos felirata (#4135).
+choose_mail/picker,megvan,PicasaPy/EmailChoiceDialog.qml:75,A levelezőprogram-választó panel (#4135).
+choose_mail/remember,megvan,PicasaPy/EmailChoiceDialog.qml:198,A hivatalos „Jegyezze meg ezt a beállítást…” jelölőnégyzet (#4135).
+choose_mail/selecttext,megvan,PicasaPy/EmailChoiceDialog.qml:95,A választópanel hivatalos bevezető szövege (#4135).
+compose_mail/changeuser,megvan,PicasaPy/EmailChoiceDialog.qml:275,Felhasználóváltás-vezérlő; a Gmail-belépés megszűnése miatt letiltva (#4135).
+compose_mail/discard,megvan,PicasaPy/EmailChoiceDialog.qml:439,Az Elvetés művelet eldobja a piszkozatot (#4135).
+compose_mail/discardb,megvan,PicasaPy/EmailChoiceDialog.qml:443,Az Elvetés felirata a levélszerkesztő gombján (#4135).
+compose_mail/discardimage,megvan,PicasaPy/EmailChoiceDialog.qml:408,A kijelölt melléklet egyenként eltávolítható (#4135).
+compose_mail/preview,megvan,PicasaPy/EmailChoiceDialog.qml:358,A mellékletek előnézeti sora (#4135).
+compose_mail/send,megvan,PicasaPy/EmailChoiceDialog.qml:454,A Küldés művelet átadja a levelet a levelezőprogramnak (#4135).
+compose_mail/sendb,megvan,PicasaPy/EmailChoiceDialog.qml:465,A Küldés hivatalos felirata (#4135).
+compose_mail/subject_text,megvan,PicasaPy/EmailChoiceDialog.qml:319,A tárgymező hivatalos „Tárgy:” felirata (#4135).
+compose_mail/to_text,megvan,PicasaPy/EmailChoiceDialog.qml:297,A címzettmező hivatalos „Címzett:” felirata (#4135).
+compose_mail/topentry,megvan,PicasaPy/EmailChoiceDialog.qml:292,A címzett- és tárgymezőket tartalmazó fejlécsor (#4135).
+printoptions/bottomonly_checkbox,megvan,PicasaPy/PrintOptionsFields.qml:231,printOptionBottomOnlyCheckBox; a kattintás a nyomtatási előnézetre kerül (#4143)
+printoptions/caption_label,megvan,PicasaPy/PrintOptionsFields.qml:90,"printOptionCaptionLabel: Captions → Képfeliratok, a betöltött magyar fordítással (#4143)"
+printoptions/colorpicker_bevel,megvan,PicasaPy/PrintOptionsFields.qml:253,printOptionTextColorBevel; megnyitja a szövegszín-választót (#4143)
+printoptions/disabled_label,megvan,PicasaPy/PrintOptionsFields.qml:68,"Indexkép-nyomtatásnál megjelenik a hivatalos magyar magyarázat, és a kapcsolódó vezérlők tiltva vannak (#4143)"
+printoptions/evenwidth_checkbox,megvan,PicasaPy/PrintOptionsFields.qml:238,printOptionEvenBorderCheckBox; a választás a nyomtatási előnézetre kerül (#4143)
+printoptions/sizelist,megvan,PicasaPy/PrintOptionsFields.qml:176,printOptionSizeBox a printTextSizes 16 méretével; indexképnél tiltva (#4143)
+printoptions/text_picker_panel,megvan,PicasaPy/PrintOptionsPanel.qml:175,"printOptionTextPickerPanel rejtve indul, a színkeret kattintására megnyílik (#4143)"
+printoptions/textbelowimage_label,megvan,PicasaPy/PrintOptionsFields.qml:132,printOptionPlacement0: Below image → A kép alatt (#4143)
+printoptions/textonborder_label,megvan,PicasaPy/PrintOptionsFields.qml:146,printOptionPlacement2: On border → A szegélyen (#4143)
+printoptions/textonimage_label,megvan,PicasaPy/PrintOptionsFields.qml:139,printOptionPlacement1: On image → A képen (#4143)
+printoptions/useexif_label,megvan,PicasaPy/PrintOptionsFields.qml:120,printOptionSource3: Exif information → Exif-adatok (#4143)
+printoptions/usenotext_label,megvan,PicasaPy/PrintOptionsFields.qml:99,printOptionSource0: No text → Nincs szöveg (#4143)
+printoptions/wrap_checkbox,megvan,PicasaPy/PrintOptionsFields.qml:188,printOptionWrapCheckBox; a választás a nyomtatási előnézetre kerül (#4143)
+makemoviepanel/addtomovie,megvan,tests/app/qml_functional/test_film_panel_4182.py,A régi movieAddClipsButton a kijelölt klipeket a film végi kliptálcához fűzi; a kattintás és az eredeti buboréksúgó ellenőrzött.
+makemoviepanel/album_order_radio,megvan,tests/app/qml_functional/test_film_panel_4182.py;tests/app/qml_functional/test_film_panel_4125.py,A movieAlbumOrder rádiógomb az Album Order választását adja; kattintása ellenőrzött.
+makemoviepanel/audio_label,megvan,tests/app/qml_functional/test_film_panel_4182.py,Az Audio Track: hivatalos magyar felirata a főablakban megjelenik.
+makemoviepanel/bkg_picker_panel,megvan,tests/app/qml_functional/test_film_panel_4182.py,A háttérszín-választó tényleges kattintásra megnyílik.
+makemoviepanel/burstslider_label,megvan,tests/app/qml_functional/test_film_panel_4182.py,"A felirat és magyar fordítása látható; a küszöb a mért képlettel változik, az MXF menti/visszaolvassa; a ritkítási szabály: #4194."
+makemoviepanel/chronological_order_radio,megvan,tests/app/qml_functional/test_film_panel_4182.py,A régi movieChronologicalOrder rádiógombot valódi kattintás választja ki.
+makemoviepanel/deleteclips,megvan,tests/app/qml_functional/test_film_panel_4182.py,A régi movieDeleteClipButton a kijelölt klipet eltávolítja a tálcáról; kattintása és eredeti buboréksúgója ellenőrzött.
+makemoviepanel/export_youtube,nem-cel,#4182,A Picasa 3.9 feltöltője elavult harmadik féltől származó kliens; a YouTube a régi feltöltési API leállítása után nem engedi az ilyen kliensekkel a feltöltést (Google: https://support.google.com/youtube/answer/6388033).
+makemoviepanel/from_faces_in_selection,megvan,PicasaPy/PicasaMenuBar.qml;PicasaPy/CreateDialogs.qml;Main.qml;tests/app/qml_functional/test_arcfilm_fejlec_4212.py,Az eredeti ID_FACES a §30 szerinti kijelölt képeket adja a filmkészítőnek; a valódi menükattintás végigfut a film exportjáig. Az arc-kivágás adatútját nem méri (#4400).
+makemoviepanel/from_people_albums,megvan,PicasaPy/PicasaMenuBar.qml;PicasaPy/CreateDialogs.qml;Main.qml;tests/app/qml_functional/test_emberek_album_film_menu_4633.py,Az eredeti ID_FACESRANDOM kijelölés és nyitott személyalbum nélkül a nem üres Emberek-albumok képeit tárolt sorrendben adja át a Filmkészítőnek; az arc-/crop-adatút nyitott (#4400).
+makemoviepanel/inputtext,megvan,tests/app/qml_functional/test_film_panel_4182.py,A movieSlideText mező a második lapon szerkeszthető; a szöveg-helyi-menü megmaradt.
+makemoviepanel/lengthslider_label,megvan,tests/app/qml_functional/test_film_panel_4182.py;tests/app/qml_functional/test_film_panel_4125.py,"A movieLengthSlider a mért floor(t²×N) képlettel számít, és a kiválasztott képszám a renderelt MP4/MXF kimenetben ellenőrzött."
+makemoviepanel/moviesize_label,megvan,tests/app/qml_functional/test_film_panel_4182.py,A Dimensions felirat hivatalos magyar alakja látható a főablakból nyitott panelen.
+makemoviepanel/ordering_header_label,megvan,tests/app/qml_functional/test_film_panel_4182.py,Az Ordering of Slides: felirat hivatalos magyar alakja látható a panelen.
+makemoviepanel/outline,megvan,tests/app/qml_functional/test_film_panel_4182.py,"A movieOutlineBox jelölő kattintható, és az eredeti buboréksúgója elérhető."
+makemoviepanel/remove_slide,megvan,tests/app/qml_functional/test_film_panel_4182.py,A movieRemoveSlideButton eltávolítja a kijelölt szöveges diát; a kattintás és eredeti buboréksúgó ellenőrzött.
+makemoviepanel/rewind,megvan,tests/app/qml_functional/test_film_panel_4182.py,"A Preview lejátszás leáll, és a kiválasztott klip indexére ugrik vissza."
+makemoviepanel/smart_order_radio,megvan,tests/app/qml_functional/test_film_panel_4182.py;tests/app/qml_functional/test_film_panel_4125.py,A régi movieSmartOrder rádiógombot valódi kattintás választja ki; a sorrend MXF-kimenetét a meglévő teszt őrzi.
+makemoviepanel/tabpanel2,megvan,tests/app/qml_functional/test_film_panel_4182.py,A movieTabSlide fül a második panelt nyitja meg.
+makemoviepanel/templatelist,megvan,tests/app/qml_functional/test_film_panel_4182.py,A movieTextStyleBox a 12 eredeti szövegdia-stílust tartalmazza.
+makemoviepanel/text_picker_panel,megvan,tests/app/qml_functional/test_film_panel_4182.py,A szövegszín-választó tényleges kattintásra megnyílik.
+makemoviepanel/txcolorpicker_bevel,megvan,tests/app/qml_functional/test_film_panel_4182.py,A szövegszín színmintájának kerete a ColorDialog nyitógombjával együtt látható és tesztelt.
+makemoviepanel/viewedit,megvan,tests/app/qml_functional/test_film_panel_4182.py;tests/app/qml_functional/test_film_text_slide_infotext_4402.py,"A szövegdiák húzással átrendezhetők és kijelölhetők, dupla kattintásra szerkeszthetők, a sorrend az MXF-kimenetben is ellenőrzött; a lista Text Slide néven jeleníti meg őket (#4182/#4402)."
+panelroot/picasatab,megvan,PicasaPy/DocumentTabStrip.qml;tests/app/qml_functional/test_panelroot_lefedettseg_4210.py,A Library fül a könyvtárra vált a valódi főablakban; a teszt a főablakból kattintva ellenőrzi (#4210).
+panelroot/globaltabs,megvan,PicasaPy/DocumentTabStrip.qml;tests/app/qml_functional/test_panelroot_lefedettseg_4210.py,"A közös, látható projektfülsor tartalmazza a Könyvtár és a projektfüleket; a teszt valódi kattintással vált (#4210)."
+panelroot/capturemovietab,megvan,PicasaPy/MainToolbar.qml;PicasaPy/CaptureMoviePanelPopup.qml;tests/app/qml_functional/test_panelroot_lefedettseg_4210.py,A kamera-rögzítő belépő akadálymentes neve az eredeti „Capture”; a valódi főablaki kattintás megnyitja a rögzítőpanelt (#4210).
+panelroot/makemovietab,megvan,PicasaPy/TrayActionArea.qml;PicasaPy/CreateDialogs.qml;tests/app/qml_functional/test_panelroot_lefedettseg_4210.py;tests/app/qml_functional/test_film_panel_4125.py,A filmkészítő belépő az eredeti „Movie Maker” akadálymentes nevet viseli és a kattintás megnyitja a filmkészítőt (#4210/#4125).
+panelroot/youtab,nem-cel,docs/specs/picasa-menu-parancsok-viselkedes.md;docs/specs/picasa-feltolteskezelo.md,"A `panelroot/youtab` a `panelroot.tre` szerint `m_hidden` állapotú, és a `panelroot/mainuipanel`-re irányít; nem látható lap. Ez nem döntés a külön `movieeditpanel/export_youtube` funkcióról (#4210)."
+video_control_bar/scaleslider,megvan,PicasaPy/VideoPlayerView.qml;tests/app/test_qml_video.py,A meglévő `videoSeekSlider` a lejátszási pozíciót állítja; a valódi főablaki videónéző-próba ellenőrzi (#4210).
+video_control_bar/trimslider,megvan,PicasaPy/VideoTrimSlider.qml;PicasaPy/VideoPlayerView.qml;tests/app/test_video_trim_labels_4273.py;tests/app/qml_functional/test_panelroot_lefedettseg_4210.py,"A kétfogantyús tartománycsúszka a kezdő- és végpontot felirattal jelöli; a címkék a fogantyúkhoz igazodva, hivatalos magyar fordítással jelennek meg. Valódi QML-render és ±5 px ablakmagasság-ellenőrzés (#4273), valamint főablaki egérhúzás (#4210)."
+video_control_bar/volumeslider,megvan,PicasaPy/VideoPlayerView.qml;tests/app/test_qml_video.py,A meglévő hangerőcsúszka a videó hangerejét állítja; a valódi főablaki videónéző-próba ellenőrzi (#4210).
+faceheaderpanel/create_movie,megvan,PicasaPy/LightboxHeader.qml;PicasaPy/LightboxFeed.qml;Main.qml;PicasaPy/CreateDialogs.qml,A valódi Emberek-album fejlécgomb a teljes személy-album képlistájával nyitja meg a meglévő Filmkészítőt; a súgó az eredeti angol qsTr-szöveg és hivatalosan fordított. Valódi kattintás és ±5 px ablakmagasság: tests/app/qml_functional/test_arcfilm_fejlec_4212.py.
+faceheaderpanel/create_face_movie,megvan,PicasaPy/LightboxHeader.qml;PicasaPy/LightboxFeed.qml;Main.qml;PicasaPy/CreateDialogs.qml,"A valódi Emberek-album fejlécgomb ugyanazt a Filmkészítőt nyitja meg a teljes személy-album képlistájával; a felbontást a normál film-beállítás adja. Valódi kattintás, eredeti súgó és ±5 px ablakmagasság: tests/app/qml_functional/test_arcfilm_fejlec_4212.py."
+faceheaderpanel/pwa_button,nem-cel,docs/specs/picasa-arcfelismeres.md:1489;docs/specs/ajandek-cd-kimenet.md:11.6,"A Picasa Web Albums weboldala online PWA-szolgáltatáshoz kötődik, amely megszűnt; helyi alkalmazásban nem cél."
+publish/picsizemenu,megvan,PicasaPy/PublishPanel.qml;PicasaPy/GiftCdHost.qml;tests/app/qml_functional/test_publish_fomenu_meret_4212.py,"A mért négy méretfokozat tényleges főablakos kattintása eljut a lemezkép-vezérlőhöz, és a választott méret a kimenetben ellenőrzött."
+publish/backup_eject,nem-cel,docs/specs/ajandek-cd-kimenet.md:166;docs/specs/biztonsagi-mentes.md:1426;docs/specs/biztonsagi-mentes.md:1440,"A biztonsági mentés ISO-képfájlt vagy mappát készít (#3504), nem ír optikai lemezre; nincs kiadandó lemez."
+publish/presentcd_eject,nem-cel,docs/specs/ajandek-cd-kimenet.md:166,"Az Ajándék-CD kimenete lemezképfájl, nem optikai lemez (#3503); nincs kiadandó lemez."
+publish/upgradestorage,nem-cel,docs/specs/ajandek-cd-kimenet.md:11.6,A Picasa Web Albums tárhelyvásárlása megszűnt online szolgáltatáshoz kötődik.
+publish/uploadallsync,nem-cel,docs/specs/ajandek-cd-kimenet.md:11.6,A Picasa Web Albums online szinkronja megszűnt szolgáltatáshoz kötődik.
+printoptions/bottomonly_checkbox_label,megvan,PicasaPy/PrintOptionsPanel.qml;tests/app/qml_functional/test_ui_maradek_4214.py;tests/app/qml_functional/test_nyomtatas_opciok_kimenet_4143.py,A „Bottom only” felirat és kattintható jelölő a főablakból megnyitott Nyomtatás panelen; magyarul „Csak alul” (#4214)
+printoptions/evenwidth_checkbox_label,megvan,PicasaPy/PrintOptionsPanel.qml;tests/app/qml_functional/test_ui_maradek_4214.py;tests/app/qml_functional/test_nyomtatas_opciok_kimenet_4143.py,A „Even width border” felirat és kattintható jelölő; magyarul „Egyenletes szélességű szegély” (#4214)
+printoptions/border_max_label,megvan,PicasaPy/PrintOptionsPanel.qml;tests/app/qml_functional/test_ui_maradek_4214.py,A szegélyméret-választó felső határának „Max.” felirata; hivatalosan „Maximális” (#4214)
+printoptions/border_size_label,megvan,PicasaPy/PrintOptionsPanel.qml;tests/app/qml_functional/test_ui_maradek_4214.py,A szegélyméret-választó „Border width” felirata; hivatalosan „Szegély szélessége” (#4214)
+tagpanel/input_group,megvan,PicasaPy/TagsPanel.qml;tests/app/qml_functional/test_ui_maradek_4214.py,A címkebeíró csoport látható a valódi főablak Címkék fiókjában (#4214)
+tagpanel/taglist_group,megvan,PicasaPy/TagsPanel.qml;tests/app/qml_functional/test_ui_maradek_4214.py,A címkelista csoportja és listája látható a valódi főablak Címkék fiókjában (#4214)
+outputlayout/blogger,nem-cel,docs/specs/picasa-keptalca.md:1129;docs/specs/picasa-keptalca.md:1141,A Blogger-kimenet megszűnt Google-szolgáltatáshoz tartozik; a spec hatókörön kívülinek minősíti (#4214)
+outputlayout/makemovie,megvan,PicasaPy/TrayActionArea.qml;PicasaPy/CreateDialogs.qml;tests/app/qml_functional/test_ui_maradek_4214.py,A tálca Filmkészítő gombja valódi kattintásra megnyitja a film párbeszédet (#4214)
+keywords/keywordlist,megvan,PicasaPy/TagsPanel.qml;tests/app/qml_functional/test_ui_maradek_4214.py,A keywordlist az élő TagsPanel taglistája; a teszt új címke hozzáadását végigkattintja (#4214)
+keywords/keywords_label,megvan,Main.qml;tests/app/qml_functional/test_ui_maradek_4214.py,A főablak jobb fiókjának eredeti „Tags:” címe; magyarul „Címkék:” (#4214)
+propertiespanel/propertieslist,megvan,PicasaPy/PropertiesPanel.qml;tests/app/qml_functional/test_ui_maradek_4214.py,A Properties fiók élő tulajdonságlistája megjelenik a főablakban (#4214)
+durationslider/scaleslider,megvan,PicasaPy/CreateDialogs.qml;PicasaPy/PicasaSlider.qml;tests/app/qml_functional/test_ui_maradek_4214.py,"A filmkészítő dia-időtartam csúszkája a főablakból nyílik, egérkattintásra változik, és a specifikált Sec egységet mutatja (#4214)"
+editslider2/editslider,megvan,PicasaPy/EditorSlider.qml;PicasaPy/EditorFinetunePanel.qml;tests/app/qml_functional/test_editor.py;tests/app/qml_functional/test_effect_sliders.py,A szerkesztő közös EditSlider csúszkája; az editor és effektpanel kimeneti tesztjei ellenőrzik (#4214)
+editslider3/editslider,megvan,PicasaPy/EditorSlider.qml;PicasaPy/EditorParamPanel.qml;tests/app/qml_functional/test_editor.py;tests/app/qml_functional/test_effect_sliders.py,A szerkesztő paraméter-alpanelje ugyanazt a mért editslider vezérlőt használja (#4214)
+editslider4/editslider,megvan,PicasaPy/EditorSlider.qml;PicasaPy/EditorParamPanel.qml;tests/app/qml_functional/test_editor.py;tests/app/qml_functional/test_effect_sliders.py,A szerkesztő paraméter-alpanelje ugyanazt a mért editslider vezérlőt használja (#4214)
+spacing_slider/bigslider,megvan,PicasaPy/CollageSettingsTab.qml;PicasaPy/PicasaSlider.qml;tests/app/qml_functional/test_ui_maradek_4214.py;tests/app/qml_functional/test_terkoz_fojtas_996.py,"A kollázs térközcsúszkáját a főablakban valódi egérkattintás működteti, mért bigslider geometriával (#4214)"
+textopacityslider/scaleslider,megvan,PicasaPy/EditorTextPanel.qml;PicasaPy/PicasaSlider.qml;tests/app/qml_functional/test_editor.py;tests/app/qml_functional/test_effect_sliders.py;tests/app/qml_functional/test_ui_maradek_4214.py,A szöveg-átlátszóság csúszkája a közös scaleslider családot használja (#4214)
+timeslider/scaleslider,megvan,PicasaPy/MainToolbar.qml;PicasaPy/PicasaSlider.qml;tests/app/qml_functional/test_kor_szuro_csuszka_1830.py,A főablak időszűrője interaktív scaleslider a közös PicasaSlider alapján (#4214)
+toolslider/toolslider,megvan,PicasaPy/EditorToolBar.qml;PicasaPy/PicasaSlider.qml;tests/app/test_qml_eszkozsav_csuszka_3234.py,A szerkesztő eszközparaméter-csúszkája a közös PicasaSliderből származik (#4214)
+transitionslider/scaleslider,megvan,PicasaPy/CreateDialogs.qml;PicasaPy/PicasaSlider.qml;tests/app/qml_functional/test_film_panel_4125.py;tests/app/qml_functional/test_ui_maradek_4214.py,A filmkészítő átmenetcsúszkája a közös scaleslider családot használja (#4214)
+zoomslider/scaleslider,megvan,PicasaPy/TrayTopRow.qml;PicasaPy/EditorSlider.qml;PicasaPy/PicasaSlider.qml;tests/app/qml_functional/test_nagyitas_alsosav_2564.py;tests/app/test_qml_viewer_zoom.py;tests/app/qml_functional/test_ui_maradek_4214.py,A könyvtár és néző nagyításcsúszkái az élő közös csúszka-alapra épülnek (#4214)
+options/filetypes_supported_formats_link,megvan,PicasaPy/OptionsTabFileTypes.qml;tests/app/test_qml_options_dialog.py,A már meglévő hivatalos felirat működő linkként megnyitja a scanner közös RAW-kiterjesztés-listáját (#4488)

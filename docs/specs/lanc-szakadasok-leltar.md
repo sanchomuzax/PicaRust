@@ -1,0 +1,171 @@
+# Lánc-szakadások leltára - ahol a háttér kész, de a felület nem éri el
+
+*A mérést a **a PicasaPy-ban: `scripts/kepesseg_or.py`** végzi (#1476), a CI `lint` jobjában is. Az alábbi 4. szakasz generált - a kézi pillanatkép ideje lejárt.*
+
+A **#1454** (a `Nézet ▸ Mappanézet` félreértése) mellett kiderült, hogy a
+mérés a lánc **két végét** nézte, a közepét nem: a vezérlő kész volt, a
+menü hiányzott, és közben egy beégetett érték is elvágta az utat. Ez a lap
+azt méri fel, **hol van még ilyen** - rendszeresen, nem szemre.
+
+## A módszer és a korlátja
+
+Minden `@Property` és `@Slot` tagra, ami regisztrált vezérlőn ül,
+megnéztem, hivatkozik-e rá a QML. Ahol nem, ott megszámoltam, hívja-e
+**Python** vagy csak **teszt**.
+
+⚠️ **A puszta `.tagnév` keresés FÉLREVEZET**, ha két vezérlőn ugyanaz a
+tagnév. Mérve **négy** ilyen név van:
+
+| tagnév | gazdák |
+|---|---|
+| `cancelScan` | a PicasaPy-ban: `dedup_controller.py`, a PicasaPy-ban: `face_scan_controller.py` |
+| `revision` | a PicasaPy-ban: `edit_controller.py`, a PicasaPy-ban: `models.py` |
+| `statusText` | a PicasaPy-ban: `controller.py`, a PicasaPy-ban: `startup_status.py` |
+| `toggleStar` | a PicasaPy-ban: `import_source_controller.py`, a PicasaPy-ban: `photo_ops_controller.py` |
+
+**A saját mérésem is beleesett:** a `faceScanController.cancelScan`-t
+élőnek látta, mert a `dedupController.cancelScan` hívásait számolta oda.
+Minősített kereséssel (`<objektum>.<tag>`) derült ki, hogy **nincs
+bekötve**. Aki ezt a leltárt frissíti, **objektumnévvel együtt keressen.**
+
+## 1. Amit a mérés NEM talált
+
+**Nincs holt kontextus-objektum.** Mind a 18 regisztrált QObject-re
+(a PicasaPy-ban: `application.py`; a 19. regisztráció, az `appVersion`, sztring)
+hivatkozik a QML. A szakadás mindig **tagszinten** van.
+
+## 2. Négy megerősített lelet - mind önállóan megvalósítható
+
+| # | terület | a háttér | a felület | jegy |
+|---|---|---|---|---|
+| A | **Nyomtatás** | a PicasaPy-ban: `print_controller.py`, **213 sor**, 2 tesztfájl | ~~**soha nem példányosul** a termékkódban, nincs `setContextProperty`, **0** QML-hivatkozás; a `Print…` (Ctrl+P) és `Print Thumbnails…` menüpont `placeholder`~~ - **BEKÖTVE (#1472)**: a PicasaPy-ban: `PrintDialog.qml`, élő `Fájl ▸ Nyomtatás…`, élő Ctrl+P, és a képtálca gombja. ~~A `Print Thumbnails…` SZÁNDÉKOSAN maradt helyfoglaló: az kontaktlap (több kép egy oldalon), amihez nincs motor~~ - **#1590: a motor megépült** (a PicasaPy-ban: `printing/contact_sheet.py`), a tétel ÉLŐ, és a Ctrl+Shift+P is | #1472, #1590 |
+| B | **Arcfelismerés indítása** | `scanForFaces`, `cancelScan`, `computeEmbeddings`, `cancelEmbedding`, `isAvailable`, `isEmbeddingAvailable`, `unnamedAlbum` | ~~egyik sincs bekötve - közben a **névadó felület él**, és a `scanPercent` **haladást jelenít meg** egy indíthatatlan keresésről~~ - **BEKÖTVE (#1473)**: a PicasaPy-ban: `FaceScanDialog.qml`, élő `Eszközök ▸ Arcok keresése…`, megszakítható keresés és csoportosítás, hiányzó modellnél INDOKOLT tiltás. ⚠️ A modellfájl beszerzésére viszont továbbra sincs felületi út - a funkció friss telepítésen ezért végig szürke marad (külön jegy kell rá) | #1473 |
+| C | **E-mail küldés** | `prepareAttachments`, `sendRows` | a QML az `emailController`-t **csak** a beállítás-fül kliensválasztójához köti (a PicasaPy-ban: `OptionsTabEmail.qml`) | #1474 |
+| D | **Visszavonás UI nélkül** | `undoPasteAllEffects`, `canUndoPasteAllEffects`, `canUndoBatchEdit` | nincs gomb; a PicasaPy-ban: `Main.qml:754` **ki is mondja**: „csak a vezérlőn elérhető, UI-gomb nélkül". A hivatkozott **#426 és #152 LEZÁRVA** | #1475 |
+
+## 3. Elhatárolások - ezeket NE vegye fel senki hibaként
+
+| tag | miért nem hiba |
+|---|---|
+| `library_controller.removeWatchedFolder` | a **#1249** felváltotta a szélesebb `removeFolder`-rel; a QML azt hívja |
+| `fileops_controller.movePhoto` | egyes alak; a QML a `movePhotos` többes alakot használja |
+| `controller.statusText` | **él**, aliason át: `tray.ctl.statusText` (a PicasaPy-ban: `TrayBar.qml:117`) |
+| `controller.setShowHidden` | a menü a `toggleShowHidden`-t hívja - szándékos |
+| `effects_controller` tagjai | **nem árva modul**: az `EffectsClipboardMixin` a PicasaPy-ban: `controller.py:106`-on át be van építve. A #152-es réteg áll UI nélkül, miközben a menü „Copy/Paste All Effects" a **kötegelt** úton megy (a PicasaPy-ban: `photo_ops_controller.py:633/648/724`). A **#1534 eldöntötte**: saját menüpontot nem kap (az eredetiben EGY parancs van, kétágú kezelővel), de nem is törölhető - a láncot egészben átvivő szemantikája a **hűséges**, a bekötött kötegelté nem. Ld. `docs/decisions/effektus-vagolap-ket-reteg.md` (ADR-007) |
+
+## 4. A teljes mért lista - GENERÁLT
+
+A táblát a PicasaPy-ban: `python scripts/kepesseg_or.py --leltar --ir` írja, az
+indoklásokat a `scripts/kepesseg_or_baseline.txt` adja. Kézzel ne
+szerkeszd: a PicasaPy-ban: `tests/tools/test_kepesseg_or_1476.py` összeveti a kettőt.
+
+### Ami erről a lapról SZÁNDÉKOSAN hiányzik - és hol van helyette
+
+| kimarad | miért | hol találod |
+|---|---|---|
+| a mérés terjedelme (hány fájl, tag, alias) | #1508 - minden új `.py`/QML-fájltól elavult | az őr futásának kimenete (CI `lint`-napló) |
+| a tagok **pontos sora** | #1523 - egy fölötte beszúrt sortól elavult | a PicasaPy-ban: `python scripts/kepesseg_or.py --list`, és az új szakadás hibaüzenete |
+| az árva osztályok **tagszáma** | #1523 - a PicasaPy-ban: `models.py` forró fájl, minden új modell-tagtól elavult | ugyanott, `--list` |
+
+Amíg ezek itt álltak, a bitre egyezést kérő teszt olyan ágakat is
+megbuktatott, amelyek **szakadást nem okoztak**: a #1508 előtt minden ág,
+amelyik egyetlen fájlt hozzáadott (egy nap alatt négy PR, három
+merge-ütközés); utána minden ág, amelyik **egyetlen sort beszúrt** egy
+szakadást tartalmazó fájlba (2026-08-26: #1520 és #1521, fejenként egy
+fölösleges piros CI → `--ir` → új push kör).
+
+**A fájlnév marad** - tagnévvel együtt a PicasaPy-ban: `grep -n "<tagnév>" src/picasapy/app/<fájl>`
+pontos találatot ad, és nem mozdul el egy fölötte beszúrt sortól.
+
+**A védelem nem gyengült.** Ami a lapon áll, az bitre egyezik: a szakadás
+azonossága - kontextus-objektum, tag, fajta, fájl és **indoklás**. Új vagy
+eltűnt szakadásra, sőt átírt indoklásra is bukik a készlet, az őr pedig
+1-es kilépőkóddal áll meg (a PicasaPy-ban: `python scripts/kepesseg_or.py`).
+
+⚠️ A 2026-08-25-i **kézi** mérés 52 tagot talált; az őr ugyanezen a fán
+**56**-ot. A különbség nem a fa változása, hanem a minősített keresés: a
+kézi mérés nem látta az `editController.revision`-t (a `photos.revision`
+kötések elfedték), a `faceScanController.cancelScan`-t (a `dedupController`
+azonos nevű tagja fedte el), és nem nézte a PicasaPy-ban: `startup_status.py`-t sem.
+
+<!-- KEPESSEG_OR:KEZDET -->
+
+*Ezt a blokkot a PicasaPy-ban: `python scripts/kepesseg_or.py --leltar --ir` írja.*
+*Kézzel ne szerkeszd: a PicasaPy-ban: `tests/tools/test_kepesseg_or_1476.py` őrzi.*
+
+*Ami ezen a lapon SZÁNDÉKOSAN nem áll: a mérés terjedelme (hány*
+*Python-, hány QML-fájl, hány tag, hány alias - #1508), a tagok*
+*PONTOS SORA és az árva osztályok tagszáma (#1523). Mindhárom a*
+*futás kimenetében van (CI-napló, `--list`), mert a verziózott szám*
+*minden érintetlen kódmozdulattól elavult - valódi szakadás nélkül.*
+*A fájlnév marad: tagnévvel együtt `grep -n`-nel pontos, és stabil.*
+
+**Felületről el nem ért vezérlő-tag: 41.**
+
+| kontextus-objektum | tag | fajta | hely | indoklás |
+|---|---|---|---|---|
+| `controller` | `setDarkTheme` | Slot | a PicasaPy-ban: `app/appearance_controller.py` | FELVÁLTVA - a menü a toggleDarkTheme-et hívja (a PicasaPy-ban: PicasaMenuBar.qml) |
+| `controller` | `setCollageTitle` | Slot | a PicasaPy-ban: `app/collage_save.py` | BELSŐ - a kollázs-vezérlő állítja (a PicasaPy-ban: collage_controller.py:437, a PicasaPy-ban: collage_save.py:918) |
+| `controller` | `folderSortReverse` | Property | a PicasaPy-ban: `app/controller_folder_view_mixin.py` | FELVÁLTVA - #7341: a menü egyszeri `sortFolderBy` műveletre váltott; a Python API megmarad. |
+| `controller` | `toggleFolderSortReverse` | Slot | a PicasaPy-ban: `app/controller_folder_view_mixin.py` | FELVÁLTVA - #7341: a menü egyszeri `sortFolderBy` műveletre váltott; a Python API megmarad. |
+| `controller` | `restoreSession` | Slot | a PicasaPy-ban: `app/controller_navigation_mixin.py` | BELSŐ - a PicasaPy-ban: controller.py:876 és a PicasaPy-ban: library_controller.py:346 hívja induláskor |
+| `controller` | `folderDateText` | Property | a PicasaPy-ban: `app/controller_state_mixin.py` | BELSŐ - #1487 (döntés): a fejléc dátumsorát a FEED modellje adja (a PicasaPy-ban: `LightboxFeed.qml:578` → `modelData.dateText`), tehát a property-nek nincs felületi fogyasztója. Marad, mert a KÖZÖS `formatting.photo_dates`-en át számol az állapotsorral (#2304): a PicasaPy-ban: `test_controller.py::test_folder_date_text_matches_header` épp azt őrzi, hogy a két felirat ne mondhasson mást ugyanarról a mappáról. |
+| `controller` | `folderDescription` | Property | a PicasaPy-ban: `app/controller_state_mixin.py` | FELVÁLTVA - a felület a mappánkénti folderDescriptionOf(path) alakot hívja |
+| `controller` | `pasteEffects` | Slot | a PicasaPy-ban: `app/effects_controller.py` | ELDÖNTVE (#1534) - a beillesztés; a felületé a KÖTEGELT pasteAllEffects; ADR-007 |
+| `controller` | `exportMovieFull` | Slot | a PicasaPy-ban: `app/export_controller.py` | BELSŐ - a beállítást az a PicasaPy-ban: export_controller.py:371 olvassa vissza |
+| `controller` | `setExportMovieFull` | Slot | a PicasaPy-ban: `app/export_controller.py` | FELVÁLTVA - #1487 (döntés): a párbeszéd a TELJES beállítás-térképet adja át mentéskor (a PicasaPy-ban: `ExportDialogs.qml:239`, `"movieFull"` kulcs), nem egyetlen setterrel ír. Az olvasója (`exportMovieFull`) már BELSŐ. |
+| `controller` | `removeWatchedFolder` | Slot | a PicasaPy-ban: `app/library_controller_folders.py` | FELVÁLTVA - a #1249 óta a bővebb removeFolder megy a QML-ből |
+| `controller` | `faceDetectionEnabledFor` | Slot | a PicasaPy-ban: `app/library_controller_folders.py` | FELVÁLTVA - a QML SAJÁT, olcsóbb tükrét számolja, és ez a #1486-ban ELDŐLT: a Python szabály minden hívásnál `Path(...).resolve()`-t futtat (fájlrendszer!), a mappafa jelvénye pedig soronként hívná. A két szabály nem csúszhat szét: a PicasaPy-ban: tests/app/test_arc_kizaras_egy_szabaly_1486.py a QML függvényt QJSEngine-ben futtatja, és korpuszon veti össze a Pythonnal. |
+| `controller` | `collapseFolderIntoTray` | Slot | a PicasaPy-ban: `app/tray_album_controller.py` | MÉRVE - #1919: a token RÉTEGE kész (modell + vezérlő + nézet + fordítás), a MEGJELENÍTÉS KAPCSOLÓJA szándékosan nincs bekötve. Az eredetiben nem parancs kapcsolja, hanem egy minden frissítéskor újraértékelt állapot-delegátus (`0x00572ba4` → `0x00563530`): akkor látszik, ha van mappa-/album-kijelölés, az nem üres, és a FÉNYKÉP-kijelölés üres. A mi mappa-kijelölésünk a megnyitott mappa, ami NEM az eredeti `CAlbumSelectionNode`-ja, ezért az automatikus megjelenítés átírná a tálca mindennapi kinézetét - az a tulajdonos szeme elé tartozó vizuális kör. A szabály szó szerint le van írva a `with_album_token` docstringjében. A #1919 emiatt NYITVA marad. |
+| `editController` | `fillLight` | Property | a PicasaPy-ban: `app/edit_controller_effects_finetune_mixin.py` | ELDÖNTVE (#7383) - az eredetiben a Hangolás-csúszkák MINDIG alaphelyzetben indulnak (J2a, J3b, J4a), ezért a felület szándékosan nem köti őket a mentett értékre. A property marad: a mentett lánc értékét a finomhangolás-próbák ezen át olvassák. |
+| `editController` | `fixesFillLight` | Property | a PicasaPy-ban: `app/edit_controller_effects_finetune_mixin.py` | ELDÖNTVE (#7383) - az 1. fül Derítőfénye is alaphelyzetben indul (J2b); a `fill` réteg mentett értékét a #7369 próbái ezen át olvassák. |
+| `editController` | `highlights` | Property | a PicasaPy-ban: `app/edit_controller_effects_finetune_mixin.py` | ELDÖNTVE (#7383) - ld. `fillLight`. |
+| `editController` | `shadows` | Property | a PicasaPy-ban: `app/edit_controller_effects_finetune_mixin.py` | ELDÖNTVE (#7383) - ld. `fillLight`. |
+| `editController` | `colorTemp` | Property | a PicasaPy-ban: `app/edit_controller_effects_finetune_mixin.py` | ELDÖNTVE (#7383) - ld. `fillLight`. |
+| `editController` | `hasFinetune` | Property | a PicasaPy-ban: `app/edit_controller_effects_finetune_mixin.py` | ELDÖNTVE (#1487) - ugyanaz, mint a `hasRetouch`: a „van finomhangolás” állapotot a felület nem külön jelzőn mutatja (undoLabel #465, nyitott-eszköz kiemelés #116). ⚠️ Az a PicasaPy-ban: `EditorPanel.qml` deklarált hozzá egy tükör-property-t, amit SENKI nem állított be és senki nem olvasott - az a holt tükör a #1487-ben TÖRÖLVE. A vezérlő property-je marad, a finomhangolás-próbák ezen át olvassák az állapotot. |
+| `editController` | `redoAction` | Property | a PicasaPy-ban: `app/edit_controller_history_mixin.py` | BELSŐ - az a PicasaPy-ban: edit_controller.py:892 ebből képzi a QML-nek szánt redoLabel-t |
+| `editController` | `revision` | Property | a PicasaPy-ban: `app/edit_controller_preview_mixin.py` | MÉRVE - a QML a photos.revision-t köti; ez a szerkesztő SAJÁT változásszáma |
+| `editController` | `cancelPendingPreview` | Slot | a PicasaPy-ban: `app/edit_controller_preview_mixin.py` | BELSŐ - az a PicasaPy-ban: application.py:892 hívja leálláskor |
+| `editController` | `hasSavedRedeye` | Property | a PicasaPy-ban: `app/edit_controller_redeye_mixin.py` | #2393 - MENTETT javítást jelez; az a PicasaPy-ban: EditorPanel.qml:132 SAJÁT, MÁS jelentésű `redeyeActive`-ot tart (nyitott eszköz). #1487 (döntés): a bekötésről a #2393 dönt, ott derül ki, kell-e a felületnek a MENTETT állapot - addig nem törölhető, mert a próbái a szerkesztő állapotát ezen át olvassák. |
+| `editController` | `hasRetouch` | Property | a PicasaPy-ban: `app/edit_controller_retouch_mixin.py` | ELDÖNTVE (#1487) - a felület SZÁNDÉKOSAN mást mutat: a feliratot az `undoLabel` adja (#465), a csempe kiemelése a NYITOTT eszközt jelzi (#116) - mindkettő mérve az eredetihez képest (#1052). A property marad: a retusálás-próbák a szerkesztő állapotát ezen át olvassák, és a törlése a teszteket belső mezőkbe kényszerítené. |
+| `faceScanController` | `scanNewFaces` | Slot | a PicasaPy-ban: `app/face_scan_controller_scan_mixin.py` | BELSŐ - az a PicasaPy-ban: application.py a controller.syncFinished jelére köti; az új képek vizsgálata szinkron után indul, nem QML-eseményből |
+| `folderHierarchyController` | `setFolders` | Slot | a PicasaPy-ban: `app/folder_hierarchy_controller.py` | BELSŐ - az a PicasaPy-ban: application.py:704 tölti fel a fát |
+| `folderHierarchyController` | `setSimplified` | Slot | a PicasaPy-ban: `app/folder_hierarchy_controller.py` | FELVÁLTVA - a menü a toggleSimplified-et hívja, az hívja ezt |
+| `folderHierarchyController` | `setAlbumThumbs` | Slot | a PicasaPy-ban: `app/folder_hierarchy_controller.py` | FELVÁLTVA - a menü a toggleAlbumThumbs-t hívja, az hívja ezt |
+| `screenCaptureController` | `enabled` | Property | a PicasaPy-ban: `app/screen_capture.py` | BELSŐ - a mentett EnableScreenCap beállításból induláskor dől el a figyelő állapota; a #5639 nem tesz hozzá beállítási felületet |
+| `screenCaptureController` | `isListening` | Property | a PicasaPy-ban: `app/screen_capture.py` | BELSŐ - az alkalmazásfolyamat figyelőszál-állapota, a QML-nek nem kell megjelenítenie |
+| `screenCaptureController` | `setEnabled` | Slot | a PicasaPy-ban: `app/screen_capture.py` | BELSŐ - a beállítás Python-API-ja a figyelő indításához/leállításához; a felületi beállításvezérlő nincs a #5639 hatókörében |
+| `screenCaptureController` | `shutdown` | Slot | a PicasaPy-ban: `app/screen_capture.py` | BELSŐ - az a PicasaPy-ban: application.py hívja az alkalmazás leállításakor |
+| `secondPreview` | `previewSource` | Property | a PicasaPy-ban: `app/second_preview.py` | FELVÁLTVA - a PicasaPy-ban: PhotoViewerGeometryActions.qml és a PicasaPy-ban: PhotoViewerElotteImage.qml a második előnézetet viewer.masodikEditCtl álnevén olvassa. |
+| `secondPreview` | `beginEdit` | Slot | a PicasaPy-ban: `app/second_preview.py` | FELVÁLTVA - a PicasaPy-ban: PhotoViewerEditWorkflow.qml kétképes szerkesztés indításakor a viewer.masodikEditCtl álnevén át hívja. |
+| `secondPreview` | `endEdit` | Slot | a PicasaPy-ban: `app/second_preview.py` | FELVÁLTVA - a PicasaPy-ban: PhotoViewerEditWorkflow.qml a második szerkesztési állapot lezárásakor a viewer.masodikEditCtl álnevén hívja. |
+| `secondPreview` | `chainValue` | Property | a PicasaPy-ban: `app/second_preview.py` | FELVÁLTVA - a PicasaPy-ban: PhotoViewerEditWorkflow.qml a második szerkesztési láncot a viewer.masodikEditCtl álnevén olvassa. |
+| `secondPreview` | `beginEditInMemory` | Slot | a PicasaPy-ban: `app/second_preview.py` | FELVÁLTVA - a PicasaPy-ban: PhotoViewerEditWorkflow.qml memóriabeli előnézetet ugyanazon viewer.masodikEditCtl álnevén át indít. |
+| `secondPreview` | `persistChain` | Slot | a PicasaPy-ban: `app/second_preview.py` | FELVÁLTVA - a PicasaPy-ban: PhotoViewerEditWorkflow.qml a második szerkesztési láncot a viewer.masodikEditCtl álnevén menti. |
+| `startupStatus` | `busy` | Property | a PicasaPy-ban: `app/startup_status.py` | ELDÖNTVE (#1487) - a nyitóképernyő SZÁNDÉKOSAN a saját `busy: !root.ready` alakját számolja (a PicasaPy-ban: `SplashScreen.qml:42`): egyetlen forrásból (`ready`) vezeti le, így nem lehet a kettő ellentmondásban. A property marad, mert a `report`/`finish` (mindkettő BELSŐ) ugyanennek az objektumnak az indítási API-ja, és a próbák innen olvassák az állapotot. |
+| `startupStatus` | `report` | Slot | a PicasaPy-ban: `app/startup_status.py` | BELSŐ - az indítás lépéseit az a PicasaPy-ban: application.py jelenti be |
+| `startupStatus` | `finish` | Slot | a PicasaPy-ban: `app/startup_status.py` | BELSŐ - az indítás végét az a PicasaPy-ban: application.py jelenti be |
+
+**QML-tagot hordozó, de kontextusból el nem ért osztályok:**
+
+| osztály | hely | indoklás |
+|---|---|---|
+| `FolderListModel` | a PicasaPy-ban: `app/folder_list_model.py` | BELSŐ - a QML a controller.folders tulajdonságon át kapja meg a modellt |
+| `PhotoGridModel` | a PicasaPy-ban: `app/photo_grid_model.py` | BELSŐ - a QML a controller.photos tulajdonságon át kapja meg a modellt |
+| `StartupMaintenance` | a PicasaPy-ban: `app/startup_maintenance.py` | BELSŐ - az a PicasaPy-ban: application.py belső indulási munkasora; a QML csak a fordított állapotüzenetet kapja |
+
+<!-- KEPESSEG_OR:VEGE -->
+
+## 5. Nyitott kérdések mérlege
+
+| kérdés | állapot |
+|---|---|
+| Van-e holt kontextus-objektum? | **LEZÁRVA** - nincs (1.) |
+| Hol szakad a lánc tagszinten? | **LEZÁRVA** - 2. és 4. |
+| Melyik szakadás valódi hiba? | **LEZÁRVA** - négy, jeggyel (2.); a többi elhatárolva (3.) |
+| Megismételhető-e a mérés? | **LEZÁRVA** - igen, de objektumnévvel; a naiv keresés négy néven félrevisz |
+| Legyen-e rá automatikus őr? | **LEZÁRVA** - igen, #1476 |
+
+```
+Nyitott kérdések: 0 nyílt · 5 lezárva · 0 blokkolt · 0 hatókörön kívül · 0 csak-nyitva
+```

@@ -1,0 +1,2827 @@
+# A Picasa fő ablakának elrendezése - a forrásból
+
+> 📐 **A KÖTELEZŐ, teljes méretlista külön lapon:**
+> [`konyvtar-ablak-meretek.md`](konyvtar-ablak-meretek.md) - mind a 156
+> `thumbui`-elem, sávonként, megvalósítási ellenőrzőlistával. Ez a lap a
+> szerkezetet és a levezetést adja, az pedig a számokat.
+
+A `respack.yt`-ből kinyert **140 `.tre` elrendezés-forrásfájl** alapján. Ezek
+a Picasa saját, kényszer-alapú (constraint) UI-leíró nyelvén íródtak, és nem
+képernyőkép-mintavételből származnak - a számok **pontosak**.
+
+Kinyerés:
+
+```bash
+# a PicasaPy-ban: tools/picasa/respack.py
+python3 tools/picasa/respack.py tre \
+    research/copy_Picasa_3_7/Picasa3/runtime/respack.yt <celkonyvtar>
+```
+
+## A legfelső szint - `panelroot.tre`
+
+A gyökér **egymást váltó, teljes méretű panelekből** áll, nem egymásba
+ágyazott dobozokból:
+
+| panel | mikor látszik |
+|---|---|
+| `mainuipanel` | a normál könyvtár-nézet (ez az alapértelmezett) |
+| `makemoviepanel` | filmkészítés |
+| `collagepanel` | kollázs |
+| `acquirepanel` | importálás |
+
+Mindegyik `m_scaleX` (vízszintesen nyúlik) és `YConstraint 0,0,tabdiv` …
+`YConstraint 1,1,0` - vagyis **a `tabdiv` alatti teljes területet elfoglalja**.
+A váltás `showtarget`/`hidetarget` párokkal megy, a `globaltabs` sávról.
+
+Minden panelhez tartozik egy `addtofocus` lista - ez adja meg a
+**billentyűzet-fókusz sorrendjét**.
+
+## A könyvtár-nézet - `thumbui.tre`
+
+### A hiteles méretek
+
+| konstans | érték | mit jelent |
+|---|---|---|
+| **`HLISTOFFSET2`** | **240** | **a bal panel szélessége képpontban** |
+| `searchtop` | 35 | a felső sáv magassága |
+| `publishbottom` | -105 | az alsó sáv magassága (az ablak aljától) |
+| `RIGHTDRAWEROFFSET` | 0 | a jobb fiók szélessége (alapból behúzva) |
+| `LEFTDRAWEROFFSET` | 0 | |
+| `tabdiv` | 0 | a globális fülsáv magassága (alapból nincs) |
+
+> **A bal panel FIX 240 képpont, nem százalék.** A `hlistsizer` elemen ott a
+> `Handler hsplitoffset HLISTOFFSET2` - vagyis **húzható elválasztó**, ami ezt
+> a változót írja át. Az ablak átméretezésekor a bal panel **nem skálázódik
+> arányosan**: a rács nő, a panel marad.
+
+### Az elrendezés
+
+```
+mainuipanel
+├── (felül, 35 px)          fejléc / keresősáv
+├── listdecrect             a bal panel kerete: x 0 … HLISTOFFSET2
+│                           y 35 … alul -105
+├── hlistsizer              a húzható elválasztó (x = HLISTOFFSET2 - 4)
+├── albumsback              a rács háttere: x HLISTOFFSET2 … jobb -RIGHTDRAWEROFFSET
+│                           y 35 … alul -105
+├── right_drawer            jobb fiók (alapból rejtett)
+└── (alul, 105 px)          a képtálca és a vezérlők sávja
+```
+
+### Gyökér szintű (az egész ablakra lebegő) elemek
+
+`largethumbs` · `smallthumbs` · `acquirebutton` · `viewswitch` ·
+`horizonadjust` · `prev` · `next` · `fit` · `morethumbs` · `lessthumbs` ·
+`soloview` · `uploadmgr` · `histogram` · `visitweb` · `circlecursor`
+
+Ezek **nem a panelhierarchia része** - közvetlenül a `root`-hoz kötöttek,
+tehát a panelváltás nem érinti őket.
+
+## Az alsó sáv - `basecontrolset` (2026-08-15, #455)
+
+*Forrás: `thumbui.tre:702` (`thumbui/basecontrolset`).*
+
+Az `ui-audit-mainwindow.md` 5. fejezete ezt a sávot **képernyőképből** írta
+le, és ott is kimondja, hogy a kép **1030 px-nél levágva**, tehát a tálca alsó
+pereme nem mérhető. A forrás ezt kiváltja: a `thumbui.tre` a teljes sávot
+megadja.
+
+A sáv gyökere `thumbui/basecontrolset` (a `mainuipanel` gyereke,
+`m_offsetLRB` - balra, jobbra, alulra kifeszítve), magassága a `publishbottom`
+szerint **105 px**.
+
+### A szerkezeti kulcs: a 36,5 %-os osztópont
+
+A sáv **két részre oszlik**, és az osztópont az ablakszélesség
+**0,365-szöröse**. Ez a szám a fájlban **öt különböző elemnél** ismétlődik -
+nem véletlen, hanem a sáv tartószerkezete:
+
+| elem | X-kényszer | jelentés |
+|---|---|---|
+| `scratchback` (**a képtálca**) | `0, 0, 5` … `1, .365, -15` | bal széltől 5 px → 36,5 % - 15 px |
+| `webupload_rect` (zöld feltöltés-gomb) | `0, .365, -5` … `1, .365, 140` | az osztóponttól **145 px széles** sáv |
+| `outputs` (a műveletsor) | `0, .365, 140` … `1, 1, -10` | a zöld gomb után → jobb szél - 10 px |
+| `separator` | `0, .365, -3` … `1, 1, -17` | y **50-52** px: 2 px vonal, csak a jobb oldalon |
+| `bcenterright` | `0, .365, 0` | ugyanaz az osztópont |
+
+**Vagyis a képtálca az alsó sáv bal harmadát kapja**, a maradékban pedig
+először a zöld feltöltés-gomb ül (fix 145 px), és csak utána jön a
+Nyomtatás/E-mail/Exportálás sor.
+
+### A képtálcán belül
+
+*Forrás: `thumbui.tre:337` (`thumbui/addtobuttcon`, gyerekei `thumbui/dropup_icon` és `thumbui/addto_arrow`) · `thumbui.tre:307` (`thumbui/scratch`) · `thumbui.tre:344` (`thumbui/scratchback`) · `thumbui.tre:326` (`thumbui/scratchclear`) · `thumbui.tre:317` (`thumbui/scratchhold`) · `thumbui.tre:300` (`thumbui/scratchlabel`) · `thumbui.tre:304` (`thumbui/scratchpadbase`).*
+
+```
+thumbui/scratchback                     a tálca kerete
+├── thumbui/scratch                     a bélyegképsor
+│      XConstraint 0, 0, 5              5 px belső margó balról
+│      XConstraint 1, 1, -50            ← JOBBRÓL 50 px SZABADON MARAD
+│      YConstraint 0, 0, 5 · 1, 1, -5   5-5 px fent és lent
+├── thumbui/scratchpadbase
+│   └── thumbui/scratchlabel            „Selection” - m_centerXY (KÖZÉPRE)
+├── thumbui/scratchhold      (+ _icon)  m_offsetRT
+├── thumbui/scratchclear     (+ _icon)  m_offsetRT
+└── thumbui/addtobuttcon                m_offsetRT
+       + dropup_icon + addto_arrow
+       Property customwidth 200 · maxrows 0
+```
+
+A bélyegképsor jobb oldalán **50 képpont van fenntartva** a három gombnak -
+ez a képernyőképen látott „3-gombos oszlop", és a forrás megadja a
+szélességét is.
+
+### A három gomb - IKON, felirat nélkül
+
+*Forrás: `thumbui.tre:317` (`thumbui/scratchhold`).*
+
+A `thumbui_text.tre`-ben mindhárom gomb `Label` sora **ki van kommentelve**
+(`#Label thumbui/scratchhold` / `#Hold`), csak a `Tooltip` él. A gombok tehát
+az eredetiben is **csak ikonok**, buboréksúgóval:
+
+| elem | buboréksúgó (angol) | funkció |
+|---|---|---|
+| `scratchhold` | *Hold selected items* | a kijelölés rögzítése (ne söpörje el a következő) |
+| `scratchclear` | *Clear items from the selection* | a tálca ürítése |
+| `addtobuttcon` | *Add selected items to an Album* | felfelé nyíló menü (`dropup_icon` + `addto_arrow`) |
+
+A `scratchlabel` szövege **`Selection`**, és `m_centerXY` - vagyis üres
+tálcánál a felirat **a tálca közepén** áll, nem a bal szélén.
+
+### A jobb szél - `metadata_group` és `scale_group`
+
+Mindkettő `m_offsetRT` a `basecontrolset`-en (jobb felső sarokhoz kötve):
+
+- **`metadata_group`** - a négy kerek kapcsoló. A kötésekből a sorrend
+  balról jobbra: **`people_toggle` · `places_toggle` · `tags_toggle`**
+  (mind `m_offsetLT`), és jobbra zárva a **`properties_toggle`**
+  (`m_offsetRT`). Ez pontosan a képernyőképen látott személy / hely /
+  címke / infó négyes.
+- **`scale_group`** - `loupehit` (nagyító) + `scalecontainer`
+  (nagyítás-csúszka).
+
+⭐ **A KETTŐ SORRENDJE (#2305):** a lenti koordináta-táblából **545 > 525**,
+vagyis a `scale_group` (366…525) **megelőzi** a `metadata_group`-ot
+(545…785). Balról jobbra tehát: **nagyító → csúszka → négy panelkapcsoló**.
+A számok eddig is itt álltak, de a sorrend nem következett belőlük
+olvasásra, és a QML fordítva rakta ki őket - a tulajdonos képernyőmentése
+mutatta meg. A gombok emellett **kizárólag ikonosak**: a `buttcon_*`
+típusnevek ikon-gombot jelölnek, és a 60 × 24-es cellába a felirat csak
+levágva férne. Nálunk a felirat a buboréksúgóba és az akadálymentesítési
+névbe került (`Accessible.name`).
+
+*Bizonyítottsági fok: megerősített* - a `thumbui.tre` 300-350. és 620-700.
+sorai, a feliratok a `thumbui_text.tre` 94-121. soraiból. A `m_offset*`
+makrók jelentése (a kötési oldal) a kényszerekből egyértelmű, a hozzájuk
+tartozó **alapértelmezett margók számértéke viszont nem szerepel a
+`.tre`-ben** - ahol számot írok fent, az mind explicit `XConstraint`/
+`YConstraint`.
+
+## Eltérés a PicasaPy-tól
+
+⚓ **Horgony (#2628):** az elem a `thumbui.tre:20` sorában áll - a #2182 óta minden elemtáblához kell forrás, különben a lefedettségi mérő NÉMÁN átugorja a szakaszt.
+
+A „nálunk" oszlop **kirajzolva mérve** (#587, a teljes a PicasaPy-ban: `Main.qml`
+1280/1600/1920 px-es ablakban - a mérő őr:
+a PicasaPy-ban: `tests/app/qml_functional/test_fo_ablak_elrendezes_587.py`):
+
+| | eredeti | nálunk | állapot |
+|---|---|---|---|
+| bal panel szélessége | **240 px fix**, húzható | `folderPaneWidth`, alap **240** (`FOLDER_PANE_WIDTH_DEFAULT`, a PicasaPy-ban: `app/controller.py`); kirajzolva mérve 800 / 1280 / 1920 px-en (#3582) | ✅ |
+| a bal panel viselkedése átméretezéskor | **nem skálázódik** | nem skálázódik (mérve: 230 mindhárom ablakszélességen) | ✅ |
+| felső sáv | 35 px | **35 px** (#587 előtt 34) | ✅ |
+| `importbutton` | 111 × 22 | **111 × 22** (#587 előtt 100 × 24) | ✅ |
+| `thumbui/searchcontainer` | 388 × 30 | **388 × 30** (#587 előtt 300 × 24) | ✅ |
+| alsó sáv | 105 px | 20 + 85 = **105 px** | ✅ (#1420) - a magassággal EGYÜTT a tálca-tartalom is átépült: 36,5 %-os osztópont, 81 px-es képtálca, 141 × 35-ös zöld gomb |
+| a sáv belső osztása | 36,5 % | **36,5 %** | ✅ (#1420) - képtálca \| zöld gomb \| műveletsor |
+
+> **A `design-guide.md` két, egymásnak ellentmondó értéket tartalmazott**
+> (386 px ≈ 20 %, illetve 210 px ≈ 26 %), és azt írta, hogy „arányosan
+> skálázandó". **Mindkettő téves volt**: a forrás szerint 240 px, fix,
+> húzható elválasztóval. A képernyőkép-mintavételből származó becslést itt
+> a forráskód felülírja. **A #587 mindkét helyet kijavította** - a
+> `design-guide.md` mostantól a forrásra mutat, és a fix/skálázódó
+> megkülönböztetést is kimondja.
+
+## R2/R3 - a fő könyvtárnézet vezérlőinek szülője és horgonyzása (2026-09-25, #3582)
+
+*Forrás: `thumbui.tre:26-705` (`thumbui/importbutton` … `thumbui/basecontrolset`) · `searchcontainer.tre:1-95` (`searchcontainer/searchbase`, `searchcontainer/filterbase`) · `macros.tre:7-118` (a makrók jelentése).*
+
+A #656 R2 (szülő-konténer) és R3 (horgonyzási osztály) szabálya a `thumbui` panelen. Három forrás:
+
+- **az eredeti szerkezete:** az elemsor `<id>: <szülő>` alakja, és a horgonyzó makrók (`m_offset*` = `MaintainOffset`, `XConstraint`/`YConstraint` = `él, arány, eltolás`);
+- **az eredeti tervezési téglalapja:** a `respack.yt` rétegfejlécei (a PicasaPy-ban: `tools/picasa/respack.py`). A `MaintainOffset` ehhez méri a megtartott eltolást;
+- **az eredeti kirajzolva:** a tulajdonos 1920 px széles Picasa-képernyőképe (`research/testdata/screenshot/Képernyőkép 2026-07-18 150933.png`, magyar Picasa 3.9), pixelre mérve.
+
+A nálunk-oszlopot a TELJES a PicasaPy-ban: `Main.qml` adta kirajzolva (`qml_app_module`), **800 / 1280 / 1920 px** szélességen: minden `objectName` ablak-koordinátája, mérete, láthatósága és szülőlánca.
+
+### A képlet próbája a képernyőképen
+
+A felső sávon két független egyenlet van. A keresőmező bal széle `0,4 · W + 238` (a konténer `XConstraint 0, .4, 0`-ja, benne a `searchbase` `m_offsetLT`-je), a jobb széle `W - 70 + 23` (a konténer `XConstraint 1, 1, -70`-je, és a `searchbase` jobb eltolása a konténer 388-as tervezési szélességéhez: 388 - 411 = -23). A mért keret (1006 … 1872, kizáró 1873) ebből **W = 1920** és **0 bal eltolás** értéket ad, egész számra. A másik jelölt szerint a jobb eltolást a `searchcontainer` saját, 425-ös `docbounds`-a adja (425 - 411 = 14). Ez nem egész `W`-t adna (1981,7), és az ablak a képernyőnél is szélesebb lenne, tehát kiesik.
+
+Ugyanez a keret minden más mért ponton egyezik: Importálás 6, új album 124, nézetváltó 160, ▾ 225, webkamera 254, a gombok teteje a panel tetejétől 9. Lent a csillag `S - 3` (698), a két forgatógomb `S + 38` és `S + 75`, a tálcagombok 644 … 678, a nagyító ikonja 1488, a négy kapcsoló 1666 … 1905 (`S = 0,365 · W`).
+
+### Az összevetés - párosított és látható vezérlők
+
+| elem | eredeti szülő · horgony (`thumbui.tre`) | nálunk szülő · horgony (mérve) | R2 | R3 | teendő |
+|---|---|---|---|---|---|
+| `importbutton` | `mainuipanel` · LT, x 6 y 9 (`:452`) | `mainToolbar` `RowLayout` · x 8 y 7 (a PicasaPy-ban: `MainToolbar.qml:97`) | ⚠️ nálunk a gombsorban, eredetiben a `buttonbarsets` testvére - látható hatás nélkül | ✅ fix bal · ❌ +2 | #3603 |
+| `newalbum` | `buttonbarsets` · LT, x 124 (`:375`) | ua. `RowLayout` · x 129 (`:143`) | ✅ | ✅ · ❌ +5 | #3603 |
+| `hviewtoggle` → `flatview`, `folderview` | `buttonbarsets` · LT, x 160 / 190 (`:406-415`) | `toolbarFolderViewToggle` · 168 / 198 (`:179`) | ✅ | ✅ · ❌ +8 | #3603 |
+| `folderviewpopup` | `buttonbarsets` · LT, x 225 (`:421`) | ua. · x 238 (`:250`) | ✅ | ✅ · ❌ +13 | #3603 |
+| `searchcontainer` + belül `filterbase`, `searchbase` | `buttonbarsets` · `0,4·W` … `W - 70` (`:352-355`); benne szűrők LT, mező LTR, 24 magas | szűrőzóna + 388 × 30 doboz, jobbra tolva (`:350`, `:670`) | ✅ | ❌ **arányos + kifeszített ↔ fix szélességű, jobbra tolt**; 1920-on a szűrők 1144-nél (eredeti 766), a mező 1408 … 1796 (eredeti 1006 … 1872) | #3603 |
+| `startoggle`, `rotateleft`, `rotateright` | `bcenterright` (2 px széles, `S`-en) · RT (`:225-245`) | `trayStarGroup` < `trayTopRow` < `trayRightPane` (`S`-en) (a PicasaPy-ban: `TrayBar.qml:1083`) | ⚠️ két burkoló réteg, látható hatás nélkül | ✅ `S - 3` / `S + 38` / `S + 75`, javítva #3602 | - |
+| `scratchhold`, `scratchclear`, `addtobuttcon` | `scratchback` · RT, jobbról 7 (`:317-337`) | `trayScratchBack` · jobbról 7, javítva #3602 (`:887-946`) | ✅ | ✅ | - |
+| `scratch` | `scratchback` · 5 … -50, 5 … -5 (`:307`) | `trayScratchStrip` · 5 … -50, 5 … -5 (`:607`) | ✅ | ✅ | - |
+| `scratchlabel` | `scratchpadbase` (a `scratchback` LRB-kitöltője) · középen (`:300-304`) | `trayScratchBack` · `anchors.centerIn` (`:864`) | ⚠️ a díszítő `scratchpadbase` réteg hiányzik - ugyanakkora doboz | ✅ | - |
+| `scale_group` → `loupehit`, `scalecontainer` | `basecontrolset` · RT, jobbról 275; `loupehit` + 7 + 127 (`:286-294`) | `trayZoomGroup` · a kapcsolók bal széléhez -20, javítva #3602; a nagyító és a csúszka között 7, a fölösleges `-`/`+` jel eltávolítva (`:1386-1498`) | ✅ | ✅ | - |
+| `metadata_group` → a négy kapcsoló | `basecontrolset` · RT, jobbról **15** (`:258-283`) | `trayMetadataGroup` · jobbról 15, javítva #3602 (`:1279`) | ✅ | ✅ | - |
+| `webupload_rect` | `basecontrolset` · `S - 5` … `S + 140` (`:646`) | `trayUploadSlot` · `S - 5`, 145 széles, javítva #3602 | ✅ | ✅ | - |
+| `outputs` | `basecontrolset` · `S + 140` … `W - 10` (`:629`) | `trayActionRow` · `S + 140`, a befogadóképességet `W - 10`-hez méri (a PicasaPy-ban: `TrayBar.qml:432-466`) | ✅ | ✅ | - |
+| `separator` | `basecontrolset` · `S - 3` … `W - 17`, y 50 … 52 (`:623`) | `traySeparator` · ua., mérve | ✅ | ✅ | - |
+| `infotext_clip` | `basecontrolset` · 20 … `W - 20`, felül (`:690`) | `trayInfoText` · 20 … `W - 20` | ✅ | ✅ | - |
+| `listdecrect` + `hlistsizer` | `mainuipanel` · 0 … 240, húzható (`:441`, `:516`) | `folderPane` a `SplitView`-ban · 240 mindhárom szélességen | ✅ | ✅ | a korlátok: 6. szakasz |
+| `throttlegroup` (a rács görgetősávja) | `albumsback` · jobb él 0 (`:158`) | `feedScrollBar` a `photoGrid`-ben · az ablak szélétől 26 | ⚠️ | ❌ | #3604 |
+| `single_action_group` („Továbbiak…” sáv) | `single_action_container` · **középen** (`m_centerXY`, `:666`) | `traySingleActionGroup` · 481 széles, `anchors.centerIn` a sávban; belül 2 · 335 · 9 · 109 · 3 · 18 · 5 (1920-on a × jobb széle 1537) | ✅ | ✅ | #3605 |
+
+Az osztály mindenhol egyezik, ahol a sor ✅-t kap. A ❌ számértéke a mért eltérés: az eredeti képlet és a mi kirajzolt helyünk különbsége képpontban, pozitív, ha nálunk jobbrább áll.
+
+### Nem látható vagy feltételes elemek - külön sorban
+
+| elem | az eredeti állapota | nálunk | verdikt |
+|---|---|---|---|
+| `largethumbs`, `smallthumbs` | `m_render_offscreen` - a vásznon kívül (`XConstraint 0, 0, -9999`), parancs-proxi (`:26-31`) | a Nézet menü két tétele | nincs R2/R3-tárgy |
+| `newfolder`, `timelinebutton`, `sbutton`, `backup`, `cdmode` | `m_hidden` - a kiadott felületen nem látszik; a parancsútjuk él (`0x005d9cc0`) | menütételek | `ui-audit-mainwindow.md` R6 - nincs R2/R3-tárgy |
+| `fullview` / `albumview` | `buttongroup1` · LT (5, 5); `m_fakehidden` / `m_hidden` | a `Ctrl+3` út | a feloldó esemény: `ui-audit-mainwindow.md` R7 |
+| `webcambutton` | `mainuipanel` · LT, x 254; **látszik, alapból tiltva** (`m_webcambuttonDefaultState` = `Property disable 1`, `thumbuimacros_win.tre:10`) | nincs | a funkció jegye: #466 |
+| `single_action_*` | `m_hidden`; a „Továbbiak…” klipgyűjtő mód mutatja | `traySingleActionBar`, ugyanabban a módban | a fenti táblában (#3605) |
+
+⚠️ **A #423 szűk ablakos elrejtése saját alkalmazkodás.** Nálunk 800 px-en a `newalbum`, a nézetváltó pár, a ▾ és a szűrőzóna **nem látszik** (mérve: `visible=False`), mert a sávnak egy csíkban kell maradnia. Az eredetiben ezek fix bal horgonyú elemek, és nincs rejtési feltételük. A #3603 kimondja, hogy ez csak ott maradhat meg, ahol az eredeti képlete már nem fér ki.
+
+*Bizonyítottsági fok: megerősített.* Az eredeti oldalon a `.tre` kényszere, a `respack.yt` téglalapja és a képernyőkép pixelmérése egymástól függetlenül ugyanazt adja. A nálunk-oldal kirajzolt ablakban mért érték, nem a QML-szövegből számolt. Kivétel a #3605 sora: ott a mi helyünket a kódból számoltam (`anchors.right: parent.right`, `rightMargin: 16`).
+
+## Elérhető, még fel nem dolgozott elrendezések
+
+A 140 fájlból eddig a `foldermgr`, a `panelroot` és a `thumbui` van
+feldolgozva. További, közvetlenül hasznos források:
+
+`editpanel` (szerkesztő) · `oneup` (nagy nézet) · `headerpanel` ·
+`peoplepanel` · `tagpanel` · `searchoptions` · `printpanel` ·
+`collagepanel` · `makemoviepanel` · `slideshowctrls` · `moviecontrols` ·
+`video_control_bar` · `propertiespanel` · `nav` · `rightdrawerpanel`
+
+Mindegyik ugyanígy pontos geometriát ad.
+
+## A beállítás-nyilvántartó és a 39 alapérték (`0x006e0cb0`, 2026-08-16)
+
+Egyetlen 590 bájtos függvény regisztrálja a Picasa **globális
+beállításait** az alapértékükkel együtt. A minta végig azonos:
+
+```asm
+push  <alapérték>
+push  esi                        ; a beállítás-nyilvántartó
+mov   eax, <"kulcs">
+call  0x006e0a70                 ; regisztrálás
+```
+
+Ez az **igazságforrás az alapértékekre**: ezek lépnek életbe, ha a
+registryben nincs érték.
+
+### Logikai beállítások
+
+| kulcs | alapérték | mit kapcsol |
+|---|:---:|---|
+| `AutoUpgradeCheck` | **1** | frissítés-ellenőrzés |
+| `AutoUpgradeAsk` | **0** | rákérdezés frissítés előtt |
+| `AutoInfoCheck` | **1** | információ-ellenőrzés |
+| `UITransitions` | **1** | felületi átmenetek (animáció) |
+| **`ShowTooltips`** | **1** | **buboréksúgók** |
+| `SingleClickExit` | **0** | egykattintásos kilépés |
+| `disposepreviews` | **0** | előnézetek eldobása |
+| `DoNotConfirmDeleteFromDisk` | **0** | „ne kérdezz lemezről törléskor" |
+| `DoNotConfirmRemoveFromAlbum` | **0** | „ne kérdezz albumból eltávolításkor" |
+| `autoexclude` | **1** | automatikus kizárás |
+| `PrintProxyPreview` | **1** | nyomtatási előnézet proxyval |
+| `PWAStarred` | **0** | webalbum: csillagozottak |
+| `PWASyncOrder` | **1** | webalbum: sorrend szinkronizálása |
+| `PWAStriped` | **0** | webalbum: csíkozott |
+| `PWAUseHiQualityJPEG` | **0** | webalbum: jó minőségű JPEG |
+| `LoopSlideshow` | **0** | diavetítés ismétlése |
+| `PlayMP3Tracks` | **1** | MP3-sávok lejátszása |
+| `BgFaceDetectThread` | **1** | háttér-arcfelismerés |
+| `FRAddSuggesetions` | **1** | arcjavaslatok *(a **név elgépelve** az eredetiben!)* |
+| `FREnableUploads` | **1** | arcfelismerés: feltöltés |
+
+### Támogatott fájltípusok
+
+| kulcs | alapérték |
+|---|:---:|
+| `SupportTIF` | **1** |
+| `SupportWEBP` | **1** |
+| `SupportBMP` | **1** |
+| `SupportPSD` | **1** |
+| `SupportRAW` | **1** |
+| **`SupportGIF`** | **0** |
+| **`SupportPNG`** | **0** |
+| `SupportTGA` | **0** |
+| `SupportAudio` | **0** |
+| `SupportMovies` | *(számított)* |
+| `SupportQuicktime` | *(számított)* |
+
+#### ⚠️ MÉRÉS a tulajdonos valódi katalógusán - és egy MEGDŐLT állítás a saját kódunkban (2026-09-04, #2344)
+
+A fenti kapcsolók **nem elméletiek**: a tulajdonos 2026-08-22-i
+katalógusában (2776 valódi fotósor) a kiterjesztések megoszlása
+
+| kiterjesztés | darab |
+|---|---:|
+| `jpg` | 2416 |
+| `bmp` | 206 |
+| `png` | 125 |
+| `mp4` | 17 |
+| `jpeg` | 8 |
+| `tif` | 3 |
+| **`webp`** | **1** |
+
+⇒ **A Picasa 3.9 INDEXELI a WebP-t.** A bizonyíték háromszoros:
+
+1. a **`SupportWEBP` alapértéke 1** (a fenti tábla, `0x006e0cb0`);
+2. a bináris ismeri a kiterjesztést: `.webp` (`0x00467ca0`),
+   `*.webp;` a szűrőlistában (`0x00520220`), `*.webp` (`0x005e6a20`);
+   a `SupportWEBP` kulcs **hat** függvényben szerepel, köztük a
+   beállítás-nyilvántartóban és a Beállítások-kezelőben (`0x006e1100`);
+3. a tulajdonos valódi `thumbindex.db`-jében **ott van egy `.webp` fájl**
+   - tehát a Picasa a gyakorlatban is beolvasta.
+
+⛔ **Ezzel MEGDŐLT a saját kódunk állítása.** A
+a PicasaPy-ban: `src/picasapy/scanner/filetypes.py` fejléce ezt írja:
+
+> *„A WebP szándékosan hiányzik - a Picasa nem támogatta; felvétele
+> későbbi, tudatos bővítés lehet."*
+
+A `PHOTO_EXTENSIONS` valóban nem tartalmazza a `.webp`-t (`:12-14`),
+tehát a szkennerünk **nem is látja** ezeket a fájlokat. Jegy: **#2344**.
+
+⚠️ **Amit ez NEM mond meg:** a `SupportGIF` és a `SupportPNG` alapértéke
+**0**, a katalógusban mégis **125 PNG** van. Vagyis a kapcsoló vagy be lett
+kapcsolva, vagy nem a beolvasást vezérli - **ez NINCS mérve**, és a
+a PicasaPy-ban: `filetypes.py` feltétel nélküli szűrőjével együtt külön kérdés (a jegy
+külön pontja).
+
+#### A `Support*` kapcsolók HATÓKÖRE - mérve (2026-09-04, #2344)
+
+A fenti kérdés első fele eldőlt: **hol olvassa a program ezeket a
+kulcsokat?** Négy olvasó van, mindegyik megnevezve:
+
+| olvasó | hány kapcsolót olvas | mi ez a függvény - a SAJÁT sztringjei alapján |
+|---|---:|---|
+| **`0x00520220`** (2938 b) | 10 | a **fájlmegnyitó szűrője**: `CAcquireUI::picsfilter`, `CAcquireUI::picsmovfilter`, `CAcquireUI::allfilesfilter`, és a kiterjesztés-csoportok (`*.jpg;*.jpe;*.jpeg;`, `*.bmp;`, `*.psd;`, `*.tif;*.tiff;`, **`*.webp;`**, `*.gif;`, `*.png;`, `*.tga;`, a videós lista) |
+| **`0x0051ceb0`** (901 b) | 10 | kapcsoló-maszkot épít; **hívói:** `0x0051d270` (`import_share`) és `0x0070b050` (`acquirepanel/importstatus1`/`2`) ⇒ az **importálás** ága |
+| **`0x004e04a0`** (1256 b) | 12 (`SupportTXT`-vel) | hívója `0x004183c0` |
+| **`0x004183c0`** (1390 b) | 7 | **indulási/adatbázis-ág**: `Other Stuff`, `#db3\`, `dbVersion`, `RootPath`, `Filters`; hívója `0x00402f90`, a gyűjtemény-nevek helye (`Folders on Disk`, `Hidden Folders`, …) |
+
+A kulcsnevek adatcímei: `SupportBMP` `0x00c80fd4` · `SupportPSD`
+`0x00c80fe0` · `SupportTIF` `0x00c80fec` · **`SupportWEBP` `0x00c80ff8`** ·
+`SupportPNG` `0x00c81004` · `SupportGIF` `0x00c81010`.
+
+⇒ **Mind a négy olvasó az IMPORTÁLÁS/megnyitás vagy az indulás ágán van.**
+Ez egybevág a mérési ellentmondással: a `SupportPNG` alapértéke **0**, a
+tulajdonos katalógusában mégis **125 PNG** van - a kapcsoló tehát nem
+egyszerűen „ez a formátum bekerül-e a katalógusba" jelentésű.
+
+⚠️ **Ami NYITVA marad (örökölt, a munkasorba került):** hogy a **figyelt
+mappák pásztázása** egyáltalán megnézi-e ezt a maszkot. Ehhez a pásztázó
+ágat kell azonosítani, és megmutatni, hogy nem hívja a `0x0051ceb0`-t (vagy
+hívja). **A négy olvasó közt nincs pásztázó függvény** - de ez negatív
+állítás egy nem kimerítő listán, ezért nem elég.
+
+**Következmény a mi oldalunkra (a #2344-hez):** a szűrőnk feltétel
+nélküli, és a tulajdonos katalógusa szerint az eredeti is **indexeli** a
+PNG-t és a BMP-t az alapérték ellenére ⇒ **NE építsünk kapcsolókat** a
+a PicasaPy-ban: `filetypes.py`-ba emiatt; a #2344 hatóköre marad a `.webp` felvétele.
+| `SupportQuicktime` | *(számított)* - `0x006e0e1c`: egy vizsgálat eredménye (`setne al`), tehát **„van-e telepítve QuickTime"** |
+
+##### PONTOSÍTÁS: a kapcsolók a FÁJLTÍPUS-TÁBLÁT építik, induláskor (2026-09-04)
+
+A 96. kör azt írta, hogy mind a négy olvasó „az importálás/megnyitás vagy
+az indulás ágán ül". Ez igaz, de a **súlyozás félrevezető volt**: az
+indulási ág nem mellékes, mert ott épül a program **fájltípus-táblája**.
+
+A lánc mérve:
+
+```
+0x00402f90  (gyűjtemény-/adatbázis-indulás)
+  → 0x004183c0  (Preferences, #db3\, dbVersion, RootPath, Filters)
+    → 0x004e04a0  (a 12 Support* kapcsolót olvassa)
+      → 0x004fadb0  ugrótábla: jmp [eax*4 + 0x004fb948] - 30 bejegyzés
+        → 0x004fa590  a kiterjesztést BESZÚRJA egy táblába
+```
+
+- a `0x004e04a0` formátumonként `push <index>` / `mov eax,<index>` párral
+  hívja a `0x004fadb0`-t (pl. `7`/`9`, `0x1b`/`0x1d`) - a hívás **a
+  kapcsoló értékétől függ**;
+- a `0x004fadb0` egy **30 bejegyzéses ugrótáblán** (`0x004fb948`) ágazik
+  el, és formátumonként a **kiterjesztés-sztringeket** adja tovább:
+  `.jpg` (`0x00c80a50`), `.jpeg` (`0x00c86408`), `.jpe` (`0x00c86400`), …;
+- a `0x004fa590` ezeket egy objektum **`+0x3dc` (tömb) / `+0x3e0`
+  (darabszám)** mezőjébe fűzi.
+
+⇒ **A `Support*` kapcsolók tehát azt vezérlik, mely kiterjesztések kerülnek
+be a program fájltípus-táblájába - induláskor, nem csak az importáló
+párbeszédben.**
+
+✅ **A lánc utolsó szeme lezárva (#7329):** a figyelt mappák feldolgozója
+olvassa ezt a táblát. A `0x004e2cc0` a fájl kiterjesztését a `+0x3dc`
+(tömb) / `+0x3e0` (elemszám) listával hasonlítja össze; a
+`0x004fb9c0` ezt az eredményt használja az éppen támogatott kiterjesztésen
+kívüli nyilvántartott rekordok kezelésére. Az eredmény csak az eredeti
+folyamat memóriabeli rekordkezelését bizonyítja; a lemezen lévő fájl vagy az
+SQLite-katalógus törlését nem.
+
+*(Ez nem cáfolja a #2344 következtetését: a mi feltétel nélküli szűrőnk
+továbbra is helyes választás, mert a tulajdonos katalógusa szerint az
+eredeti a PNG-t és a BMP-t az alapérték ellenére is indexeli.)*
+
+> ⚠️ **A PNG és a GIF alapból KI van kapcsolva.** Ez ellentmond a
+> megérzésnek, de a kód egyértelmű: `0x006e0e83 push 0` → `SupportPNG`,
+> `0x006e0e76 push 0` → `SupportGIF`.
+
+#### A fájltípus-kapcsolók OK utáni hatása (#7329, 2026-11-20)
+
+Az Opciók kezelője (`0x005cf5b0`) a módosított kapcsoló értékével
+frissíti a fájltípus-táblát a `0x004fadb0` útján, majd az OK eseményben
+feltételesen meghívja a két rekordkezelő út egyikét. A kezelőben hamisnak
+vizsgált értéknél a `0x005cfd67`-nél hívott `0x004fb9c0` fut; igaznak
+vizsgált értéknél a `0x005cfd7e`-nél hívott `0x004efb40`. A
+`0x005cfd8f`-nél mindkét ágat követően meghívott `0x004ebe40` zárja a
+szakaszt. E címeket a dekompilált hívó és az utasításszintű hívási sorrend
+is megerősíti.
+
+- **Kikapcsolás:** a `0x004fb9c0` a nyilvántartott rekordokat vizsgálja;
+  a `0x004e2cc0` a rekord kiterjesztését a frissített `+0x3dc` / `+0x3e0`
+  listával hasonlítja össze, és nem találatkor igaz eredményt ad. Az ilyen
+  rekord útja a `0x004f9450` állapotkezelő (itt nulla argumentumokkal), a
+  `0x0040fae0` belső rekordművelet és a nyilvántartott darabszám
+  csökkentése; a rutin ezután figyelőjelzést küld. Ez **memóriabeli
+  rekordkezelés**, nem a fényképfájl törlése. A vizsgált út az SQLite-sor
+  törlését sem bizonyítja.
+- **Bekapcsolás:** a `0x004efb40` beállítja az érintett rekordok
+  állapotjelzőit, majd az objektum `+0x33c` / `+0x340` útvonal-/kéréslistájának
+  elemeire `0x004e31a0`-t hív. A `0x004e31a0` az útvonalat callback-adatba
+  csomagolja és a feldolgozó objektum virtuális metódusát hívja. Tehát az OK-kezelő
+  **azonnal beadja a feldolgozási kérést**; a tényleges háttérmunka
+  befejezési ideje és az index tartós módosításának szabálya a statikus
+  forrásból **NINCS MEG**.
+- **Bizonyíték és korlát:** a közvetlen út a `2026-11-20-koteg-574-579.txt`
+  Ghidra-kimenetben, a `0x004e2cc0` 112 bájtos helyi diszasszemblálása pedig
+  az eredeti binárisban olvasható. Ettől függetlenül a fenti indulási lánc
+  megmutatja a `+0x3dc` / `+0x3e0` tábla írását (`0x004fa590`), a helyi
+  diszasszemblálás pedig ennek a táblának az olvasását; a két adatút
+  egyezik. A cáfoló ellenőrzés a kikapcsoló ág fájl- vagy adatbázis-törlésként
+  való olvasatát próbálta igazolni, de a teljes vizsgált hívási út csak
+  memóriabeli állapotot, darabszámot és figyelőjelzést mutatott.
+
+**PicasaPy-összevetés, fejlesztési eltérés** *(⚠️ 2026-11-21: a "nincs
+`_start_rescan`" mondat a #7338 óta elavult, az OK ma `controller.rescan()`-t
+hív; lásd a lenti #7339 alszakaszt)*: az a PicasaPy-ban: `OptionsDialog.qml`
+piszkozat-írói az OK alatti `optionsDraft.commit()` során hívják a
+`setFileTypeEnabled`-et. A PicasaPy-ban: `library_controller_folders.py` QSettings-be
+menti az új értéket, és frissíti a következő scan szűrőpillanatképét;
+a PicasaPy-ban: `controller.py` `saveOptionSettings` hívása csak a teljes elfogadott
+beállításképet menti. Ezen az elfogadási útvonalon nincs `_start_rescan`;
+a teljes újraolvasás külön `rescan()` belépési ponttal indul
+(a PicasaPy-ban: `library_controller_sync_rescan.py`). A PicasaPy ezért az elfogadott
+szűrőt a következő pásztázásra készíti elő, de OK után nem kezdi el a már
+ismert könyvtár azonnali egyeztetését. A következő teljes újraolvasás a
+szűrőaláírás változása miatt a mappákat újraellenőrzi; a `sync_folder`
+csak az engedélyezett médiákat veszi fel, a `_prune_photos` pedig törli az
+indexből az olyan fotósorokat, amelyek nem szerepelnek az új szkennelési
+eredményben. Ha nem marad engedélyezett média és `.picasa.ini` sincs,
+az üres mappasor is kikerül. Ezek indexbeli műveletek, a fotófájlokat nem
+törlik. Az eredeti Picasa azonnali útjának tartós SQLite-szemantikája ettől
+függetlenül **NINCS MEG**.
+
+##### #7339: a `0x004e31a0` visszahívás célja és a fájltípus-váltás hatása a katalógusra (statikus folytatás, 2026-11-23)
+
+**Hatókör és bizonyosság.** Bináris: `Picasa3.exe`, SHA-256
+`644b7bec89a2e4d57d119d15aa36af1df12a4c3547b692bc0462af35a93ddc96` (a helyi
+másolat bitre egyezik az indexeltével). A korábbi statikus vizsgálat
+`picasa_dis.py` / `pe_dis.py` (capstone), a bináris-index (`functions`,
+`xrefs`, `imports`, `rtti`, `string_xrefs`), a vtáblák és az IAT közvetlen
+kiolvasására, valamint három teljes `.text` pásztázásra épült (a `paszta.py`-val,
+egyenként 2 884 879 utasítás, csúcs-RSS 49 MiB). Ehhez a folytatás a
+Ghidra-dekompilátumból (580-585. köteg) a teljes `0x004ea360`, `0x0055ff80` és
+`0x0055ece0` dekompilátumát olvasta át, és az eredetivel egyező SHA-256-ú
+binárison célzottan ellenőrizte a `0x0055ff50`, `0x0055ff70`, `0x004f9450`,
+`0x004fbb30` és a mappa-dátum íróút döntő utasításait. Az eredetit nem
+futtattam. A futtatott felmérés (M4a, Colab `job-799`) a File Types fül
+állapotát mérte, eredménye a lenti K. szakaszban van; a katalógus sorsát
+mérő váltásmérés (M4b, `job-822..825`) lefutott, kiértékelése a K. szakaszba
+kerül. A független újralevezetés (#140) **nem** futott le, ezért a fokok
+egyetlen, közvetlen olvasatra vonatkoznak.
+
+**Rövid válasz.**
+
+1. A `0x004e31a0` a katalógushoz nem nyúl. Egy beolvasási kérést (útvonal és
+   két argumentum) a szkenner `+0x298` várólistájára tesz, majd a beágyazott
+   változásfigyelő `+0x344` objektumának vtábla-4. helyét hívja; ez
+   a `0x00706190`, vagyis `SetEvent`. A `0x004e31a0` és a célja sem hív fájl-,
+   registry- vagy adatbázis-API-t. **Megerősített.**
+2. A felébresztett szál a szkenner főfüggvénye (`0x004ebff0`), amely a
+   `0x004ea360`-nal dolgozza fel a sort. A bekapcsolás hatása tehát
+   **aszinkron**, a szkennerszálon jelentkezik; az OK-t nem blokkolja. **Erős.**
+3. A kikapcsolás ága (`0x004fb9c0`) **nem** használja a `0x004e31a0`-t és nem
+   ébreszt szálat: az OK szálán, szinkron veszi ki a rekordokat a memóriabeli
+   táblából, és ugyanott értesíti a regisztrált figyelőt (`DBLoader`). **Erős.**
+4. Kikapcsoláskor a `0x0055ff50` (DBLoader vtable 1. helye) a
+   `0x006d4710` útján a memóriabeli sor állapotát 4-re állítja, majd
+   nézetértesítést küld. A `0x0055ff70` (vtable 2. hely) a `0x00419240`
+   útján az érvényes rekordok memóriabeli bájttömbjét frissíti; ezt a
+   `0x004fbb30` hívja a kikapcsoló ágban szinkron az OK-szálon, és a
+   szkenner befejezésénél is az aszinkron szkennerszálon. E két közvetlen
+   kezelő törzsében nincs tartós íróhívás. **Megerősített.**
+   **Erős:** a `0x0055ff80` és `0x0055ece0` külön DBLoader vtable-metódusok
+   (4. és 0. hely), nem e két kezelő közvetlen hívottjai. Mindkettőnek van
+   feltételes `0x00441e00` hívása; ez a `0x00441ac0` útján a helyi mappa
+   dátumát írhatja a CThumbDB adatbázisába, nem a kikapcsolt fotósort és nem
+   a `.picasa.ini`-t. **Erős az íróút, feltételes, hogy a fájltípus-váltás
+   elindítja ezt a külön mappadátum-ágat.**
+   **M4b-mérés (megerősített kimenet):** a `job-823` kikapcsolt állapotában
+   a `teszt-video.wmv` rekord a `thumbindex.db` 37. sorában megmarad
+   (`valid=1`, `size=45537`), miközben az előtte levő AVI-sor kiürül; a fájl
+   2229-ről 2214 bájtra változik. A `job-824` visszakapcsolásakor az AVI
+   csempe visszatér, de a záró db3-ben az AVI-sor továbbra is üres, a WMV-sor
+   megmarad. A WMV-sor megmaradása a Movies-kapcsolóról **nem** mond semmit:
+   a kontroll (`job-822`) nézete 25 elemet mutat, a 24 kép mellett egyetlen
+   videót, a `teszt-video.avi`-t; a WMV (és az MP4) bekapcsolt Movies mellett
+   sem jelenik meg, a sora `kind=4`, az AVI-é `kind=8`. A Movies-csoportba
+   tartozó, megjelenített videó (AVI) sora tehát kikapcsoláskor kiürül.
+   **NYITOTT KÉRDÉS:** a `0x006d4710` által 4-esre állított
+   sorállapot későbbi olvasója és a tartós író útja nincs megnevezve. A
+   `job-825` újraindítás utáni pillanatképe a 51 fájlból csak 10-et tartalmaz,
+   és a `thumbindex.db` hiányzik, ezért a stabil újraindítás utáni sors nem
+   dönthető el.
+
+**A. A `0x004e31a0` teste (megerősített).** Hívási forma: a fogadó
+(`ytDirScanner*`) a vermen, az útvonal C-sztring `edx`-ben, két további
+veremargumentum (bájt, dword), `ret 0xc` (`0x004e325f`).
+
+| Lépés | Cím | Mit tesz |
+|---|---|---|
+| útvonal másolása | `0x004e31ce`-`0x004e31d3` | hossz kiszámítása, CString-másolat (`0x00985ff0`); a hivatkozásszámláló-műveletek (`0x004e31f8`: `KERNEL32!InterlockedIncrement`) csak a sztring-csomagoló dolgai, nem fájlrendszer-hívások |
+| rekord összeállítása | `0x004e3229`-`0x004e322d` | a bájt típusú argumentum kétszer egy helyi rekordba (útvonal + két bájt) |
+| sorba állítás | `0x004e3232`-`0x004e3238` | `lea eax,[ebp+0x298]` + `call 0x006da030`: a rekord és a dword-argumentum a fogadó `+0x298` listájára; a `0x006da030` a lista zárolásával kezd (`GetCurrentThreadId`, `0x006da03d`-`0x006da077`) |
+| ébresztés | `0x004e323d`-`0x004e324c` | `mov eax,[ebp+0x344]` / `mov edx,[eax+0x10]` / `lea ecx,[ebp+0x344]` / `call edx` |
+
+A `0x006da030` teljes teste nem olvasott; hogy hozzáfűzés, a hívási formából és
+a lista típusából következik (feltételes-erős). Hívói (11 függvény):
+`0x004e62d0`, `0x004e7d10`, `0x004e8bc0`, `0x004e9400`, `0x004ea360`,
+`0x004ebff0`, `0x004efb40`, `0x004efde0`, `0x004f1df0`, `0x004f6a20`,
+`0x004fdd10`. Tehát ez a szkenner **általános kérés-beadó alapművelete**, nem az
+OK-kezelő sajátja; az argumentumpárok a hívás címével: `(1,1)` (`0x004efc71`, `0x004ec516`,
+`0x004ec78d`, `0x004eb56d`), `(0,1)` (`0x004eb34b`, `0x004eb362`) és `(0,0)`
+(`0x004eb93f`).
+A két argumentum jelentése **NINCS MEG** (N6).
+
+**B. A fogadó objektum azonosítása (megerősített).** A `0x004e41f0`
+konstruktor:
+
+- `[ebp]=0xc86be0`, `[ebp+0x54]=0xc86c14`, `[ebp+0x58]=0xc86c28`
+  (`ytDirScanner`, `0x004e423e`-`0x004e424c`);
+- `[esi]=0xc86d38` `esi=ebp+0x298`-cal: a `+0x298` egy `ytScanList`
+  (`0x004e42c1`, `0x004e42e0`);
+- `+0x2ec`: `ytArray<CChangeLogger*>` (`0xc86df4`, `0x004e42f6`);
+- `+0x344`: `lea eax,[ebp+0x344]` + `call 0x004e16f0` (`0x004e4302`-`0x004e4314`).
+
+A `0x004e16f0` az `esi=eax` objektumot építi: `[esi]=0xc86c74`
+(`ytDirScannerChangeList`, `0x004e16f9`), `[esi+0x14]=CreateEventA(0,0,0,0)`
+(`0x004e170d`-`0x004e1714`: négy nulla argumentum, vagyis névtelen,
+automatikus visszaállítású, jelzetlen esemény), `[esi]=0xc86c94`
+(`ytDirScannerChangeListWindows`, `0x004e171c`), majd a `0x004e1740` az
+eseménykezelőt a `+0x18` tömb **0. elemeként** fűzi be (`0x004e17c1`-`0x004e17c9`;
+a számláló `+0x1c`, előtte nullázva: `0x004e1722`, `0x004e1725`).
+
+Az EXE-ből kiolvasott vtáblák (a `-1`. hely a RTTI-mutató):
+
+| vtábla | [0] | [1] | [2] | [3] | [4] | [5] | [6] |
+|---|---|---|---|---|---|---|---|
+| `0xc86c74` (`ytDirScannerChangeList`) | `0x4e16d0` | `0x4e0f00` | `0x705d00` | `0x4e0f60` | **`0x706190`** | `0x7061a0` | `0x709430` |
+| `0xc86c94` (`...Windows`) | `0x4e1f70` | `0x4e17f0` | `0x7061c0` | `0x4e1890` | **`0x706190`** | `0x7065f0` | `0x706680` |
+
+A cél, a `0x00706190`: `mov eax,[ecx+0x14]` / `push eax` /
+`call [0xc4031c]` / `ret`, az IAT-mutató pedig `KERNEL32!SetEvent` (a mutató
+tartalma `0x00921cea`, az importjegyzék szerint `SetEvent`). **A visszahívás
+tehát nem "indexelés", hanem az eseményjelzés.**
+
+**C. A felébresztett szál (erős).** A `0x004ebff0` a `ytDirScanner` vtábla
+2. helye (`0xc86be0`, és a `...Windows` `0xca81f8` is), `CoInitializeEx`
+(`0x004ec013`) és `CoUninitialize` (`0x004ec7e5`) között; a főciklus:
+
+- **Várakozás** (`0x004ec62a`-`0x004ec62e`): a `+0x344` objektum vtábla-5.
+  helye = `0x007065f0` = `WaitForMultipleObjects(n=[this+0x1c]>>1,
+  [this+0x18], FALSE, időkorlát)` (`0x00706617`, IAT `0x00c4039c`);
+  az időkorlát a `bl` jelzőtől függ: `bl != 0` esetén `-1` (végtelen),
+  `bl == 0` esetén `0x3e8` (1000 ms) (`0x004ec60d`-`0x004ec622`: `neg bl` / `sbb` /
+  `and 0xfffffc17` / `add 0x3e8`); a `bl` jelentése (feltehetően a szál
+  tétlenségi jelzője) feltételes.
+  `WAIT_TIMEOUT` (`0x102`) esetén `-1`-et ad; különben a jelzett elem indexét,
+  és nem nulla indexnél `FindNextChangeNotification`-nel (`0x00706647`, IAT
+  `0x00c403c0`) újrafegyverez.
+- **Index `-1`** (`0x004ec646`): vissza a ciklus elejére.
+- **Index `0`** (a `SetEvent` által jelzett esemény, a tömb 0. eleme):
+  `0x004ec7ad`: `call 0x004ea360`, amíg `0xf4241`-et ad vissza
+  (`0x004ec7ae`-`0x004ec7cb`).
+- **Index `>0`** (mappafigyelő jelzése): az útvonal a `[this+0x348][index]`,
+  normalizálás `0x004ee900`, majd **ugyanaz** a `0x004e31a0(útvonal,1,1)`
+  (`0x004ec786`-`0x004ec78d`), végül `0x004ea360`.
+
+Ebből következik, hogy az OK-ból beadott kérés és egy mappafigyelő-jelzés
+**ugyanarra a sorra és ugyanarra a szálra** fut ki. A teljes, 6847 bájtos
+`0x004ea360` dekompilátumot átolvastam. **Erős:** ez a szkennerszál kéréslistáját
+fogyasztja, fájlrendszeri ágakat és mappabejárást indít, majd a feldolgozás
+végén `0x004e87c0`-t és `0x004fbb30`-at hív. A közvetlen hívási listában nincs
+`0x0055ece0`, `0x0055ff80` vagy közvetlen katalógus-fájlíró. **Feltételes:**
+az indirekt figyelő- és nézetkezelők további útja nincs lezárva, ezért ez nem
+bizonyítja, hogy a szkenner eredménye később nem jut tartós adatíróhoz. A
+`0x004e31a0` két extra argumentumának jelentése és a kérésrekordok `Dirty`
+1/2 mezőivel való pontos kapcsolata továbbra sincs meg.
+
+**D. A rekord és amit a `0x004efb40` ír (a mezőnevek erősek, a hatás feltételes).**
+A `WriteDirscannerCSV` hibakereső kiíró (`0x004f25f0`; a `Preferences\
+WriteDirscannerCSV` kulcs vezérli, `0x004f2632`-`0x004f265d`) fejlécéből a
+rekordtábla mezői: `Name,Creation Time,Access Time,Size,Type,Dirty,Valid`,
+formátum `"%s",%f,%f,%d,%d,%d,%d`. A kiíró a rekordból (`0x004f290f`-`0x004f2964`)
+a `+0x04` (dupla, Creation Time), `+0x0c` (dupla, Access Time), `+0x14` (Size),
+`+0x18` (Type), `+0x1c` (bájt, Dirty) és `+0x1d` (bájt, Valid) mezőt olvassa.
+A rekordok a `+0x3f0` tömb elemei (az első elem helyben, `+0x3f8`).
+
+A `0x004efb40` ezeket írja (a Ghidra-dekompilátum és a diszasszemblátum
+egyezik):
+
+1. minden `Valid != 0`, `Type == 1` rekordra `Dirty := 1` és `Access Time := 0`
+   (`0x004efbe6`-`0x004efbf1`; a `0x19` és `0x1a` típust a feltételsor kizárja);
+2. a `+0x33c` / `+0x340` útvonallista minden elemére: `0x004ed7d0`
+   rekordkeresés, találatnál `Dirty := 2`, `Access Time := 0`
+   (`0x004efc4e`-`0x004efc55`), majd `0x004e31a0(útvonal, 1, 1)`
+   (`0x004efc6c`-`0x004efc71`). A lista a `0x004efde0` útvonal-felvevő írása
+   (`0x004f01fd`), amely útvonalanként egy `CChangeLoggerWindows`-t is
+   létrehoz (`0x004eff68`: `0x004e2140`): tehát a **figyelt útvonalak** listája
+   (erős; a pontos név feltételes);
+3. a `+0x4e8`, `+0x4e9`, `+0x4ea` bájt := 1, `+0x5c` += 1, `+0x60` := 1
+   (`0x004efb83`-`0x004efb9c`). A szál főciklusa a `+0x4e8`-at olvassa
+   (`0x004ec546`).
+
+A `0x004efb40` az **indulás** része is: a `0x004183c0` a fájltípus-tábla
+felépítése (`0x004fadb0` sorozat, `0x0041861a`-`0x004186b2`) után hívja
+(`0x004186b9`). Az "újraépített típustábla után minden könyvtár-rekordot
+újraolvasni" tehát az eredeti saját indulási szokása is. A `Type == 1` jelentése
+(valószínűleg könyvtár-rekord) és a `Dirty` 1/2 értékeinek különbsége
+**NINCS MEG** (N4).
+
+**E. A kikapcsolás útja (erős) és a figyelő (`DBLoader`).** A `0x004fb9c0`
+közvetlen hívottjai: `0x0040fae0`, `0x004e2cc0`, `0x004f9450`, `0x004fbb30`
+(az index szerint és a diszasszemblátum szerint is). Nem hívja a `0x004e31a0`-t
+és nem állítja a `+0x4e8` jelzőt, tehát szálat nem ébreszt. A `+0x3f0`
+rekordokon a `Type` a fájltípus-kódok halmazában van (`2`, `3`, `6`-`0x12`,
+`0x15`-`0x18`, `0x1a`, `0x1b`-`0x1d`, `0x1f`; a `0x3e9` kivétel), a
+`0x004e2cc0` vizsgálat igaz; ekkor a rekord `+0x24` / `+0x28` indextömbjének
+tagjaira `0x004f9450(…, 0, 0)` (a tömb jelentése **NINCS MEG**), majd
+`0x0040fae0` és `[this+0x4d4]--`. A ciklus után `+0x5c` += 1, `+0x60` := 1,
+`+0x4dd` := 1 és `0x004fbb30` (`0x004fbabd`-`0x004fbace`).
+
+A figyelő a szkenner `+0x484` / `+0x488` tömbjében van. A lánc:
+
+- `0x00402f90` létrehoz egy `DBLoader` objektumot (`mov [esi],0xc7f5c0`,
+  `0x004035f5`) és átadja a `0x004183c0`-nak (`0x0040361c`);
+- a `0x004183c0` a szkennert a saját `+0xf8` tagjaként kezeli
+  (`lea edi,[ebp+0xf8]`), és a `DBLoader`-t a `0x004e4ea0`-nak adja
+  (`0x004188cd`-`0x004188cf`);
+- a `0x004e4ea0` a figyelőt a `+0x484` tömbbe fűzi (`0x004e4f61`), majd betölti
+  a `runtime\filters.txt`-t (`0x004e4fc5`). Egyetlen hívója a `0x004183c0`.
+
+A figyelő két kezelője (a `DBLoader` vtábla `0xc7f5c0`: [0] `0x55ece0`,
+[1] `0x55ff50`, [2] `0x55ff70`, [3] `0x401570`, [4] `0x55ff80`):
+
+| Ki hívja | Mikor | Kezelő | Mit tesz |
+|---|---|---|---|
+| `0x004f9450` (`0x004f9714`-`0x004f9724`: `[vtábla+4]`, argumentum: szkenner, index) | rekordonként, kivételkor | `0x0055ff50` | `0x006d4710(tulajdonos+0xf20, index, 4)`: a tulajdonos zárolt, memóriabeli sor-táblájában a sor állapota 4-re áll, majd nézetjelzés (`0x006a2a60`) |
+| `0x004fbb30` (`0x004fbb5b`: `[vtábla+8]`, argumentum: szkenner; csak ha `+0x4dd` igaz) | a kikapcsoló `0x004fb9c0` végén szinkron az OK-szálon; a `0x004ea360` scan-végén aszinkron a szkennerszálon | `0x0055ff70` | `0x00419240(tulajdonos)`: a tulajdonos rekordtáblájából egy "érvényes" bájt-tömböt számol (`[rekord+0x1d] != 0`, `0x0041934d`-`0x0041936f`); a `0x004fbb30` ezután a szkenner `+0x470` gyorsítótár-tömbjét üríti (`0x00411cf0`) |
+
+Az OK-szál kikapcsoló útján (`0x004fb9c0`, `0x004f9450`, `0x004fbb30`) és a
+két közvetlen értesítőben (`0x0055ff50`, `0x0055ff70`) nincs fájl-, registry-
+vagy adatbázis-API-hívás. A szkenner modul (`0x004e0000`-`0x00510000`) nem
+importál közvetlen fájl-API-t; a fájlműveletek csomagolókon át mennek. Ez a
+negatív megállapítás nem terjed ki a lent leírt, külön DBLoader vtable-metódus
+feltételes mappa-dátum hívására.
+**A figyelő utáni tartós írás és annak határa.** A `0x0055ff50`
+(`0x0055ff50`-`0x0055ff68`, vtable 1. hely) közvetlenül csak a
+`0x006d4710`-et hívja. Ez az `owner+0xf20` memóriabeli sor-táblájában állapotot
+állít, majd a `0x006a2a60` nézetértesítésig jut. **Megerősített:** ezen a
+kezelőn nincs SQLite-, fájl- vagy registry-írás. A `0x0055ff70`
+(`0x0055ff70`-`0x0055ff7b`, vtable 2. hely) közvetlenül a `0x00419240`-et
+hívja, amely a `Valid` bájtokból memóriabeli vektort számol és frissít;
+**megerősített**, hogy ez nem tartós törlés vagy rekordátírás. A
+`0x004f9450` hívja a `0x0055ff50`-et az OK-szálon. A `0x004fbb30` hívja a
+`0x0055ff70`-et mind a kikapcsoló `0x004fb9c0` végén, szinkron az OK-szálon,
+mind a `0x004ea360` feldolgozási végén, aszinkron a szkennerszálon. **Erős:**
+a közvetlen callback-törzsekben nincs tartós íróhívás, de a későbbi
+fogyasztók viselkedése nyitott.
+
+**Erős, de külön út:** a DBLoader vtable `0. helyén álló `0x0055ece0` és
+`4. helyén álló `0x0055ff80` nem a fenti két callback közvetlen hívottjai.
+Mindkettő feltételes ágon meghívja a `0x00441e00`-at (`0x0055fea6`, illetve
+`0x005606db`). A `0x00441e00` a `0x00441ac0`-n keresztül a helyi mappa dátumát
+állítja a CThumbDB adatbázisában; a PicasaPy-specifikációban az út
+`0x004481e0` adatbázis-íróként szerepel, és a helyi automatikus dátumág nem ír
+`.picasa.ini`-t (`docs/specs/pmp-database.md`, 12.2). **Feltételes:** a
+dekompilátum nem mutat olyan hívási kapcsolatot, amely ezt a mappadátum-ágat
+a fájltípus-értesítés következményévé tenné. Ez a mellékág nem bizonyítja a
+kikapcsolt fotósorok törlését, megőrzését vagy átírását.
+
+**Nyitott kérdés (N5).** **Megerősített:** a `0x0055ff50` és `0x0055ff70`
+közvetlen törzse nem ír SQLite-sort, `thumbindex.db`-t, `db3`-fájlt vagy
+`.picasa.ini`-t; az előbbi memóriabeli sort és nézetet, az utóbbi a
+memóriabeli érvényességi vektort frissíti. **Erős:** a külön `0x0055ece0` és
+`0x0055ff80` metódusok feltételes `0x00441e00` hívása a `0x00441ac0`-n át
+CThumbDB-adatbázisba írhatja a helyi mappa dátumát; ennek fájltípus-váltás
+általi meghívása nem bizonyított, és ez nem a fotósor írása. **NYITOTT KÉRDÉS:**
+nem azonosítottuk a `0x006d4710` által 4-esre állított állapot későbbi
+olvasóit és a `0x006a2a60` értesítés fogyasztóit, ezért a callback utáni
+közvetett írás (beleértve a felsorolt fájlokat) és az író függvény, illetve
+annak időzítése nem állapítható meg. Ugyancsak nincs lezárva, hogy a
+`0x004ea360`-ból a `0x004e87c0` / `0x004fbb30` felé menő scan-eredmény útja
+vezet-e későbbi tartós fotósor-íráshoz. Emiatt statikusan nem dönthető el, hogy
+a letiltott fotó tartós rekordja törlődik, megmarad vagy átíródik, és az sem,
+hogy a bekapcsolás után mikor kerül vissza a katalógusba.
+
+**A nyitva maradt ágakhoz döntő M4 képkockák:** kikapcsolás előtti katalógus
+és felület alapállapot; OK után azonnal; a teljes feldolgozás után a felület,
+a katalógus összes elérhető adatbázisfájljával és a `WriteDirscannerCSV`
+kimenettel; bekapcsolás után az első megjelenés és a scan végi katalógus;
+végül újraindítás után a tartós állapot. Ezek megmutatják a sor megmaradását,
+törlését vagy újbóli létrehozását és a visszajövetel idejét, de az egyes
+statikus írófüggvényeket nem nevezik meg. A `job-822..825` egyedi
+feladat- és képkocka-hozzárendelése nincs a munkafában, ezért nem tulajdonítok
+képkockát konkrét job-számnak.
+
+**F. Eredeti | Nálunk | Teendő** (a "Nálunk" oszlop a mai main mérése,
+`621643152` a #7338 után):
+
+| # | Eredeti (bináris) | Nálunk (fájl:sor, szó szerint) | Teendő |
+|---|---|---|---|
+| 1 | OK után: kikapcsolás `0x005cfd67` → `0x004fb9c0` (szinkron, az OK szálán); bekapcsolás `0x005cfd7e` → `0x004efb40` (kérés + `SetEvent`, a munka a szkennerszálon); mindkét ág után `0x005cfd8f`: `0x004ebe40` (a `+0x2ec` változásfigyelők `+0x54` listáját üríti és a `0x004e2d30`-cal újraépíti; a `0x004e2d30` testét nem olvastam, tehát a lista tartalma feltételes). **Erős** az útvonal és az időzítés; **feltételes** az újraépített lista tartalma. | `src/picasapy/app/qml/OptionsDialog.qml:168-169`: `if (fileTypesChanged && typeof controller.rescan === "function")` / `controller.rescan()`; a PicasaPy-ban: `src/picasapy/app/library_controller_sync_rescan.py:25`: `self._start_rescan(self._manual_rescan_worker)` | Kód-teendő nincs ebben a hívási eltérésben. A #7338 óta az OK azonnali háttér-újraolvasást indít; a #7329 "nincs `_start_rescan`" mondata és a [paritas-folyamat-7325.md](paritas-folyamat-7325.md) 9. sora elavult. **Erős:** az eredetinél a kivétel az OK szálán szinkron, nálunk az újraolvasás a háttérben indul. |
+| 2 | Kikapcsoláskor a memóriabeli rekord kivétele (`0x004f9450`, `0x0040fae0`, `[this+0x4d4]--`) után az értesítők (`0x0055ff50`, `0x0055ff70`) csak memóriabeli állapotot, érvényességi vektort és nézetet frissítenek. **Megerősített** a közvetlen callback-viselkedés; **NYITOTT KÉRDÉS** a tartós fotósor sorsa, mert a `0x006d4710` állapot 4 olvasói és az értesítés utáni íróút nincsenek meg. | a PicasaPy-ban: `src/picasapy/index/sync_photos.py:185-186`: `nevek = [media.name for media in scan.files]` / `_prune_photos(conn, folder_id, nevek)`; a PicasaPy-ban: `src/picasapy/index/sync_photos.py:535-538`: `DELETE FROM photos ... NOT IN`; a PicasaPy-ban: `src/picasapy/scanner/filetypes.py:143`: `return kind if group in enabled_filetypes else None` | **Eldőlt (K10): nem kell fejlesztői jegy.** Az eredeti a megjelenített videó (AVI) sorát kikapcsoláskor kiüríti (`job-823`, `thumbindex.db` 36. sor `valid=0`), tehát a PicasaPy törlése ezen a ponton egyezik. |
+| 3 | Bekapcsoláskor a `0x004efb40` kérésbe teszi a jelölt útvonalakat (`0x004e31a0` → `SetEvent`), a szkennerszál a `0x004ea360`-nal dolgozik és a végén értesít (`0x004fbb30` → `0x0055ff70`). **Erős** az aszinkron feldolgozás; **NYITOTT KÉRDÉS**, hogy a teljes út után mikor és melyik tartós fotósort írja. | a PicasaPy-ban: `src/picasapy/index/sync.py:188-196`: a `filetype_signature` eltérése újraellenőrzést okoz; a PicasaPy-ban: `src/picasapy/app/library_controller_sync_rescan.py:27-32`: a kézi újraolvasás háttérszálon minden fájl mtime-ját ellenőrzi. | **M4-ig nincs döntés.** A feldolgozás utáni első képkocka dönti el, hogy a korábban szűrt fájlok visszakerülnek-e; a kikapcsolás utáni katalógussal és az újraindítás utáni képpel együtt a `job-822..825` eredményéből dönthető el, kell-e fejlesztői jegy. |
+| 4 | Induláskor a `0x004183c0` a típustábla után hívja a `0x004efb40`-et (`0x004186b9`). **Erős:** az eredeti induláskor is újraolvastat. | a PicasaPy-ban: `src/picasapy/app/controller_initialization.py:84`: `self._filetype_scan_snapshot = load_enabled_filetypes(self._get_settings())`; a PicasaPy-ban: `src/picasapy/app/library_controller_sync_rescan.py:25`: `_start_rescan` | Kód-teendő nincs; az induláskori újraolvasási út megegyezik. |
+
+**G. A döntő M4 képkockák (`job-822..825`).** A kikapcsolt sor tartós sorsát a
+kikapcsolás előtti alapállapot és az OK utáni, teljes feldolgozást követő
+felületi és katalógus-pillanatkép összevetése dönti el. Az azonnali OK utáni
+képkocka azt mutatja meg, mikor tűnik el az elem a nézetből; a befejezett
+állapotban a belső `Valid` és `Type` tábla is összevethető, ha a
+`Preferences\WriteDirscannerCSV` be van kapcsolva (`0x004f25f0`, kimenetek:
+`dirscanner-start.csv`, `dirscanner-up.csv`, `dirscanner-shutdown.csv`). A
+bekapcsolás után az első megjelenési képkocka és a teljes szkennelés végi
+képkocka különíti el az azonnali megjelenést a feldolgozás utáni
+megjelenéstől. Az újraindítás utáni katalóguskép dönti el, hogy az előző
+állapot tartósan megmaradt-e. **Megerősített:** ezek az állapotok választják
+szét a felületi eltűnést, a tartós sor sorsát és a visszakerülés időzítését;
+a `job-822..825` egyedi sorszám és képkocka-hozzárendelése itt nincs megadva.
+
+**H. Nyitott kérdések mérlege.**
+
+| # | Kérdés | Állapot |
+|---|---|---|
+| N1 | Mi a `0x004e31a0` visszahívásának célja, és ír-e katalógust? | **LEZÁRVA** (megerősített): `0x00706190` = `SetEvent`; a kérés a `+0x298` sorba kerül; nincs fájl-, registry- vagy adatbázis-hívás |
+| N2 | Ki ébred fel, és mit csinál? | **LEZÁRVA** (erős): `0x004ebff0` főciklus, `WaitForMultipleObjects` (`0x007065f0`), feldolgozó `0x004ea360` |
+| N3 | Szálat ébreszt-e a kikapcsolás ága, és szinkron-e? | **LEZÁRVA** (erős): nem hívja a `0x004e31a0`-t, szinkron, az OK szálán; figyelő-értesítéssel zár |
+| N4 | Mit tesz a `0x004ea360` a `Dirty` 1/2 rekordokkal (mi kerül be vagy ki, melyik értesítést adja), és mit jelent a `Type == 1`? | **RÉSZBEN FELDOLGOZVA, NYITOTT:** a teljes dekompilátum olvasva; a kéréslistát fogyasztja, scan-ágakat futtat, majd `0x004e87c0`-t és `0x004fbb30`-at hív, közvetlen katalógusírót nem azonosítottam. **NYITOTT KÉRDÉS:** a `Dirty` 1/2 és `Type == 1` pontos szemantikája, valamint a scan-eredmény közvetett írója. A konkrét útvonalakon a `WriteDirscannerCSV` befejezés előtti/utáni sorai és az M4 katalógus-pillanatképek adhatnak viselkedési bizonyítékot; az általános mezőjelentést ezek önmagukban nem bizonyítják. |
+| N5 | A `DBLoader`-értesítés után melyik út ír tartós katalógust, mikor, és mi lesz a kikapcsolt rekorddal? | **RÉSZBEN LEZÁRVA, NYITOTT (a kimenet megerősített, az íróút hiányzik):** M4b-1-ben a `teszt-video.wmv` rekord megmarad a `thumbindex.db` 37. sorában (`valid=1`, `size=45537`), az AVI 36. sora viszont üres; a `thumbindex.db` 2229-ről 2214 bájtra, a `thumbs_0.db` 381862-ről 373221 bájtra változik. M4b-2-ben az AVI-csempe visszatér a nézetbe, de a végső db3-ben az AVI-sor még üres, a WMV-sor megvan. **Hiányzó statikus ág:** `0x006d4710` állapot 4 olvasói, `0x006a2a60` fogyasztói és a `0x004ea360` scan-eredményének későbbi írója; a mért változás írófüggvénye és pontos ideje nem azonosítható. M4b-3 leltára 10 fájlt tartalmaz az M4b-0 51 fájljával szemben, `thumbindex.db` nélkül, ezért az újraindítás utáni stabil állapot nyitott marad. |
+| N6 | A `0x004e31a0` két extra argumentumának jelentése (`(1,1)`, `(0,1)`, `(0,0)`)? | **RÉSZBEN FELDOLGOZVA, NYITOTT:** a hívás sorba teszi az útvonalat és a két bájtot, a teljes `0x004ea360` fogyasztja a kérést. **Hiányzó ág:** nem sikerült egyértelműen hozzárendelni a `0x004e3229`-`0x004e322d` helyen összeállított két bájtot és a `0x004e3232`-`0x004e3238` dword-ot a `0x004ea360` konkrét elágazásaihoz; ezért az argumentumok jelentése nem bizonyított. Az M4 az ismert argumentumpárok gyakorlati kimenetét mutathatja, de a mezőnevet és általános szemantikát nem. |
+| N7 | Az eredetiben a kikapcsolt típus fájljai az OK pillanatában eltűnnek-e a nézetből, megmaradnak-e a tartós sorok, és bekapcsolás után mikor jelennek meg a korábban kiszűrtek? | **RÉSZBEN LEZÁRVA, ERŐS (az újraindítás utáni stabil állapot nyitott):** M4b-1 képkockáin a könyvtárszám 25-ről 24-re csökken, az AVI-csempe az első OK utáni képen már eltűnt; a 3 és 13 másodperces képen a státuszsor még 25-öt ír, és csak a mappa újbóli kijelölése után frissül 24-re (`job-823`, 16-19. kép). M4b-2-ben a visszakapcsolás első OK utáni képe már 25 elemet és `teszt-video.avi` csempét mutat, tehát a visszatérés 3 másodpercen belüli (`job-824`, 26-29. kép). A WMV katalógussora megmarad, de a WMV a kontrollfutásban sem jelenik meg (`kind=4`), ezért ez nem a kapcsoló hatása. M4b-3 újraindítás utáni képe 24 elemet mutat, de a hiányos db3-leltár miatt a tartós újraindítási állapot nem eldöntött. |
+
+**Nyitott kérdések: 0 nyílt (örökölt) · 3 lezárva · 2 részben lezárva, nyitott · 2 blokkolt · 0 hatókörön kívül.**
+
+**I. Amit kizártam.**
+
+- *"A `+0x344` fogadó a `ytDirScanner::CallBack` (`0xc891b4`) példánya."*
+  Cáfolat: a `+0x344` a `0x004e4302`-nél a `0x004e16f0` konstruktorral épül,
+  amely a `ytDirScannerChangeList` / `...Windows` vtáblát írja; a `CallBack`
+  vtábla (`0xc891b4`) írói (`0x005128c8`, `0x00513b47`, `0x00513bff`) egyike sem
+  a szkenner konstruktora. A korábbi, [picasa-kepernyokep-rogzites.md](picasa-kepernyokep-rogzites.md)
+  #5752 szakaszában nyitottnak hagyott "a `+0x344` mező inicializálója és a
+  `+0x10` slot célja" kérdés ezzel megválaszolt: inicializáló `0x004e16f0`,
+  cél `0x00706190` (`SetEvent`), azaz a BMP utáni keresés hívási útja is csak
+  a szkennerszálat ébreszti; hogy a szál a friss BMP-t tartósan
+  indexeli-e, ott is az N4 és az N5 kérdésen múlik.
+- *"A `0x004e31f8` hívás fájlattribútum-lekérdezés."* Cáfolat: az IAT-mutató
+  `KERNEL32!InterlockedIncrement` (a `0x00c40558` párja az
+  `InterlockedDecrement`): CString-hivatkozásszámláló.
+- *"A kikapcsolás ága szálat ébreszt vagy fájlt töröl."* **Megerősített:** a
+  közvetlen kikapcsoló hívások (`0x0040fae0`, `0x004e2cc0`, `0x004f9450`,
+  `0x004fbb30`) és a vizsgált két közvetlen DBLoader-kezelő nem tartalmaz
+  fájltörlést vagy tartós katalógusírást; az OK-szálon szinkron memóriabeli
+  kivétel és értesítés történik. **NYITOTT KÉRDÉS:** a `0x006d4710` állapot 4
+  későbbi olvasói, a `0x006a2a60` fogyasztói és a scan-eredmény közvetett
+  íróútja nincs lezárva, ezért ebből nem következik a tartós fotósor sorsa.
+
+**J. Jegytörzs-jelölt (csak az M4 eredménye után nyitható, ma NEM nyitandó).**
+*Cím:* "A kikapcsolt fájltípus sorai az OK pillanatában ... (az M4 szerint)".
+*Eredeti:* `0x005cfd67` → `0x004fb9c0` (szinkron rekord-kivétel az OK szálán,
+figyelő-értesítés `0x004fbb30`); bekapcsolás `0x005cfd7e` → `0x004efb40`
+(`Dirty` jelölés + `0x004e31a0` kérés + `SetEvent`, aszinkron a szkennerszálon).
+*Nálunk:* a #7338 óta háttérszálas teljes újraolvasás, `DELETE FROM photos ...
+NOT IN`. *Teendő:* az M4 mérés szerint (tartós sor megmarad vagy törlődik; a
+nézetből azonnal eltűnik-e); statikus alapon nincs kód-teendő. *Kész, ha:*
+az M4 `-shutdown.csv` és `db3` állapota és a PicasaPy index ugyanazt a
+sorsot mutatja a kikapcsolt típusra, és bekapcsolás után a korábban kiszűrt
+fájlok az eredetivel egyező módon visszajönnek.
+
+**K. Mérési eredmény (job-799, 2026-11-22)**
+
+**Hatókör és bizonyosság.** A job-799 az **M4a felmérés**: a Tools > Options >
+File Types fül megnyitása a `video` mintakészlettel, Cancel-lel zárva. **Egyetlen
+fájltípust sem kapcsolt át**, ezért a kikapcsolás és a bekapcsolás könyvtári
+hatása ebből **nem mérhető**; a feladat célja a fül jelölőinek kimérése volt az
+M4b-hez. Kimenet: 15 képernyőkép és az `allapot.json` (ablaklista, OCR; a
+számokat az OCR nem adta vissza, ezért mindent a képről olvastam). db3, registry
+és kepmappa kimenet nem volt kérve. A kép i = az i. lépés ELŐTTI állapot (a 15. a
+vég); a 2-5., 6-7., 8-9., 10-11., 12-13. és 14-15. kép bájtra azonos (md5), mert
+a köztes lépések várakozások. A kattintási koordináták az 1280x1024-es kép
+képpontjai: a Tools `(247,29)`, az Options... `(268,277)`, a File Types fül
+`(490,367)` és a Cancel `(885,672)` a 8., 10. és 12. képen pontosan ezeken a
+pontokon látszik.
+
+**K1. A képek.**
+
+| Kép | Mikor | Mit mutat |
+|---|---|---|
+| 1 | a lépések előtt, a mintakészlet kibontása után | `PicasaTeszt (24)`, `Recently Updated (24)`; státuszsor: `24 pictures`, `4.5 MB on disk`; tálca: `Folder Selected - 24 photos`; videócsempe nincs |
+| 2-5 | 10, 20, 30, 40 s után | `PicasaTeszt (25)`, `Recently Updated (25)`; tálca: `Folder Selected - 25 photos`; a rács végén új csempe: egy színsávos tesztkép (a videó első képkockája); a státuszsor **még** `24 pictures`, `4.5 MB` |
+| 6-7 | a PicasaTeszt sor `(80,215)` kattintása után | a státuszsor frissült: `25 pictures`, `11.1 MB on disk` |
+| 8-9 | a Tools menü nyitva | Folder Manager..., Upload Manager... (szürke), People Manager..., Configure Photo Viewer... (szürke), Configure Screensaver... (szürke), Back Up Pictures..., Batch Upload..., Adjust Date and Time..., Upload >, Geotag >, Experimental >, Configure Buttons..., Options... |
+| 10-11 | az Options... után | az Options ablak 584x345 px (a job-190 szerint rögzített méret), nyolc fül: General, E-Mail, File Types, Slideshow, Printing, Network, Web Albums, Name Tags; a General fül: Use special effects (be), Show tooltips (be), Single-click to exit Edit View (ki), Detect duplicates while importing (be), Clear cache files (ki), Delete from disk without confirmation (ki), Remove from album without confirmation (ki), Send anonymous usage stats to Google (ki), Automatic updates: Update automatically, Language: System Default (en-US), Save imported pictures in: My Pictures |
+| 12-13 | a File Types fül | lásd K2 |
+| 14-15 | a Cancel után | az Options bezárult; a könyvtár változatlan (25, 11.1 MB), nincs üzenet |
+
+**K2. A File Types fül, mérve.** Fejléc: `Display JPEG files and:` (x 547-658,
+y 388-397). Nincs JPEG-jelölő és nincs más vezérlő a fülön; a panel a Quicktime
+sor alatt üres.
+
+| Sor | Felirat (szó szerint) | Állapot | Jelölő közepe (x,y) |
+|---|---|---|---|
+| 1 | `.BMP` | be | `(552,406)` |
+| 2 | `.GIF` | **ki** | `(552,423)` |
+| 3 | `.PNG` | **ki** | `(552,440)` |
+| 4 | `.TGA` | **ki** | `(552,457)` |
+| 5 | `.TIF, .TIFF` | be | `(552,474)` |
+| 6 | `.WEBP` | be | `(552,491)` |
+| 7 | `.PSD (Photoshop)` | be | `(552,508)` |
+| 8 | `RAW formats` és mellette `(Supported Formats)` | be | `(552,526)` |
+| 9 | `Movies (.AVI, .MPG, .ASF, .WMV)` | be | `(552,543)` |
+| 10 | `Quicktime Movies (.MOV)` | **ki és szürke (letiltott)** | `(552,560)` |
+
+Geometria: a jelölő 13x13 px (x 546-558), a felirat x=564-nél kezdődik, a
+sorköz 17 px (a PSD és a RAW sor között 18), a panel kerete x 358-923, y
+376-648. A `(Supported Formats)` zárójele fekete, csak a szó kék és aláhúzott.
+Az alapállapot (GIF, PNG, TGA ki; BMP, TIF, WEBP, PSD, RAW, Movies be) a
+statikus alapértékekkel egyezik: `push 0` a `0x006e0e76` (`SupportGIF`),
+`0x006e0e83` (`SupportPNG`) és `0x006e0e90` (`SupportTGA`) címen, `push 1` a
+többinél.
+
+**K3. Amit a futás a könyvtárról mutat.**
+
+1. **Az új fájl kézi művelet nélkül megjelenik a futó eredetiben.** A mintakészlet
+   a futó Picasa mappájába kerül a lépések előtt; az 1. képen még 24, a 2. képen
+   (10 s-sel később) már 25 elem látszik. Felső korlát: kb. 10 s; alsó korlát
+   nincs mérve (a képek 10 s-ra vannak egymástól).
+2. **A számlálók nem egyszerre frissülnek.** A faág (`PicasaTeszt (25)`,
+   `Recently Updated (25)`) és a tálcafelirat azonnal, a státuszsor (`24
+   pictures`, `4.5 MB`) csak a mappa ismételt kijelölése után (6. kép: `25 pictures`,
+   `11.1 MB`). A videó "picture"-nek számít (24 + 1).
+3. **A mintában egyetlen videócsempe van.** A státuszsor +6.6 MB-ot mutat. A
+   mintakészlet leírása szerint két fájl készül (`teszt-video.avi`, nyers
+   képpontokkal, és `teszt-video.wmv`); egy 30 képkockás, 320x240-es, 24 bites
+   nyers AVI 6 912 000 bájt (6.59 MiB), ez egyezik a +6.6 MB-tal, tehát a `.wmv`
+   vagy nem készült el, vagy nem számít bele. Ez **következtetés a méretből, nem
+   mérés**: a fájllista nincs a felvételen (N10).
+4. **A Cancel nem változtat semmin** (14-15. kép = 25, 11.1 MB; egyezik a
+   [paritas-folyamat-7325.md](paritas-folyamat-7325.md) 1.5 szakaszával).
+
+**K4. Új statikus leletek a mérés kapcsán.**
+
+- A `SupportMovies` és a `SupportQuicktime` regisztrált alapértékét a `0x00981af0`
+  számolja (`0x006e0e06`, `0x006e0e1c`). Ez **operációsrendszer-verzió-vizsgálat**,
+  nem QuickTime-vizsgálat: `GetVersionExA` (`0x00981b30`, IAT `0x00c40210`), igaz,
+  ha a `dwPlatformId == 2` (NT) és a főverzió 5-nél nagyobb, vagy 5 és az
+  a kisebbik verziószám legalább 1 (`0x00981b3a`-`0x00981b6b`), vagyis Windows XP vagy újabb.
+  A mért Movies bejelölt állapot ezzel egyezik.
+- A Quicktime sor mért letiltott, üres állapotának statikus magyarázata a
+  `0x00544bd0`: a `0x005509e0` hamis eredménye esetén `0`-t ír a
+  `Preferences\SupportQuicktime`-ba (`0x00544c07`-`0x00544c32`, kulcsnév
+  `0xc86358`). A `0x005509e0` a `SOFTWARE\Apple Computer, Inc.\QuickTime\` és a
+  `SOFTWARE\Apple Inc.\Apple Application Support\` kulcs `Version` és
+  `InstallDir` értékét olvassa; a `0x00544d70` a `qtsupport.dll`-t tölti. A
+  jelölő tiltott voltának közvetlen kódútja és a `0x00544bd0` hívója **NINCS MEG**
+  (vtábla-hívás lehet; az index nem látja). Az, hogy a Colab Wine-profiljából
+  hiányzik a QuickTime, következik a mért képből és a kódból, de a registry-kulcs
+  hiánya külön nincs mérve.
+- A `0x004ea360`, `0x0055ece0` és `0x0055ff80` közvetlen IAT-hívásai (index
+  `imports`): `EnterCriticalSection`, `LeaveCriticalSection`,
+  `GetCurrentThreadId`, `InterlockedIncrement`/`Decrement`, a `0x0055ece0`-nál
+  `QueryPerformanceCounter`. **Egyik függvénytestben sincs közvetlen fájl-, registry- vagy
+  adatbázis-API-hívás**; ez csak a közvetlen hívásokra áll, a hívottaikra
+  (`0x0055ece0`: 49, `0x0055ff80`: 24 különböző célpont az index `xrefs`
+  szerint) és a vtábla-hívásokra nem. Az N4 és az N5 ezért a hívottak
+  dekompilálásán marad.
+
+**K5. Következtetés a #7339 kérdésére.** Hogy a kikapcsolt típus **törli,
+megőrzi vagy újraírja** az indexsorokat, és hogy bekapcsolás után **mikor**
+jelennek meg újra, a job-799-ből **nem következik**, mert nem váltott át
+típust; az A-J szakaszok statikus olvasata érvényben marad (szinkron
+memóriabeli kivétel és figyelő-értesítés; a tartós réteg nyitott). Amit a
+job-799 **bizonyít**:
+
+1. az eredeti alapállapota (K2), köztük a három alapból kikapcsolt képtípus és a
+   letiltott Quicktime-sor;
+2. a Movies jelölő pontos helye az M4b-hez: `(552,543)`;
+3. a futó eredeti kézi lépés nélkül felveszi az új videót (K3/1), és a
+   számlálók nem egyszerre frissülnek (K3/2), tehát az M4b-ben a státuszsort
+   csak ismételt kijelölés után szabad olvasni.
+
+A hiányzó mérés pontosan: **az M4b négy külön feladatban (K9)**, mert a
+végrehajtó a db3-at, a `kepmappa` kimenetet és a registryt csak a feladat **végén** menti.
+A mai M4b-feladat (Movies ki, OK, Movies be, OK egyetlen futásban) ezért a
+közbenső db3-állapotot nem rögzítené, és a "megőrzi / törli / újraírja"
+kérdést nem tudná eldönteni.
+
+**K6. Eredeti | Nálunk | Teendő.**
+
+| # | Eredeti (bináris, mérés) | Nálunk (fájl:sor, szó szerint) | Teendő |
+|---|---|---|---|
+| 1 | A fül fejléce és tíz sora a K2 sorrendjében, a feliratok betűre egyeznek (`.TIF, .TIFF`, `.PSD (Photoshop)`, `Movies (.AVI, .MPG, .ASF, .WMV)`, `Quicktime Movies (.MOV)`) | a PicasaPy-ban: `OptionsTabFileTypes.qml:43`: `text: qsTr("Display JPEG files and:")`; `:127`: `text: qsTr(".TIF, .TIFF")`; `:163`: `text: qsTr(".PSD (Photoshop)")`; `:240`: `text: qsTr("Movies (.AVI, .MPG, .ASF, .WMV)")`; `:258`: `text: qsTr("Quicktime Movies (.MOV)")`; a sorrend az `objectName`-ekben: `:54` Bmp, `:72` Gif, `:90` Png, `:108` Tga, `:126` Tiff, `:144` Webp, `:162` Psd, `:185` Raw, `:239` Movies, `:257` QuickTime | **EGYEZIK.** A 4. szakasz táblájának felirat-megjegyzései (`.bmp`, `Videos (.mov, ...)`) a #5898 óta elavultak. Teendő nincs |
+| 2 | Alapállapot: GIF, PNG, TGA ki; BMP, TIF, WEBP, PSD, RAW, Movies be (K2; `push 0`: `0x006e0e76`, `0x006e0e83`, `0x006e0e90`) | a PicasaPy-ban: `scanner/filetypes.py:106`: `DEFAULT_ENABLED_FILETYPES = frozenset(FILETYPE_GROUPS)`; a PicasaPy-ban: `filetype_preferences.py:28`: `default = group in DEFAULT_ENABLED_FILETYPES`; a PicasaPy-ban: `OptionsTabFileTypes.qml:74`: `checked: root.fileTypeEnabled("gif", true)` (`:92` png, `:110` tga) | **ELTÉR (igazolt: mérés és bináris).** Szándékos kompromisszum (#6060), de tiszta profilon az eredetit kell követni: 1. jegytörzs (K8) |
+| 3 | A Quicktime sor letiltott és üres, ha a `0x005509e0` hamisat ad (K4); az alapérték-számoló (`0x00981af0`) csak az XP+ verziót vizsgálja | a PicasaPy-ban: `OptionsTabFileTypes.qml:259`: `checked: root.fileTypeEnabled("quicktime", true)`; a `:256-273` CheckBoxnak nincs `enabled:` sora | **Szándékos eltérés, nem jegyezendő:** nincs QuickTime-függőségünk, a `.mov`-ot a saját dekóderünk kezeli, ezért a sor engedélyezett és bekapcsolt marad. Kód-teendő nincs |
+| 4 | Sorköz 17 px, jelölő 13 px, a 584 px-es ablakban (K2) | a PicasaPy-ban: `OptionsTabFileTypes.qml:48`: `Layout.preferredHeight: 22` | **Nem állítok eltérést:** a #4488 referenciája 744 px széles, a job-799 584 px; 744/584 = 1,274 és 22/17 = 1,294, 2 százalékon belül egyezik. Két különböző skála; azonos skálájú renderelt összevetés NINCS MEG |
+| 5 | A Cancel nem változtat a könyvtáron (14-15. kép) | a PicasaPy-ban: `OptionsDialog.qml:209-210`: `function cancelOptions() {` / `optionsDraft.discard()` | **EGYEZIK.** Teendő nincs |
+| 6 | A kikapcsolt típus sorainak sorsa és a visszatérés ideje | a PicasaPy-ban: `src/picasapy/app/qml/PicasaPy/OptionsDialog.qml:168-169`: `if (fileTypesChanged && typeof controller.rescan === "function")` / `controller.rescan()`; a PicasaPy-ban: `src/picasapy/index/sync_photos.py:535-538`: `DELETE FROM photos ... NOT IN`; a PicasaPy-ban: `scanner/filetypes.py:97,139-143` a kikapcsolt `movies` csoportba sorolja a `.wmv`-t | **EGYEZIK a felhasználó által látható viselkedésben, teendő nincs.** Az eredeti a megjelenített videó (AVI) katalógussorát kikapcsoláskor kiüríti, a nézetből azonnal kiveszi, és visszakapcsolás után 3 másodpercen belül visszahozza; a PicasaPy újraolvasása ugyanígy törli és visszaveszi a sort. A WMV-sor megmaradása nem eltérés: a WMV az eredetiben a kontrollfutásban sem jelenik meg (`kind=4`, a nézet 25 eleme a 24 kép és az AVI), tehát nem a kapcsoló hatása. Eltérés csak a háttérben van: az eredeti a visszakapcsolás után a végső `thumbindex.db`-be még nem írja vissza az AVI-sort, ez a felületen nem látszik. Az újraindítás utáni tartós állapot (M4b-3) hiányos pillanatkép miatt nyitott, ez fejlesztést nem blokkol. |
+
+**K7. Nyitott kérdések mérlege (a #7339 egésze).**
+
+| # | Kérdés | Állapot |
+|---|---|---|
+| N1 | Mi a `0x004e31a0` visszahívásának célja, és ír-e katalógust? | **LEZÁRVA** (H szakasz): `SetEvent`, nincs fájl-, registry- vagy adatbázis-hívás |
+| N2 | Ki ébred fel, és mit csinál? | **LEZÁRVA** (H szakasz): `0x004ebff0` főciklus, feldolgozó `0x004ea360` |
+| N3 | Szálat ébreszt-e a kikapcsolás ága? | **LEZÁRVA** (H szakasz): nem, szinkron az OK szálán |
+| N4 | Mit tesz a `0x004ea360` a `Dirty` 1/2 rekordokkal, és mit jelent a `Type == 1`? | **BLOKKOLT, felvehető irány:** a `0x004ea360` és hívottai dekompilálása (Colab Ghidra-sor); a közvetlen importok nem hoznak fájl-API-t (K4) |
+| N5 | A `DBLoader` mely kezelője ír tartós katalógust? | **RÉSZBEN LEZÁRVA, NYITOTT:** M4b-1/-2-ben a megjelenített AVI sora kiürül (a WMV-sor megmarad, de a WMV a kontrollban sem jelenik meg, `kind=4`), a db3-fájlok változnak; a konkrét tartós író útja nincs megnevezve. M4b-3-ban nincs `thumbindex.db`, a katalógusleltár 10 fájlos, ezért a stabil újraindítási sors nyitott. Következő statikus irány: `0x006d4710` állapot 4 olvasói, `0x006a2a60` fogyasztói és a `0x004ea360` utáni íróút. |
+| N6 | A `0x004e31a0` két extra argumentuma? | **BLOKKOLT:** ugyanaz a dekompilálás, mint az N4 |
+| N7 | A kikapcsolt típus eltűnik-e a nézetből, megmaradnak-e a tartós sorok, és mikor jönnek vissza? | **RÉSZBEN LEZÁRVA, ERŐS:** kikapcsoláskor az AVI-csempe és a könyvtárszám 25-ről 24-re vált; visszakapcsolás után az AVI-csempe az első, 3 másodpercen belüli képen megjelenik. A WMV-sor mindkét végső db3-ben megmarad, de a WMV a kontrollban sem jelenik meg (`kind=4`), így ez nem a kapcsoló hatása. A stabil újraindítás utáni sorállapot nyitott az M4b-3 hiányos katalógusleltára miatt. |
+| N8 | Mi a fül alapállapota, és mi a Movies / Quicktime alapérték forrása? | **LEZÁRVA:** K2 mérés + `0x006e0e76`, `0x006e0e83`, `0x006e0e90`, `0x00981af0`, `0x00544bd0` |
+| N9 | Hogyan jelenik meg egy új fájl a futó eredetiben? | **LEZÁRVA** a #7339-hez szükséges felbontásban: kézi művelet nélkül, 10 s-on belül (K3/1); a pontosabb időzítés nem kell a kikapcsolás-bekapcsolás kérdéséhez, az M4b 3 s és 13 s után is képet ad |
+| N10 | Elkészült és megjelenik-e a `.wmv` a mintában? | **RÉSZBEN LEZÁRVA, MEGERŐSÍTETT a bemenetre és a katalógussorra:** mind a négy futás `kepmappa` listájában szerepel, 45537 bájtos, mindegyik másolata azonos SHA-256-ú; M4b-0/-1/-2-ben a WMV rekord érvényes a `thumbindex.db` 37. sorában. A képen név szerint azonosított, Movies kapcsolóval eltűnő és visszatérő csempe `teszt-video.avi`, nem WMV. **NYITOTT:** a WMV külön látható csempéjét a képek nem bizonyítják; ehhez a WMV fájlnévvel egyértelműen azonosítható képkocka kell. |
+| N11 | A Colab-profilból valóban hiányzik-e a QuickTime-kulcs? | **HATÓKÖRÖN KÍVÜL:** a PicasaPy-nak nincs QuickTime-függősége, a kulcs megléte semmilyen kódot nem változtat; a letiltott sor magyarázata statikusan és a képpel egyezik |
+| N12 | A `WriteDirscannerCSV` üzemmód (G szakasz) beállítható-e a Colab-feladatban? | **BLOKKOLT:** a mai végrehajtó nem tud tetszőleges registry-értéket előírni; gépezeti fejlesztés kell, a privát gépezet-jegyekben. Nélküle is eldönthető az N7 (K9), a belső tábla csak az N4/N5-öt segítené |
+
+**Nyitott kérdések: 5 lezárva (N1-N3, N8-N9) · 3 részben lezárva, nyitott (N5, N7, N10) · 3 blokkolt (N4, N6, N12) · 1 hatókörön kívül (N11).**
+
+**K8. Jegytörzs-jelölt (igazolt eltérésre).**
+
+*1. jegy. Cím:* "Új profilon az Options > File Types fülön a .GIF, .PNG és .TGA
+jelölő üresen indul, mint az eredetiben".
+*Eredeti:* a `SupportGIF`, `SupportPNG` és `SupportTGA` regisztrált alapértéke
+`0` (`push 0`: `0x006e0e76`, `0x006e0e83`, `0x006e0e90`; kulcsnevek `0xc81010`,
+`0xc81004`, `0xc86388`); mérés: a Colab job-799 12. képe (alapprofil): a három
+jelölő üres, a BMP, TIF/TIFF, WEBP, PSD, RAW és Movies jelölt. A hiányzó kulcsot az
+eredeti az alapértékkel olvassa, tehát új profilon a `.gif`, `.png` és `.tga`
+fájl nem kerül a könyvtárba, amíg a felhasználó be nem kapcsolja.
+*Nálunk:* a PicasaPy-ban: `scanner/filetypes.py:106`: `DEFAULT_ENABLED_FILETYPES =
+frozenset(FILETYPE_GROUPS)`; `a PicasaPy-ban: OptionsTabFileTypes.qml:74`: `checked:
+root.fileTypeEnabled("gif", true)` (`:92` png, `:110` tga). A CHANGELOG szerint ez
+a #6060 óta szándékos: elmentett választás nélkül minden képtípus látszik,
+mert a #5898 átvétele a frissítés után eltüntette a meglévő könyvtár PNG-képeit.
+*Teendő:* csak **tiszta profilon** (nincs `library/fileTypes/*` kulcs, és az
+index még nem tartalmaz fotósort) induljon a három csoport kikapcsolva, a
+kulcsok kiírásával, hogy a szűrő (`enabled_filetypes()`) érvényesüljön. Meglévő
+könyvtárnál vagy kulcs nélküli régi profilnál semmi nem változhat. A tiszta
+profil felismerését a fejlesztő választja; feltétel, hogy téves felismerés ne
+tüntessen el képeket. Alacsony prioritás, mert felhasználói hatása csak új
+telepítésen van.
+*Kész, ha:* (1) tiszta profilon a fül a job-799 12. képével egyező jelölő-
+állapotot mutat (renderelt kép, a két kép egymás mellett); (2) tiszta profilon
+egy `.png` nem kerül a könyvtárba, a jelölő bekapcsolása és az OK után
+bekerül (#7338 útvonal); (3) meglévő indexszel és mentett kulcs nélkül minden
+típus látszik (a #6060 regressziós tesztje zöld); (4) a három kulcs elmentett
+`false` értéke újraindítás után is megmarad.
+
+*Az M4b-ből nem indul fejlesztői jegy:* a K10 szerint az eredeti a kikapcsolt
+és megjelenített videó sorát törli, ahogy a PicasaPy is.
+
+**K9. M4b: a Colab-feladatok pontos lépéssora.** Közös előtag (E): `var 10`
+négyszer (várakozás a mintakészlet megjelenésére), `kattint (80,215)` (a
+PicasaTeszt sor), `var 4`. Az
+Options megnyitása (O): `kattint (247,29)`, `var 1`, `kattint (268,277)`, `var 3`,
+`kattint (490,367)` (File Types), `var 2`. Az OK `(806,672)`, a Movies jelölő
+`(552,543)`. Mindegyik feladat mintakészlete `video`, kimenete `kepernyokep,
+allapot, db3_teljes, kepmappa, registry` (a `db3_teljes` a db3 minden fájlját adja,
+a keresés ehhez kell), és a **végpillanatkép az utolsó OK után legalább 60 másodperccel**
+készül (a db3 írási időzítése nem ismert; a registryé a #7326 C5a feladat
+tervezési feltevése szerint a Wine mentési periódusa, 40 s fölött jelenik meg).
+Minden képről rögzítendő: `PicasaTeszt (N)`, `Recently Updated (N)`, a
+tálcafelirat, a státuszsor, és hogy a rács végén ott van-e a videócsempe. A
+számokat a képről kell olvasni (az OCR nem adja vissza). A mappa ismételt kijelölése
+beavatkozás: **csak az utolsó mérés előtt** szabad.
+
+1. **M4b-0 (kontroll, nincs váltás):** E, majd `var 10` nyolcszor (így az
+   eltelt idő a többi feladat végpillanatához közelít). Cél: a db3 és a
+   kepmappa viszonyítási állapota videóval, és a fájllista (N10).
+2. **M4b-1 (kikapcsolás):** E, O, `kattint (552,543)`, `var 1` (kép: a Movies
+   jelölő üres, a Quicktime szürke marad), `kattint (806,672)`, `var 3` (kép:
+   közvetlenül az OK után), `var 10` (kép: 13 s után), `kattint (80,215)`, `var 2`
+   (kép: a státuszsor friss), `var 10` ötször. Cél: eltűnik-e a videócsempe és
+   mikor; a db3 a kikapcsolás után.
+3. **M4b-2 (kikapcsolás, majd visszakapcsolás):** E, O, `kattint (552,543)`,
+   `var 1`, `kattint (806,672)`, `var 10`, O újra (kép: a Movies jelölő üres-e,
+   vagyis az OK mentette-e), `kattint (552,543)`, `var 1` (kép: bepipálva),
+   `kattint (806,672)`, `var 3` (kép: visszajött-e a csempe), `var 10` (kép: 13
+   s után), `kattint (80,215)`, `var 2`, `var 10` ötször. Cél: **mikor jelennek
+   meg újra**, és a db3 a visszakapcsolás után.
+4. **M4b-3 (kikapcsolás és újraindítás):** E, O, `kattint (552,543)`, `var 1`,
+   `kattint (806,672)`, `var 10`, `{"picasa":"leallit"}`, `var 5`,
+   `{"picasa":"indit"}`, `var 10` háromszor (a #7326 C5b mintájára). Cél: a
+   kikapcsolt állapot megmarad-e újraindítás után, és a lemezre mentett db3 mit
+   tartalmaz.
+
+*Kiértékelés.* A `db3_teljes` fájljaiban a `teszt-video` bájtsort ANSI és UTF-16LE
+alakban kell keresni, és a fájlok méretét és módosítási idejét az M4b-0-hoz kell
+hasonlítani. **Törli**, ha az M4b-1 / M4b-3 db3-jában a bájtsor eltűnik az
+M4b-0-hoz képest; **megőrzi**, ha a bájtsor és a fájlok változatlanok; **újraírja**,
+ha a bájtsor megvan, de a fájlok módosítási ideje vagy mérete eltér. A `kepmappa`
+listában a videófájlok nem tűnhetnek el és nem változhat a méretük (az eredeti
+nem töröl fájlt).
+
+**K10. M4b eredménye (job-822..825, 2026-11-23).**
+
+Mind a négy feladat a `video` mintával, külön alapállapotból futott. A `kepmappa` leltára mindegyiknél 93 fájlt tartalmaz. A `teszt-video.wmv` bemeneti fájl mind a négyben jelen van, mérete 45537 bájt; a négy másolat SHA-256-a azonos (`c60df6985fbe97cd8eea6633e0b012f14a59b3e5acd0219d30eee13d41ce6536`). A mtime-ok futásonként eltérnek, mert a feladatok külön indulási állapotból futottak; ebből önmagában nem következik, hogy a Movies kapcsoló módosította a forrásfájlt.
+
+**Képkockák és felület.** A `kepernyo__NN.png` az NN. művelet előtti állapot. Az `allapot.json` OCR-je nem adott számlálót, ezért a képekről olvastam le. A státuszsor száma a bal oldali számlálóktól késve frissül.
+
+| Futás | Képkockák | Bal oldali számlálók | Státuszsor | Videócsempe |
+|---|---|---|---|---|
+| M4b-0, kontroll | `job-822`, 15 | `PicasaTeszt (25)`, `Recently Updated (25)` | `25 pictures`, `11.1 MB on disk` | A teszt-videócsempe látható. |
+| M4b-1, Movies ki | `job-823`, 16 az első OK utáni kép, 17 három másodperc után, 18 tizenhárom másodperc után | Az első képen a mappa már 24; az első 3 másodperces képen a Recently Updated még 25, a 13 másodpercesen már 24 | A 3 és 13 másodperces képen még `25 pictures`; a mappa újbóli kijelölése után (`19`) `24 pictures`, `4.5 MB on disk`. A végső kép (`25`) is 24-et mutat. | Az AVI-tesztcsempe az első OK utáni képen már nincs a rácsban; a 13 másodperces és végső képen sem látszik. |
+| M4b-2, ki majd vissza | `job-824`, 17 az első kikapcsolás után; 26 az első visszakapcsolás utáni kép, 27 három, 28 tizenhárom másodperc után, 29 a mappa újbóli kijelölése után, 35 a végén | Kikapcsolva 24; visszakapcsolás után már az első képen 25 | Visszakapcsolás után `25 pictures`, `11.1 MB on disk` | Az első OK utáni képen ismét látható; az eszköztipp neve `teszt-video.avi`. A visszatérés tehát az első felvételig, három másodpercen belül megtörténik. |
+| M4b-3, ki majd újraindítás | `job-825`, 16-17 kikapcsolás után; 21-23 újraindítás után | Újraindítás után `PicasaTeszt (24)`, `Recently Updated (24)` | A mappa nincs kijelölve, ezért nincs számlálós státuszsor | A 24 elemű nézetben nincs videócsempe. |
+
+**A WMV és AVI rekordja.** A 93 fájlos bemeneti leltárban a WMV változatlan. Mindhárom teljes db3-pillanatkép ANSI/ASCII alakban, a `thumbindex.db`-ben tartalmazza a nevét; UTF-16LE találat nincs, más db3-fájlban sem volt ANSI találat. A már meglévő `read_thumb_index` olvasóval ellenőrzött sorok:
+
+| Futás | `teszt-video.avi` | `teszt-video.wmv` | `thumbindex.db` méret és mtime |
+|---|---|---|---|
+| M4b-0 | 36. sor, `valid=1`, `size=6918482` | 37. sor, szülő 5, `kind=4`, `dirty=0`, `valid=1`, `size=45537`; ANSI `0x887` | 2229 B, `01:38:03Z` |
+| M4b-1 | 36. sor üres, `valid=0`; a korábbi AVI rekord kiürült | 37. sor megmarad, azonos `kind`, `valid` és méret; ANSI `0x878` | 2214 B, `01:42:48Z` |
+| M4b-2 | 36. sor továbbra is üres, noha a nézetben az AVI-csempe visszatért | 37. sor megmarad; ANSI `0x878` | 2214 B, `01:48:07Z` |
+| M4b-3 | A `thumbindex.db` nincs a pillanatkép leltárában | A WMV-sor a leltárból nem vizsgálható | A fájl hiányzik |
+
+A K9 döntési szabálya szerint M4b-1-ben a WMV **rekordja megmarad, miközben a db3 katalógusfájl újraírt állapotú**: a `thumbindex.db` mérete és mtime-ja változik, a 36. AVI-sor kiürül. A `thumbs_0.db` 381862-ről 373221 bájtra, a `wordhash.dat` 68244-ről 68220 bájtra változik. M4b-2-ben a WMV-sor továbbra is megmarad; az AVI-csempe visszatér a felületre, de az AVI rekord a végső `thumbindex.db`-ben nem áll vissza.
+
+**M4b-3 korlátja.** Az M4b-0/-1/-2 adatbázisleltára 51 fájlos, az M4b-3-é 10 fájlos. A job-825 ZIP mind a leltárban szereplő 10 fájlt tartalmazza, de ebből nyolc fő adatfájl 4 bájtos üres törzs, a 41 másik fájl, köztük a `thumbindex.db`, nem szerepel a leltárban. A `previews_0.db` és `thumbs2_0.db` módosítási ideje későbbi a leltárban feljegyzett hozzáférési időnél, így a pillanatkép közben is zajlott írásra utal. **Ezért a job-825-ből csak az mondható ki, hogy a gyűjtött pillanatképben nincs WMV-rekord; az újraindítás utáni befejezett katalógus állapota nyitott.**
+
+**Fájlonkénti leltár.** Minden módosítási idő UTC, dátum `2026-11-23`. A WMV bájtsorra csak a `thumbindex.db` adott találatot; az összes többi felsorolt db3-fájlban sem ANSI/ASCII, sem UTF-16LE alak nem található. A `nincs a leltárban` azt jelenti, hogy a job-825 mért db3-leltára nem tartalmazta a fájlt.
+
+| db3-fájl | M4b-0 | M4b-1 | M4b-2 | M4b-3 |
+|---|---|---|---|---|
+| `albumdata_0` | 4 B / 01:34:47Z | 4 B / 01:39:32Z | 4 B / 01:44:52Z | 4 B / 01:51:07Z |
+| `albumdata_category.pmp` | 52 B / 01:38:03Z | 52 B / 01:42:48Z | 52 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_date.pmp` | 84 B / 01:38:03Z | 84 B / 01:42:48Z | 84 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_description.pmp` | 50 B / 01:38:03Z | 50 B / 01:42:48Z | 50 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_filename.pmp` | 43 B / 01:38:03Z | 43 B / 01:42:48Z | 43 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_hascollage.pmp` | 28 B / 01:38:03Z | 28 B / 01:42:48Z | 28 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_location.pmp` | 28 B / 01:38:03Z | 28 B / 01:42:48Z | 28 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_music.pmp` | 27 B / 01:38:03Z | 27 B / 01:42:48Z | 27 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_name.pmp` | 116 B / 01:38:03Z | 116 B / 01:42:48Z | 116 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_token.pmp` | 140 B / 01:38:03Z | 140 B / 01:42:48Z | 140 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_uid.pmp` | 60 B / 01:38:03Z | 60 B / 01:42:48Z | 60 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_unread.pmp` | 28 B / 01:38:03Z | 28 B / 01:42:48Z | 28 B / 01:48:07Z | nincs a leltárban |
+| `albums_0.db` | 43524 B / 01:38:03Z | 43524 B / 01:42:48Z | 43524 B / 01:48:16Z | 4 B / 01:51:07Z |
+| `albums_index.db` | 116 B / 01:38:03Z | 116 B / 01:42:48Z | 116 B / 01:48:07Z | nincs a leltárban |
+| `bigthumbs_0.db` | 446989 B / 01:38:03Z | 446989 B / 01:42:48Z | 446989 B / 01:48:07Z | 4 B / 01:51:07Z |
+| `bigthumbs_index.db` | 452 B / 01:38:03Z | 452 B / 01:42:48Z | 452 B / 01:48:07Z | nincs a leltárban |
+| `catdata_0` | 4 B / 01:34:47Z | 4 B / 01:39:32Z | 4 B / 01:44:52Z | 4 B / 01:51:07Z |
+| `catdata_catpri.pmp` | 29 B / 01:38:03Z | 29 B / 01:42:48Z | 29 B / 01:48:07Z | nincs a leltárban |
+| `catdata_name.pmp` | 136 B / 01:38:03Z | 136 B / 01:42:48Z | 136 B / 01:48:07Z | nincs a leltárban |
+| `catdata_state.pmp` | 29 B / 01:38:03Z | 29 B / 01:42:48Z | 29 B / 01:48:07Z | nincs a leltárban |
+| `facetags.txt` | 0 B / 01:38:03Z | 0 B / 01:42:48Z | 0 B / 01:48:08Z | nincs a leltárban |
+| `facetemplatesV2_0.db` | 6268 B / 01:38:03Z | 6268 B / 01:42:48Z | 6268 B / 01:48:08Z | 4 B / 01:51:07Z |
+| `facetemplatesV2_index.db` | 452 B / 01:38:03Z | 452 B / 01:42:48Z | 452 B / 01:48:08Z | nincs a leltárban |
+| `imagedata_0` | 4 B / 01:34:47Z | 4 B / 01:39:32Z | 4 B / 01:44:52Z | 4 B / 01:51:07Z |
+| `imagedata_avgcolor.pmp` | 168 B / 01:38:03Z | 168 B / 01:42:48Z | 168 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_crop64.pmp` | 308 B / 01:38:03Z | 308 B / 01:42:48Z | 308 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_edit_height.pmp` | 168 B / 01:38:03Z | 168 B / 01:42:48Z | 168 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_edit_width.pmp` | 168 B / 01:38:03Z | 168 B / 01:42:48Z | 168 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_facequality.pmp` | 164 B / 01:38:03Z | 164 B / 01:42:48Z | 164 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_facerect.pmp` | 324 B / 01:38:03Z | 324 B / 01:42:48Z | 324 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_facerectdata.pmp` | 552 B / 01:38:03Z | 552 B / 01:42:48Z | 552 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_filetype.pmp` | 172 B / 01:38:03Z | 172 B / 01:42:48Z | 172 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_height.pmp` | 172 B / 01:38:03Z | 172 B / 01:42:48Z | 172 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_originfast.pmp` | 316 B / 01:38:03Z | 316 B / 01:42:48Z | 316 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_tags.pmp` | 194 B / 01:38:03Z | 194 B / 01:42:48Z | 194 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_width.pmp` | 172 B / 01:38:03Z | 172 B / 01:42:48Z | 172 B / 01:48:07Z | nincs a leltárban |
+| `previews_0.db` | 1558998 B / 01:38:03Z | 1558998 B / 01:42:48Z | 1558998 B / 01:48:07Z | 2201519 B / 01:54:20Z |
+| `previews_index.db` | 380 B / 01:38:03Z | 380 B / 01:42:48Z | 380 B / 01:48:08Z | nincs a leltárban |
+| `profilephotos_0.db` | 4 B / 01:34:47Z | 4 B / 01:39:32Z | 4 B / 01:44:52Z | 4 B / 01:51:07Z |
+| `repository.dat` | 140 B / 01:38:03Z | 140 B / 01:42:48Z | 140 B / 01:48:08Z | nincs a leltárban |
+| `saverlist.txt` | 0 B / 01:38:03Z | 0 B / 01:42:48Z | 0 B / 01:48:08Z | nincs a leltárban |
+| `scanlist.txt` | 6 B / 01:38:03Z | 6 B / 01:42:48Z | 6 B / 01:48:07Z | nincs a leltárban |
+| `starlist.txt` | 0 B / 01:38:03Z | 0 B / 01:42:48Z | 0 B / 01:48:08Z | nincs a leltárban |
+| `tags.txt` | 0 B / 01:38:03Z | 0 B / 01:42:48Z | 0 B / 01:48:08Z | nincs a leltárban |
+| `thumbindex.db` | 2229 B / 01:38:03Z; WMV ANSI 0x887 | 2214 B / 01:42:48Z; WMV ANSI 0x878 | 2214 B / 01:48:07Z; WMV ANSI 0x878 | nincs a leltárban |
+| `thumbs2_0.db` | 104895 B / 01:38:03Z | 104895 B / 01:42:48Z | 104895 B / 01:48:08Z | 122326 B / 01:54:21Z |
+| `thumbs2_index.db` | 464 B / 01:38:03Z | 464 B / 01:42:48Z | 464 B / 01:48:08Z | nincs a leltárban |
+| `thumbs_0.db` | 381862 B / 01:38:03Z | 373221 B / 01:42:48Z | 381862 B / 01:48:07Z | 4 B / 01:51:07Z |
+| `thumbs_index.db` | 464 B / 01:38:03Z | 464 B / 01:42:48Z | 464 B / 01:48:07Z | nincs a leltárban |
+| `usernames.dat` | 8 B / 01:38:03Z | 8 B / 01:42:48Z | 8 B / 01:48:08Z | nincs a leltárban |
+| `wordhash.dat` | 68244 B / 01:38:03Z | 68220 B / 01:42:48Z | 68220 B / 01:48:07Z | nincs a leltárban |
+
+**Következtetés és bizalmi fok.**
+
+- **N5: megerősített a mért sorsra, nyitott a konkrét íróútra.** A kikapcsolt Movies mellett a WMV-sor megmarad; az AVI-sor kiürül, a db3-fájlok változnak. Az M4 nem nevezi meg, melyik közvetett DBLoader/scan-út írta ezeket. A job-825 hiányos leltára miatt az újraindítás utáni állapot is nyitott.
+- **N7: erős a futó felület viselkedésére.** Kikapcsolás után a látható AVI-csempe már az első OK utáni képen eltűnik; visszakapcsolás után az első képen, három másodpercen belül visszajön. A 3 és 13 másodperces státuszsor-frissülés késik a bal oldali számlálóhoz képest. Stabil újraindítási állapotra a job-825 nem ad bizonyítékot.
+- **N10: megerősített a fájl létezésére és katalógusrekordjára; feltételes a felületi megjelenésre.** A WMV fizikai példánya mind a négy futásban azonos bájtú és 45537 bájtos; M4b-0/-1/-2-ben érvényes `thumbindex`-sorral szerepel. A képen azonosítható videócsempe AVI, ezért külön WMV-csempe megléte nem állapítható meg.
+
+**Fejlesztői eltérés.** A PicasaPy a PicasaPy-ban: `scanner/filetypes.py:97,139-143` szerint a kikapcsolt `movies` csoport a `.wmv`-t is kiszűri; az a PicasaPy-ban: `OptionsDialog.qml:168-169` újraolvasást indít, az a PicasaPy-ban: `index/sync_photos.py:185-186,535-538` pedig törli a scanből hiányzó neveket a `photos` táblából. Ez eltér attól, hogy az eredeti a kikapcsolt Movies mellett is érvényes WMV-rekordot tart meg. Fejlesztői jegy szükséges; nem nyitottam meg.
+| db3-fájl | M4b-0 | M4b-1 | M4b-2 | M4b-3 |
+|---|---|---|---|---|
+| `albumdata_0` | 4 B / 01:34:47Z | 4 B / 01:39:32Z | 4 B / 01:44:52Z | 4 B / 01:51:07Z |
+| `albumdata_category.pmp` | 52 B / 01:38:03Z | 52 B / 01:42:48Z | 52 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_date.pmp` | 84 B / 01:38:03Z | 84 B / 01:42:48Z | 84 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_description.pmp` | 50 B / 01:38:03Z | 50 B / 01:42:48Z | 50 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_filename.pmp` | 43 B / 01:38:03Z | 43 B / 01:42:48Z | 43 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_hascollage.pmp` | 28 B / 01:38:03Z | 28 B / 01:42:48Z | 28 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_location.pmp` | 28 B / 01:38:03Z | 28 B / 01:42:48Z | 28 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_music.pmp` | 27 B / 01:38:03Z | 27 B / 01:42:48Z | 27 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_name.pmp` | 116 B / 01:38:03Z | 116 B / 01:42:48Z | 116 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_token.pmp` | 140 B / 01:38:03Z | 140 B / 01:42:48Z | 140 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_uid.pmp` | 60 B / 01:38:03Z | 60 B / 01:42:48Z | 60 B / 01:48:07Z | nincs a leltárban |
+| `albumdata_unread.pmp` | 28 B / 01:38:03Z | 28 B / 01:42:48Z | 28 B / 01:48:07Z | nincs a leltárban |
+| `albums_0.db` | 43524 B / 01:38:03Z | 43524 B / 01:42:48Z | 43524 B / 01:48:16Z | 4 B / 01:51:07Z |
+| `albums_index.db` | 116 B / 01:38:03Z | 116 B / 01:42:48Z | 116 B / 01:48:07Z | nincs a leltárban |
+| `bigthumbs_0.db` | 446989 B / 01:38:03Z | 446989 B / 01:42:48Z | 446989 B / 01:48:07Z | 4 B / 01:51:07Z |
+| `bigthumbs_index.db` | 452 B / 01:38:03Z | 452 B / 01:42:48Z | 452 B / 01:48:07Z | nincs a leltárban |
+| `catdata_0` | 4 B / 01:34:47Z | 4 B / 01:39:32Z | 4 B / 01:44:52Z | 4 B / 01:51:07Z |
+| `catdata_catpri.pmp` | 29 B / 01:38:03Z | 29 B / 01:42:48Z | 29 B / 01:48:07Z | nincs a leltárban |
+| `catdata_name.pmp` | 136 B / 01:38:03Z | 136 B / 01:42:48Z | 136 B / 01:48:07Z | nincs a leltárban |
+| `catdata_state.pmp` | 29 B / 01:38:03Z | 29 B / 01:42:48Z | 29 B / 01:48:07Z | nincs a leltárban |
+| `facetags.txt` | 0 B / 01:38:03Z | 0 B / 01:42:48Z | 0 B / 01:48:08Z | nincs a leltárban |
+| `facetemplatesV2_0.db` | 6268 B / 01:38:03Z | 6268 B / 01:42:48Z | 6268 B / 01:48:08Z | 4 B / 01:51:07Z |
+| `facetemplatesV2_index.db` | 452 B / 01:38:03Z | 452 B / 01:42:48Z | 452 B / 01:48:08Z | nincs a leltárban |
+| `imagedata_0` | 4 B / 01:34:47Z | 4 B / 01:39:32Z | 4 B / 01:44:52Z | 4 B / 01:51:07Z |
+| `imagedata_avgcolor.pmp` | 168 B / 01:38:03Z | 168 B / 01:42:48Z | 168 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_crop64.pmp` | 308 B / 01:38:03Z | 308 B / 01:42:48Z | 308 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_edit_height.pmp` | 168 B / 01:38:03Z | 168 B / 01:42:48Z | 168 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_edit_width.pmp` | 168 B / 01:38:03Z | 168 B / 01:42:48Z | 168 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_facequality.pmp` | 164 B / 01:38:03Z | 164 B / 01:42:48Z | 164 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_facerect.pmp` | 324 B / 01:38:03Z | 324 B / 01:42:48Z | 324 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_facerectdata.pmp` | 552 B / 01:38:03Z | 552 B / 01:42:48Z | 552 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_filetype.pmp` | 172 B / 01:38:03Z | 172 B / 01:42:48Z | 172 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_height.pmp` | 172 B / 01:38:03Z | 172 B / 01:42:48Z | 172 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_originfast.pmp` | 316 B / 01:38:03Z | 316 B / 01:42:48Z | 316 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_tags.pmp` | 194 B / 01:38:03Z | 194 B / 01:42:48Z | 194 B / 01:48:07Z | nincs a leltárban |
+| `imagedata_width.pmp` | 172 B / 01:38:03Z | 172 B / 01:42:48Z | 172 B / 01:48:07Z | nincs a leltárban |
+| `previews_0.db` | 1558998 B / 01:38:03Z | 1558998 B / 01:42:48Z | 1558998 B / 01:48:07Z | 2201519 B / 01:54:20Z |
+| `previews_index.db` | 380 B / 01:38:03Z | 380 B / 01:42:48Z | 380 B / 01:48:08Z | nincs a leltárban |
+| `profilephotos_0.db` | 4 B / 01:34:47Z | 4 B / 01:39:32Z | 4 B / 01:44:52Z | 4 B / 01:51:07Z |
+| `repository.dat` | 140 B / 01:38:03Z | 140 B / 01:42:48Z | 140 B / 01:48:08Z | nincs a leltárban |
+| `saverlist.txt` | 0 B / 01:38:03Z | 0 B / 01:42:48Z | 0 B / 01:48:08Z | nincs a leltárban |
+| `scanlist.txt` | 6 B / 01:38:03Z | 6 B / 01:42:48Z | 6 B / 01:48:07Z | nincs a leltárban |
+| `starlist.txt` | 0 B / 01:38:03Z | 0 B / 01:42:48Z | 0 B / 01:48:08Z | nincs a leltárban |
+| `tags.txt` | 0 B / 01:38:03Z | 0 B / 01:42:48Z | 0 B / 01:48:08Z | nincs a leltárban |
+| `thumbindex.db` | 2229 B / 01:38:03Z; WMV ANSI 0x887 | 2214 B / 01:42:48Z; WMV ANSI 0x878 | 2214 B / 01:48:07Z; WMV ANSI 0x878 | nincs a leltárban |
+| `thumbs2_0.db` | 104895 B / 01:38:03Z | 104895 B / 01:42:48Z | 104895 B / 01:48:08Z | 122326 B / 01:54:21Z |
+| `thumbs2_index.db` | 464 B / 01:38:03Z | 464 B / 01:42:48Z | 464 B / 01:48:08Z | nincs a leltárban |
+| `thumbs_0.db` | 381862 B / 01:38:03Z | 373221 B / 01:42:48Z | 381862 B / 01:48:07Z | 4 B / 01:51:07Z |
+| `thumbs_index.db` | 464 B / 01:38:03Z | 464 B / 01:42:48Z | 464 B / 01:48:07Z | nincs a leltárban |
+| `usernames.dat` | 8 B / 01:38:03Z | 8 B / 01:42:48Z | 8 B / 01:48:08Z | nincs a leltárban |
+| `wordhash.dat` | 68244 B / 01:38:03Z | 68220 B / 01:42:48Z | 68220 B / 01:48:07Z | nincs a leltárban |
+### Számértékek
+
+| kulcs | alapérték | cím |
+|---|---:|---|
+| `PWADefaultSize` | **1600** (`0x640`) | `0x006e0d7a` |
+| `PWADefaultSizeES` | **2048** (`0x800`) | `0x006e0d8d` |
+| `FRSuggestionThreshold` | **85** (`0x55`) | `0x006e0ed5` |
+| `FRSortThreshold` | **85** (`0x55`) | `0x006e0ee8` |
+
+### Külön kezelt
+
+`ytHLocal::lang` (nyelv), `PrinterQuality`, `PrintResamplerQuality`,
+`PWAShareAccess` - ezek nem a logikai regisztrálón mennek át; az
+alapértékük külön ágban dől el.
+
+### A 39 regisztrált kulcs írási életciklusa és a PicasaPy-összevetés (#6062)
+
+`0x006e0cb0` 39 alapérték-regisztrációt tartalmaz: 31 logikai és 8
+egészértékűt. A `0x006e0a70` (logikai) és `0x006e0b20` (egész) segéd
+`0x004019b0`-n keresztül **olvas** a `Preferences`-ből, és hiányzó értéknél
+a regisztráló által átadott alapértéket adja vissza; ezek a segédek nem írják
+be az alapértéket. A `0x006e0bc0` külön `PWAWatermark`-olvasás, nem
+regisztráció. Az alábbi táblában az „íróút” azt jelenti, hogy a kódban
+azonosítottam-e konkrét `0x00401900` írást; a `NINCS MEG` **nem** azt
+bizonyítja, hogy sehol sincs írás, csak azt, hogy a kötelező közvetlen
+sztring-/utasításvizsgálat nem döntötte el az útját vagy időzítését.
+Az `0x004183c0` migrációban a hiányzó `dbVersion` olvasási alapértéke `0`
+(`0x00418469`); a `0` és `15` értéknél továbbugró feltételek címe
+`0x0041848c` és `0x00418492`.
+
+| Eredeti kulcs | Típus, regisztrált alapérték (bináris cím) | Eredeti íróút és igazolt időzítés | PicasaPy-kulcs és induláskori mentés |
+|---|---|---|---|
+| `AutoUpgradeCheck` | bool, `1` (`0x006e0cb1`) | `0x006e3990`: Opciók elfogadásakor | nincs megfelelő QSettings-kulcs |
+| `AutoUpgradeAsk` | bool, `0` (`0x006e0cbe`) | `0x006e3990`: Opciók elfogadásakor | nincs megfelelő QSettings-kulcs |
+| `AutoInfoCheck` | bool, `1` (`0x006e0ccb`) | íróút/időzítés: **NINCS MEG** | nincs megfelelő QSettings-kulcs |
+| `UITransitions` | bool, `1` (`0x006e0cd8`) | íróút/időzítés: **NINCS MEG** | `view/uiTransitions`; alapértéket olvas, mentés csak explicit setterrel |
+| `ShowTooltips` | bool, `1` (`0x006e0ce5`) | íróút/időzítés: **NINCS MEG** | `view/showTooltips`; alapértéket olvas, mentés csak explicit setterrel |
+| `SingleClickExit` | bool, `0` (`0x006e0cf2`) | íróút/időzítés: **NINCS MEG** | `view/singleClickExit`; alapértéket olvas, mentés csak explicit setterrel |
+| `disposepreviews` | bool, `0` (`0x006e0cff`) | **HELYESBÍTVE (#7325):** a kapcsoló értékét az Opciók OK-ja írja (általános mentés: `0x006e39af` -> `0x009a5b30`), a `0x005cf5b0` az OK után, ha az érték nem nulla, a két memóriabeli bélyegképtárat azonnal újrainicializálja (`0x005cfdeb`-`0x005cfe48`) és `0`-t ír vissza; kilépéskor a kulcsot semmi nem olvassa (a sztring a teljes `.text`-ben csak három helyen áll). Lásd [paritas-folyamat-7325.md](paritas-folyamat-7325.md) 1.4 f sor. | `view/disposePreviewsOnExit`; az OK a memóriatárat üríti és a jelölőt nullázza (#7332); kilépéskor nem ürít |
+| `DoNotConfirmDeleteFromDisk` | bool, `0` (`0x006e0d0c`) | `0x005fd670`: a törlési megerősítő párbeszéd döntési/„ne kérdezze újra” útján | `confirm/delete/remember`; a párbeszéd döntésekor `true`-t és `false`-t is ment |
+| `DoNotConfirmRemoveFromAlbum` | bool, `0` (`0x006e0d19`) | `0x005fd670`: az albumeltávolítás megerősítő párbeszédének döntési útján | `confirm/removeFromAlbum/remember`; a párbeszéd döntésekor `true`-t és `false`-t is ment |
+| `autoexclude` | bool, `1` (`0x006e0d29`) | `0x0051f600`: az importálási művelet a panelen látott értéket kiírja | `import/autoexclude`; alapértéket olvas, mentés csak explicit setterrel |
+| `ytHLocal::lang` | egész, `0` (`0x006e0d37`) | nyelvválasztási/nyelvbetöltési utak; lásd e lap nyelvi leletét (`0x004060b0`); nem az alapérték-regisztráló írja | `general/language`; a `resolve_startup_language()` minden induláskor elmenti a feloldott nyelvet |
+| `PrinterQuality` | egész, `2` (`0x006e0d47`) | `0x006e3990`: Opciók elfogadásakor; nyomtatási útvonalak: `0x00746060`, `0x008613b0` | `printing/printerQuality`; alapértéket olvas, mentés csak explicit setterrel |
+| `PrintResamplerQuality` | egész, `5` (`0x006e0d5a`) | `0x006e3990`: Opciók elfogadásakor | `printing/resamplerQuality`; alapértéket olvas, mentés csak explicit setterrel |
+| `PrintProxyPreview` | bool, `1` (`0x006e0d69`) | `0x006e3990`: Opciók elfogadásakor | `printing/proxyPreview`; alapértéket olvas, mentés csak explicit setterrel |
+| `PWADefaultSize` | egész, `1600` (`0x006e0d7a`) | `0x006e3990`: a Web Albums Opció-lap elfogadásakor | nincs aktív PicasaPy-megfelelő |
+| `PWADefaultSizeES` | egész, `2048` (`0x006e0d8d`) | közvetlen íróút/időzítés: **NINCS MEG** | nincs aktív PicasaPy-megfelelő |
+| `PWAShareAccess` | egész, `0` (`0x006e0da0`) | közvetlen íróút/időzítés: **NINCS MEG** | nincs aktív PicasaPy-megfelelő |
+| `PWAStarred` | bool, `0` (`0x006e0daf`) | közvetlen íróút/időzítés: **NINCS MEG** | nincs aktív PicasaPy-megfelelő |
+| `PWASyncOrder` | bool, `1` (`0x006e0dbc`) | `0x009627d0`: Gaia/webalbum-szinkron út | nincs aktív PicasaPy-megfelelő |
+| `PWAStriped` | bool, `0` (`0x006e0dd2`) | közvetlen íróút/időzítés: **NINCS MEG** | nincs aktív PicasaPy-megfelelő |
+| `PWAUseHiQualityJPEG` | bool, `0` (`0x006e0ddf`) | közvetlen íróút/időzítés: **NINCS MEG** | nincs aktív PicasaPy-megfelelő |
+| `LoopSlideshow` | bool, `0` (`0x006e0dec`) | közvetlen íróút/időzítés: **NINCS MEG** | `view/slideshowLoop`; alapértéket olvas, mentés csak explicit setterrel |
+| `PlayMP3Tracks` | bool, `1` (`0x006e0df9`) | közvetlen íróút/időzítés: **NINCS MEG** | `view/slideshowMusicEnabled`; alapértéket olvas, mentés csak explicit setterrel |
+| `SupportMovies` | bool, számított (`0x00981af0`; regisztráció `0x006e0e06-0x006e0e17`) | `0x004183c0`: indulási adatbázis-migrációkor, ha `dbVersion` nem `0` és nem `15` (`0x0041848c`, `0x00418492`); `0x005757d0`: a „Don't Show” filmdialógus ága | `library/fileTypes/movies`; alapértéket olvas, mentés csak explicit setterrel |
+| `SupportQuicktime` | bool, számított (`0x00981af0`; regisztráció `0x006e0e1c-0x006e0e2d`) | `0x00544bd0`: egy képességvizsgálati ágban `0`-t ír; a külső esemény/időzítés **NINCS MEG** | `library/fileTypes/quicktime`; alapértéket olvas, mentés csak explicit setterrel |
+| `SupportAudio` | bool, `0` (`0x006e0e32`) | közvetlen íróút/időzítés: **NINCS MEG** | nincs fájltípus-QSettings-megfelelő |
+| `SupportTIF` | bool, `1` (`0x006e0e3f`) | `0x004183c0`: migrációs írás csak `dbVersion ∉ {0, 15}` (`0x0041848c`, `0x00418492`) esetén; az első indulás nem ezen az ágon ír | `library/fileTypes/tiff`; alapértéket olvas, mentés csak explicit setterrel |
+| `SupportWEBP` | bool, `1` (`0x006e0e4c`) | `0x004183c0`: migrációs írás csak `dbVersion ∉ {0, 15}` (`0x0041848c`, `0x00418492`) esetén; az első indulás nem ezen az ágon ír | `library/fileTypes/webp`; alapértéket olvas, mentés csak explicit setterrel |
+| `SupportBMP` | bool, `1` (`0x006e0e5c`) | `0x004183c0`: migrációs írás csak `dbVersion ∉ {0, 15}` (`0x0041848c`, `0x00418492`) esetén; az első indulás nem ezen az ágon ír | `library/fileTypes/bmp`; alapértéket olvas, mentés csak explicit setterrel |
+| `SupportPSD` | bool, `1` (`0x006e0e69`) | `0x004183c0`: migrációs írás csak `dbVersion ∉ {0, 15}` (`0x0041848c`, `0x00418492`) esetén; az első indulás nem ezen az ágon ír | `library/fileTypes/psd`; alapértéket olvas, mentés csak explicit setterrel |
+| `SupportGIF` | bool, `0` (`0x006e0e76`) | `0x004183c0`: migrációs írás csak `dbVersion ∉ {0, 15}` (`0x0041848c`, `0x00418492`) esetén; az első indulás nem ezen az ágon ír | `library/fileTypes/gif`; alapértéket olvas, mentés csak explicit setterrel |
+| `SupportPNG` | bool, `0` (`0x006e0e83`) | `0x004183c0`: migrációs írás csak `dbVersion ∉ {0, 15}` (`0x0041848c`, `0x00418492`) esetén; az első indulás nem ezen az ágon ír | `library/fileTypes/png`; alapértéket olvas, mentés csak explicit setterrel |
+| `SupportTGA` | bool, `0` (`0x006e0e90`) | közvetlen íróút/időzítés: **NINCS MEG** | `library/fileTypes/tga`; alapértéket olvas, mentés csak explicit setterrel |
+| `SupportRAW` | bool, `1` (`0x006e0e9d`) | közvetlen íróút/időzítés: **NINCS MEG** | `library/fileTypes/raw`; alapértéket olvas, mentés csak explicit setterrel |
+| `BgFaceDetectThread` | bool, `1` (`0x006e0eaa`) | `0x006e3990`: Opciók elfogadásakor | `faces/automaticDetection`; alapértéket olvas, mentés csak explicit setterrel |
+| `FRAddSuggesetions` | bool, `1` (`0x006e0eba`) | `0x006e3990`: Opciók elfogadásakor | `faces/suggestionsEnabled`; alapértéket olvas, mentés csak explicit setterrel |
+| `FREnableUploads` | bool, `1` (`0x006e0ec7`) | `0x006e3990`: Opciók elfogadásakor | nincs aktív QSettings-megfelelő; a webalbum-funkció letiltott |
+| `FRSuggestionThreshold` | egész, `85` (`0x006e0ed5`) | `0x006e3990`: Opciók elfogadásakor; `0x0048aab0`: arcküszöb-íróút | `faces/suggestStep` (felületi lépcső); alapértéket olvas, mentés csak explicit setterrel |
+| `FRSortThreshold` | egész, `85` (`0x006e0ee8`) | `0x006e3990`: Opciók elfogadásakor; `0x0048aab0`: arcküszöb-íróút | `faces/clusterStep2` (átalakított lépcső); hiányzó új és régi kulcsnál az alaplépcsőt adja vissza, és nem menti el |
+
+**Bizonyított PicasaPy-mentési hiányok a talált eredeti íróutakkal.** A
+a PicasaPy-ban: `filetype_preferences.py` csoportolvasója alapértéket ad vissza, a
+`set_file_type_enabled()` pedig csak kifejezett beállító hívásra ír. Ugyanez a
+„hiányzó kulcs esetén alapérték, írás csak a beállító hívásból” minta igazolt az
+automatikus kizárásra, a nyomtatás három beállítására és a négy arctag-
+beállításra. A PicasaPy jelenleg nem hozza létre ezeket a kulcsokat az első
+feloldáskor; frissítés után a korábban még nem mentett érték ezért az új
+alapértéket követné.
+
+| Eredeti | PicasaPy-kulcs | Eredeti íróút, amihez a hiányzó alapmentés viszonyítandó |
+|---|---|---|
+| `autoexclude` | `import/autoexclude` | importáláskor, `0x0051f600` |
+| `SupportBMP` | `library/fileTypes/bmp` | feltételes adatbázis-migráció, `0x004183c0` |
+| `SupportPSD` | `library/fileTypes/psd` | feltételes adatbázis-migráció, `0x004183c0` |
+| `SupportTIF` | `library/fileTypes/tiff` | feltételes adatbázis-migráció, `0x004183c0` |
+| `SupportWEBP` | `library/fileTypes/webp` | feltételes adatbázis-migráció, `0x004183c0` |
+| `SupportPNG` | `library/fileTypes/png` | feltételes adatbázis-migráció, `0x004183c0` |
+| `SupportGIF` | `library/fileTypes/gif` | feltételes adatbázis-migráció, `0x004183c0` |
+| `SupportMovies` | `library/fileTypes/movies` | feltételes adatbázis-migráció (`0x004183c0`) és film-figyelmeztetési ág (`0x005757d0`) |
+| `PrinterQuality` | `printing/printerQuality` | Opciók elfogadása (`0x006e3990`), nyomtatási utak (`0x00746060`, `0x008613b0`) |
+| `PrintResamplerQuality` | `printing/resamplerQuality` | Opciók elfogadása, `0x006e3990` |
+| `PrintProxyPreview` | `printing/proxyPreview` | Opciók elfogadása, `0x006e3990` |
+| `BgFaceDetectThread` | `faces/automaticDetection` | Opciók elfogadása, `0x006e3990` |
+| `FRAddSuggesetions` | `faces/suggestionsEnabled` | Opciók elfogadása, `0x006e3990` |
+| `FRSuggestionThreshold` | `faces/suggestStep` | Opciók elfogadása (`0x006e3990`) és arcküszöb-íróút (`0x0048aab0`) |
+| `FRSortThreshold` | `faces/clusterStep2` | Opciók elfogadása (`0x006e3990`) és arcküszöb-íróút (`0x0048aab0`) |
+
+Ez a lista a QSettings-oldali, közvetlenül leképezett hiányokra szűkül; nem
+javasolja az eredeti nyers értékek bemásolását. A fejlesztési feladat
+konkrét megőrzési szabálya: az adott érték QSettings-feloldása után csak
+akkor írja el az **effektív, a felületen használt értéket**, ha a kulcs még
+nincs jelen; a már mentett felhasználói értéket ne írja felül. A
+`SupportQuicktime` második írásútja nyitott, ezért ezt nem számoltam a fenti 15
+megerősített QSettings-hiány közé. A `disposepreviews` kiváltó eseménye a #7325
+óta ismert (az Opciók OK-ja, egyszeri ürítés, a jelölő visszaáll nullára);
+ugyanez a lelet válaszolja meg a táblában azokat az Opciók-kulcsokat, amelyeknek az írója `NINCS MEG` volt
+(`UITransitions`, `ShowTooltips`, `SingleClickExit`, `autoexclude`,
+`LoopSlideshow`, `PlayMP3Tracks`, `SupportRAW`, `SupportTGA`): ezeket az Opciók
+OK-ja írja az általános mentéssel (`0x006e39af` -> `0x009a5b30`), lásd
+[paritas-folyamat-7325.md](paritas-folyamat-7325.md) 1.3.
+
+*Bizonyítottság: feltételes az írási életciklus teljességére.* A teljes
+utasításszintű pásztázás a kulcsnevekre megtalálta a 39/39 regisztrált kulcsot;
+a regisztráló segédek, a konkrét írófüggvények és a PicasaPy `value` /
+`setValue` útjai külön ellenőrizve vannak. Az „ismeretlen íróút” sorok
+nyitva maradnak, mert egy közvetett/vtáblás írás eredetét ez a leltár nem
+állapítja meg.
+
+### Amit ebből a PicasaPy visz
+
+A **fájltípus-kapcsolók** és a **megerősítés-kihagyó** beállítások
+közvetlenül átvehetők. A webalbumos (`PWA*`) és a frissítés-ellenőrző
+kulcsok nálunk értelmezhetetlenek.
+
+*Bizonyítottsági fok: megerősített* (a regisztráló hívások mind a 39-re
+kiolvasva, az alapérték minden esetben a hívás előtti `push`).
+
+## A Beállítások párbeszéd kezelője és a kulcsai (`0x006e1100`, 2026-08-16)
+
+A 9 494 bájtos `0x006e1100` a **Beállítások (Opciók) párbeszéd** kezelője -
+az osztálynév a sztringjeiből azonosítható: `CGeneralPrefsPage`. A 79
+hivatkozott sztringje megadja, **melyik vezérlő melyik beállítás-kulcsot
+írja**.
+
+### A vezérlő-azonosítók (a `.fen`/`.tre` oldalról)
+
+`web_albums_tab` · `enablefruploads` · `tags_group` ·
+`uploadcontactphotos` · `usagestats` · `privacy` · `autoupdate` ·
+`importdest` · `mailprog` · `picsize` · `defaultmail` · `haswatermark` ·
+`enablefacedetection` · `enablefacesuggestions` · `persistfacetofile` ·
+`facethresh0` · `facethresh1` · `autoProxy` · `loglevel` · `print%d`
+
+### Tizenöt kulcs, ami a REGISZTRÁLÓBAN nincs benne
+
+A `0x006e0cb0` (az előző szakasz) 39 kulcsot regisztrál alapértékkel. A
+párbeszéd ezeken felül **további tizenötöt** ír:
+
+| kulcs | melyik fül |
+|---|---|
+| `ReportStats` | Általános - használati statisztika |
+| `PersistFaceToFile` | Névcímkék |
+| `confirmsync::disable` | Általános |
+| `MP3SlideshowPath` | Diavetítés |
+| `PWAWatermark` | Google Fotók |
+| `EmailSinglePicture` | E-mail |
+| `EmailMovie` | E-mail |
+| `UseHTMLMailer` | E-mail |
+| `EmailPrepType` | E-mail |
+| `DoNotPromptForEmailPref` | E-mail |
+| `EmailExportSize` | E-mail |
+| `ProxyUser` | Hálózat |
+| `ProxyPass` | Hálózat |
+| `Conn:ProxyMethod` | Hálózat |
+| `LogLevel` | Hálózat |
+
+> ⚠️ A `ProxyUser` / `ProxyPass` **jelszót tárol**. A PicasaPy-nak ezt nem
+> kell átvennie; ha valaha mégis, akkor **nem** a beállításfájlba.
+
+### A feltöltési méret öt választása - pontos feliratokkal
+
+| erőforrás-kulcs | EN | HU |
+|---|---|---|
+| `CGeneralPrefsPage::Original` | Original size (slowest upload) | **Eredeti méret (leglassabb feltöltés)** |
+| `CGeneralPrefsPage::2048` | Best for web sharing (2048px) | **Ideális internetes megosztáshoz (2048 képpont)** |
+| `CGeneralPrefsPage::1600` | Recommended: 1600 pixels (…) | **Ajánlott: 1600 képpont (nyomatokhoz, képernyővédőkhöz és megosztáshoz)** |
+| `CGeneralPrefsPage::1024` | Medium: 1024 pixels (for sharing) | **Közepes: 1024 képpont (megosztáshoz)** |
+| `CGeneralPrefsPage::800` | Small: 800 pixels (for blogs and webpages) | **Kicsi: 800 képpont (blogokhoz és weboldalakhoz)** |
+
+Az alapérték a `PWADefaultSize` = **1600** (az előző szakasz) - vagyis az
+**„Ajánlott"** tétel a kiválasztott.
+
+### Két járulékos lelet
+
+1. **A „Google Fotók" fül** (`CGeneralPrefsPage::WebAlbumsTabEs` → „Google
+   Photos" / **„Google Fotók"**) - a webalbum-fül a késői kiadásokban ezt a
+   nevet viseli, nem „Picasa Webalbumok".
+2. **Nyelvváltás megerősítése**: `CGeneralPrefsPage::LangChange` -
+   „Módosítja a Picasa kezelőfelületének nyelvét?\n\nA változás a program
+   következő megnyitásakor lép érvénybe."
+
+*Bizonyítottsági fok: megerősített* (a függvény mind a 79 hivatkozott
+sztringje, és a feliratok a `*text.tre` szövegforrásból).
+
+### ⛳ A nyelvválasztó (`language`) - lista, felirat, tárolás, érvénybe lépés (2026-09-24, 354. kör, #3553)
+
+A Beállítások párbeszéd a `language` legördülőt a **`0x006e5e10`**-ben tölti
+fel (4462 b, egyetlen hívója a `0x006e1100`). A vezérlőt a `language` névvel
+keresi ki (`0x00c9fdec`, `vtbl+0xa0`), és a tételek mellé egy **belső
+nyelvkód-vektort** épít (`[this+0xdc]`), a tétel sorszáma szerint.
+
+#### A) A lista - 1 + 41 tétel, rögzített sorrendben
+
+A tételek egy 45 rekeszes, 12 bájtos **veremtáblából** jönnek (`esp+0x70`-től;
+rekesz: `{név, kód, látható, betűkészlet-próba}`), amelyet a függvény
+utasításonként tölt fel (`0x006e6086`-`0x006e6c5d`), és egy 45 lépéses ciklus
+jár be (`0x006e6c9d`-`0x006e6ebb`). Az első tétel mindig a **rendszer
+szerinti**, kódja `0` (`0x006e6070`). Utána, **ebben a sorrendben**:
+
+| # | azonosító | kód | | # | azonosító | kód |
+|---:|---|---:|---|---:|---|---:|
+| 1 | `Lang::id` | 27 | | 22 | `Lang::fi` | 17 |
+| 2 | `Lang::ca` | 19 | | 23 | `Lang::sv` | 14 |
+| 3 | `Lang::da` | 15 | | 24 | `Lang::fil` | 35 |
+| 4 | `Lang::de` | 4 | | 25 | `Lang::vi` | 39 ◆ |
+| 5 | `Lang::enUK` | 13 | | 26 | `Lang::tr` | 37 |
+| 6 | `Lang::enUS` | 1 | | 27 | `Lang::cs` | 21 |
+| 7 | `Lang::es` | 5 | | 28 | `Lang::el` | 23 |
+| 8 | `Lang::fr` | 2 | | 29 | `Lang::ru` | 12 |
+| 9 | `Lang::hr` | 20 | | 30 | `Lang::sr` | 32 |
+| 10 | `Lang::it` | 3 | | 31 | `Lang::uk` | 38 |
+| 11 | `Lang::lv` | 28 | | 32 | `Lang::bg` | 18 |
+| 12 | `Lang::lt` | 29 | | 33 | `Lang::hi` | 24 |
+| 13 | `Lang::hu` | 25 | | 34 | `Lang::th` | 36 ◆ |
+| 14 | `Lang::nl` | 10 | | 35 | `Lang::zh-CN` | 6 ◆ |
+| 15 | `Lang::no` | 16 | | 36 | `Lang::zh-TW` | 7 ◆ |
+| 16 | `Lang::pl` | 30 | | 37 | `Lang::ja` | 8 ◆ |
+| 17 | `Lang::pt` | 40 | | 38 | `Lang::ko` | 9 ◆ |
+| 18 | `Lang::pt-BR` | 11 | | 39 | `Lang::ar` | 41 **BETA** |
+| 19 | `Lang::ro` | 31 | | 40 | `Lang::fa` | 43 **BETA** |
+| 20 | `Lang::sk` | 33 | | 41 | `Lang::iw` | 42 **BETA** |
+| 21 | `Lang::sl` | 34 | | | | |
+
+(A 42. rekesz kódja `44`, a „látható” jelzője `0` ⇒ sosem kerül a listába.)
+
+**A kód jelentése - független kontrollal.** A kód a `0x00d46e88` 45 elemű
+mutatótömb indexe (olvasója `0x0098dd51`: `mov edx, [esi*4 + 0xd46e88]`,
+`cmp esi, 0x2d` határral), amely a nyelvkód-sztringre mutat: `1`→`en`,
+`2`→`fr`, … `13`→`en-GB`, `25`→`hu`, `40`→`pt-PT`, `41`→`ar`, `42`→`iw`,
+`43`→`fa`, `44`→`xx-bork`. **A lista mind a 41 kódja pontosan a saját
+nyelvére mutat** ebben a tömbben (a két tábla egymástól függetlenül
+íródott). A tömb két nyelvet **nem kínál fel**: `22`→`et` (észt) és
+`26`→`is` (izlandi), a `44`-es `xx-bork` pedig álnyelv.
+
+A sorrend a `langnames.xml` sorrendje (41 `Lang::` bejegyzés, a saját nyelvű
+nevek ábécéjében: *Bahasa Indonesia, Català, Dansk, Deutsch, English …*), egy
+eltéréssel: a három jobbról balra író nyelv a fájlban **elöl**, a listában
+**a végén** áll.
+
+#### B) A felirat
+
+- **A nyelvek neve** a `0x009ae560("Lang::xx", angol alapszöveg)`
+  szövegtár-keresőből jön. Az induló betöltő ugyanabba a szövegtárba
+  (`[0x00d4a654]`) előbb az `i18n\stringres.xml`-t, **utána** az
+  `i18n\langnames.xml`-t tölti (`0x004055d4`, `0x004055ef`, mindkettő
+  `0x0099ec80`). A `langnames.xml` csak az alapnyelvben van meg, és a neveket
+  **saját nyelvükön** adja (`Magyar`, `Deutsch`, `日本語`, `العربية`); a
+  fordított `stringres.xml`-ekben a `Lang::` sorok `x)`-szel jelölt angol
+  helykitöltők (a magyarban `x)Japanese`). **A második betöltés felülír:** a
+  betöltő (`0x0099e480`) az azonosítót kikeresi (`0x004a0380`); ha megvan és
+  a szöveg eltér, a `0x0099e020` a meglévő bejegyzés értékét cseréli
+  (`0x0099e7f2` → `0x0099e066`), csak hiányzónál szúr be ⇒ **a listában a
+  `langnames.xml` saját nyelvű nevei látszanak**, bármi a felület nyelve.
+- **`(BETA) %s`** (`0x00ca9f54`): pontosan az arab, a perzsa és a héber kapja
+  (`0x006e60b5`, `0x006e60e6`, `0x006e6117`).
+- **A rendszer szerinti tétel:** `Lang::sys` („Alapértelmezett
+  rendszerbeállítás”) + ` (%s-%s)` (`0x00ca9f34`), a két helyőrzőben a
+  Windows **felhasználói területi beállításának** ISO nyelv- és országkódja
+  (`GetLocaleInfoA(0x400, 0x59/0x5a)`, `0x0098d45f`, `0x0098d480`; hiányzó,
+  számjegyes vagy háromnál hosszabb országkódnál `US`, `0x0098d607`-`0x0098d670`) - pl. *„Alapértelmezett
+  rendszerbeállítás (hu-HU)”*. Ha a nyelvkód már az országra végződik
+  (`0x00987150` = „végződik-e”), csak ` (%s)` (`0x00ca9f2c`).
+
+#### C) Mikor hiányzik egy tétel
+
+| feltétel | mi történik | cím |
+|---|---|---|
+| a „látható” jelző `0` | kimarad (csak a `44`-es kód) | `0x006e6ca9` |
+| „betűkészlet-próba” jelző (◆ a táblában: vi, th, zh-CN, zh-TW, ja, ko) | csak akkor kerül be, ha a rendszer **meg tudja jeleníteni a nevét**: MLang `IMLangFontLink2` (`CoCreateInstance` `275c23e2-…`/`dccfc162-…`, `0x006e6c80`), `GetStrCodePages` + `MapFont` (`vtbl+0x10`, `+0x28`) a `0x006e0f00`-ban. A `24`-es és a `39`-es kód (hindi, vietnami) mentes | `0x006e6cb5`-`0x006e6d30` |
+| ugyanez, de a Picasa az előtérben van **és** a Shift le van nyomva | a próba elmarad, a tétel bekerül | `0x006e6cbf`-`0x006e6cd5` |
+| nem NT-alapú Windows (`GetVersion` ≥ `0x80000000`, `[0x00d694b9]` = 0) | a választó **letiltva**, az érték `1` (angol) | `0x006e5ec8`-`0x006e5eed`, `0x00c33caa` |
+
+#### D) A tárolás - KÉT kulcs a `Preferences` alatt, SZÁMMAL
+
+| kulcs | mit tárol | írja | olvassa |
+|---|---|---|---|
+| **`ytHLocal::lang`** | az **érvényes** nyelv kódja (fenti `0`-`44`); `0` = rendszer szerint. Ha még nincs beállítva (az olvasó `-1`-et ad, `0x00406103`), az indítás a rendszer területi beállításából dönt - ez a #2979 4. fázisának kérdése | kilépéskor (lent) | indításkor (`0x004060d8`, `0x0098dd22`) |
+| **`ytHLocal::langchange`** | a **következő indításra kért** kód | indításkor (`= lang`), és a párbeszéd OK-jára | a párbeszéd (a kijelölt tétel), kilépéskor |
+
+A kiválasztott tétel a legördülő megnyitásakor a `langchange` értéke
+(`0x006e6ed0`-`0x006e6ef7`: a kódvektorban keresett sorszám → `SetCurSel`).
+
+#### E) Az érvénybe lépés - három lépés, a következő indításkor
+
+1. **A párbeszéd OK-ja** (`0x006e3c15`-`0x006e3cf0`): a kijelölt tétel kódja
+   (`[this+0xdc][GetCurSel()]`) ≠ `langchange` ⇒ a `CGeneralPrefsPage::LangChange`
+   kérdés (*„Módosítja a Picasa kezelőfelületének nyelvét? … A változás a
+   program következő megnyitásakor lép érvénybe.”*, igen/nem,
+   `0x009bac20`). **Igen** ⇒ `langchange := kód`; **nem** ⇒ semmi nem
+   változik. A futó felület nyelve **nem** vált.
+2. **Kilépéskor** a `CThumbUI` lebontása (`0x00565300`, `DeleteCriticalSection`)
+   a `0x00576a20` állapotmentőt hívja, amely: `langchange ≠ lang` ⇒
+   `lang := langchange` (`0x00577146`-`0x0057715f`).
+3. **A következő indításkor** a betöltő a `lang` kódjához tartozó nyelvet
+   tölti (`0x0098dd4c`-`0x0098dd80`), és a `langchange`-et újra `lang`-ra
+   állítja (`0x00406422`-`0x0040644c`).
+
+⇒ **Újraindítás kell, és a program ezt ki is mondja** - a választás a
+megerősítés után függőben áll, és csak egy teljes kilépés-indítás után él.
+
+#### F) MIT AD MA a PicasaPy (mérve, 2026-09-24)
+
+| | eredeti | nálunk |
+|---|---|---|
+| nyelvek | 41 + rendszer szerint | 2 (`SUPPORTED_LANGUAGES = ("en", "hu")`, a PicasaPy-ban: `language_controller.py:27`) |
+| a nevek | saját nyelvükön, 3 × `(BETA)` | `qsTr("Hungarian")` / `qsTr("English")` (a PicasaPy-ban: `OptionsTabGeneral.qml:95-97`) |
+| „rendszer szerint” tétel | van, a területi kóddal | nincs |
+| tárolás | `ytHLocal::lang` + `langchange`, számmal | `general/language` QSettings, nyelvkóddal |
+| érvénybe lépés | megerősítés, a következő indításkor | megerősítés (a PicasaPy-ban: `OptionsTabGeneral.qml:123-138`); a `setLanguage` a `general/language_pending` értékét írja, amit a következő indítás `resolve_startup_language`-e alkalmaz (a PicasaPy-ban: `language_controller.py:138-157, 220-234`) |
+
+*Bizonyítottsági fok: **megerősített** a listára, a kódokra (kétirányú
+kontroll), a nevek forrására (betöltési sorrend + felülíró beszúrás), a
+`(BETA)`-ra, a rendszer-tétel feliratára, a szűrésre és a tárolás-érvénybe
+lépés láncára - mind utasításszinten olvasva.*
+
+#### G) Induláskori rendszer-nyelvfelajánlás (`0x004060b0`, #4314)
+
+##### 1. Mikor jelenik meg?
+
+Az induló rutin a `Preferences\ytHLocal::lang` értékét olvassa. Csak a hiányzó
+érték (`-1`, `0x00406103`) indítja el a rendszer nyelvének vizsgálatát; bármely
+már beállított érték a `0x00406419` ágra ugrik, tehát a rutin nem hasonlítja
+össze a beállított és az aktuális rendszer-nyelvet. A nem NT-alapú Windows
+ágán (`[0x00d694b9] = 0`) előbb `1` kerül a `lang`-ba, ezért ott sincs
+felajánlás (`0x004060dd`-`0x004060fa`).
+
+A hiányzó `lang` mellett a rutin a `GetLocaleInfoA(0x800, 0x59, …, 7)`
+hívással kapott nyelvkódot vizsgálja (`0x00406135`-`0x00406145`). Az `en`
+kód felajánlás nélkül `0`-t állít be (`0x00406154`-`0x00406197`); az
+`es`, `fr`, `it`, `de`, `ja`, `zh`, `ko`, `ru`, `pt`, `nl`, `fa` kódok a
+megerősítő ágra mennek (`0x0040619c`-`0x004063df`); más kód `1`-et kap
+felajánlás nélkül (`0x004063fb`). Tehát a feltétel nem „minden indulás” és
+nem is pusztán a rendszer-nyelv eltérése: **hiányzó `lang` + NT-rendszer + a
+fenti, felismert nem angol nyelvek egyike**.
+
+##### 2. Mi a szöveg és mik a gombok?
+
+A prompt beégetett szövege (`0x00c7f2c8`):
+
+```text
+Picasa is now available in your system's native language.
+Would you like to switch Picasa from English to this language?
+```
+
+A 41 nyelvű `i18n`-szótárban ez a prompt nem szerepel; a bináris a fenti
+ASCII-szöveget adja át (`0x004063e1`-`0x004063eb`). A `0x009bac20`-as
+megerősítő rutin `0` módnál az alapértelmezett `Yes` / `No` gombot választja
+(`il_Yes`, `il_No`; `0x009bac5f`-`0x009bacab`), és a `Confirm` címet használja
+(`0x009bae09`-`0x009bae21`). Ennél a hívásnál nincs Cancel ág.
+
+##### 3. Van „ne kérdezze újra” ág?
+
+A generikus ablak (`0x009ba4d0`, `confirm`) a
+`Picasa3/runtime/confirm.fen` sablont használja; abban van `remember`
+jelölőnégyzet („Don't ask again”). A megerősítő kezelő a `remember` vezérlőt
+név szerint megkeresi (`0x009ba96a`-`0x009ba992`); ennél a hívásnál az üzenet
+nem null, így a jelölőnégyzet a párbeszéd része. A startup-hívás azonban csak
+a megerősítő rutin logikai visszatérését vizsgálja (`0x004063f3`), ami az
+Igen/Nem eredmény; nem kérdezi le a jelölőnégyzetet. Külön „ne kérdezze újra”
+Preferences-kulcs vagy ág **nincs meg** ebben az útvonalban.
+
+##### 4. Mi történik elfogadáskor és elutasításkor?
+
+Igen (`AL != 0`) a `lang` értékét `0`-ra, nem (`AL = 0`) `1`-re állítja, majd
+a beállításba írja (`0x004063f3`-`0x00406414`). Itt `0` a rendszer szerinti,
+`1` az angol nyelv (a fenti D) szakasz). Ezután a rutin újraolvassa a `lang`
+értékét, és azt másolja a `Preferences\ytHLocal::langchange` mezőbe
+(`0x00406419`-`0x00406451`); tehát itt a `langchange := lang`, nem a kétbetűs
+rendszerkód.
+
+A hívó a felajánlás után tölti be a `Picasa3i18n.dll`-t (`0x004055a0` hívás,
+majd `0x004055a5` modulnév és `0x004055ad` betöltő). Ezért az igen/nem döntés
+az **aktuális indulás nyelvi inicializálására** hat, nem egy későbbi
+újraindításra vár. A már beállított `lang` a következő indításokkor
+megkerüli ezt a felajánlást.
+
+##### Eredeti / nálunk / teendő
+
+| Eredeti | Nálunk | Teendő |
+|---|---|---|
+| Csak hiányzó `lang` esetén, NT-alapú Windowson kérdez; angol és nem felismert locale esetén nem. Igen a rendszer nyelvét (`0`), nem az angolt (`1`) menti. | A PicasaPy-ban: `language_controller.py` első induláskor minden platformon kérdez (a Linux-futás PicasaPy-eltérés, lásd alább); a `language` kulcs az aktuális, feloldott kódot kapja, a `language_pending` igen esetén `system`, nem esetén `en`. A párbeszéd címe `Confirm`, gombjai `Yes`/`No`, üzenete a beégetett angol szöveg, és a tartalomban az alkalmazás ikonja jelenik meg. | **#5267 kész.** Az eredeti 11 locale feltétele és az angol kihagyása megmarad. A PicasaPy plusz nyelvi katalógusainak felajánlása külön, alább indokolt eltérés. Már beállított nyelvnél nincs új kérdés. |
+
+**PicasaPy-eltérés (#5267), platform.** Az eredeti felajánló ág csak NT-alapú
+Windowson futott; a PicasaPy Linuxon is felajánl, mert ott is ez az egyetlen
+alkalom, amikor a rendszer nyelve automatikusan felületi nyelvvé válhat.
+
+**PicasaPy-eltérés (#5267), nyelvek.** A PicasaPy a 41 katalógusból az `en` és az
+`enUK` angol változatot kihagyva a megmaradó 39 nem angol katalóguskódnál is
+felajánlja a rendszer nyelvét, nem csak az eredeti 11 nyelv esetén. Az eredeti
+nyelveken kívüli kódok: `ar`, `iw`, `id`, `ca`, `da`, `hr`, `lv`, `lt`,
+`hu`, `no`, `pl`, `pt-BR`, `ro`, `sk`, `sl`, `fi`, `sv`, `fil`, `vi`, `tr`,
+`cs`, `el`, `sr`, `uk`, `bg`, `hi`, `th`. Indok: ezekhez a nyelvekhez a
+PicasaPy katalógust szállít, ezért a rendszer nyelvének felajánlása a többi
+felületi nyelven is használható választ ad; az eredeti 11 feltétele ettől
+változatlanul ellenőrizhető. A `language` az aktuális felület konkrét kódját
+tárolja, a `language_pending=system` pedig megőrzi az eredeti rendszer szerinti
+választás jelentését a következő indulásokra. A PicasaPy `zh-CN` és `zh-TW`
+katalógusa az eredeti egyetlen `zh` nyelvkód két régiós változatát fedi le.
+A fő üzenet minden katalógusban az eredeti Picasa angol szövege marad; a
+`Confirm`, `Yes` és `No` fordítható.
+
+##### Cáfoló próba és bizonyítottság
+
+Az „minden induláskor / eltéréskor kérdez” állítást a `lang != -1` ág cáfolja:
+`0x00406103` közvetlenül a prompt utáni közös tárolási ágra (`0x00406419`)
+ugrik. Azt az olvasatot is ellenőriztem, hogy a `langchange` a felismert
+locale-sztringet kapja: a `0x0040641d` getter a `lang` wrapperre mutat, a
+`0x00406448` íróhívás forrása pedig az előzőleg kiolvasott numerikus érték;
+az alternatív olvasat nem áll meg az utasítás- és paraméterkövetésen.
+
+*Bizonyítottsági fok: **megerősített** a megjelenési feltételre, szövegre,
+alapértelmezett gombokra, a jelölőnégyzet jelenlétére és figyelmen kívül
+hagyására, `lang`/`langchange`-írásra és arra, hogy a döntés a következő
+nyelvi betöltés előtt történik. Két út egyezik: (A) a `0x004060b0`
+utasításszintű vezérlési és adatfolyam-olvasása; (B) a `0x004060b0`-ra mutató
+string-xref, a `0x004051b0` hívási sorrendje, valamint a `0x00401900` setter
+adatmásolási viselkedése.*
+
+---
+
+## A Beállítások (Opciók) párbeszéd fülenkénti összevetése a binárissal (2026-10-21, #5470)
+
+> **Bizonyítottsági fok:** a kulcsok és a regisztrált alapértékek **bináris** (cím megadva). A fülfeliratok és a vezérlőtípusok a **sablonból** vannak (`runtime/options.fen`; a kezelő kulcs-hivatkozásai egyeznek vele). Ahol az alapérték sem a regisztrálóból, sem a kezelő ágaiból nincs igazolva, ott **NYITVA** áll, és a Ghidra-kör neve a 12. szakaszban van.
+
+### 1. Forrás, módszer, eltérések
+
+- **Kezelő:** `0x006e1100` (9 494 bájt, `CGeneralPrefsPage`). Mind a nyolc fül vezérlőit ez építi, és ez olvassa a kulcsaikat.
+- **Alapérték-regisztráló:** `0x006e0cb0` (590 bájt), 39 regisztrálással: 31 logikai hívás a `0x006e0a70` segédhez és 8 egész hívás a `0x006e0b20` segédhez. Mindkettő a `Preferences\<kulcs>` értéket olvassa, és hiányzó értéknél visszaadja a hívó alapértékét; egyik sem írja be azt. A `0x006e0bc0` külön `PWAWatermark`-olvasás, nem regisztrálási hívás.
+- **Olvasó:** `0x00407a20`, a `Preferences\<kulcs>` értéke. Az alapértéket a hívó adja át: a `ReportStats` olvasásánál ez `-1` (`0x006e1327`), és az eredményt `cmp eax, -1` ellenőrzi (`0x006e1340`).
+- **Sablon:** `runtime/options.fen`, 262 sor, **nyolc** `<tab>`. A bináris SHA-256-jának első nyolc jegye (`644b7bec`) egyezik a sablon telepítésének `Picasa3.exe`-jével.
+- **Eltérés a feladatleírástól:** a feladat hét fület említ. A sablon, a kezelő kulcs-hivatkozásai és a PicasaPy a PicasaPy-ban: `OptionsDialog.qml` is **nyolc** fület ír le: Általános, E-Mail, Fájltípusok, Diavetítés, Nyomtatás, Hálózat, Webalbumok, Névcímkék. A fejléc „9 fül" megjegyzése is téves.
+- **Csak Mac (nem vonatkozik):** `Show help tags` (`ShowTooltips`, `os="mac"`), `When a camera is connected, launch:` (`plugInCameraActionChoice`), a fájltípusok `os="mac"` blokkja. Az összevetés alapja a Windows-felirat.
+
+**Státuszok**
+
+- **EGYEZIK**: a felirat, a kulcs (vagy a funkció) és az alapérték megegyezik.
+- **ELTÉR**: van megfelelő vezérlő, de a felirat, a kulcs, az alapérték vagy a vezérlőtípus más. Egy eltérő felirat önmagában is ELTÉR.
+- **HIÁNYZIK**: nincs működő megfelelő vezérlő (a nálunk lévő elem letiltott, rejtett, vagy nincs is).
+- **NYITVA**: az eredeti érték vagy leképezés nincs teljesen igazolva. A következő bizonyítási lépés a 12. szakaszban szerepel.
+
+A táblák oszlopai: **eredeti** (felirat, kulcs, alapérték), **nálunk** (QML-elem, kulcs, alapérték), **állapot**. A zárójelben álló címek a kulcs sztringjének címei (`0x00…`), illetve az alapérték regisztrálásának utasítás-címei (`0x006e…`).
+
+**Az OK és a Cancel bináris viselkedése (#5906).** A `runtime/options.fen`
+259-260. sora az `accept` típusú OK, majd a `cancel` típusú Cancel gombot
+regisztrálja. A `0x008e2de0` a két típust rendre 0 és 1 párbeszéd-eredményre
+fordítja; a `0x008d2720` eredménykezelő 0-nál a `COptionsDialog`
+vftáblájának 89. helyét (`0x00c9a568`) hívja, amely a `0x006e3990` mentő
+rutinra mutat. Az 1-es eredmény a 90. helyre (`0x00c9a56c`) jut, amely a
+`0x00b0d990` üres visszatérő rutinra mutat. Következésképp az OK kiírja a
+párbeszéd vezérlőinek értékeit, a Cancel pedig a kiírás előtt elveti azokat.
+A jegy `0x007fad0a`-ra tett „író ág” megnevezése pontatlan: az a
+`LoopSlideshow` olvasó ága; az OK hívási útja a fenti `0x008d2720`.
+
+### 2. Általános (General)
+
+| eredeti felirat | eredeti kulcs | eredeti alapérték | nálunk: elem | nálunk: kulcs | nálunk: alapérték | állapot |
+|---|---|---|---|---|---|---|
+| `Use special effects` | `UITransitions` (`0x00c88e08`) | 1 (`0x006e0ce0`) | `optionsUiTransitionsCheck` | `view/uiTransitions` | igaz | EGYEZIK |
+| `Show tooltips` | `ShowTooltips` (`0x00ca9a08`) | 1 (`0x006e0ced`) | `optionsShowTooltipsCheck` | `view/showTooltips` | igaz | EGYEZIK |
+| `Single-click to exit Edit View` | `SingleClickExit` (`0x00c8e614`) | 0 (`0x006e0cfa`) | `optionsSingleClickExitCheck` | `view/singleClickExit` | hamis | ELTÉR (felirat: `Single click to exit the editing view`) |
+| `Detect duplicates while importing` | `autoexclude` (`0x00c8875c`) | 1 (`0x006e0d31`) | `optionsAutoExcludeCheck` | `import/autoexclude` | hamis | ELTÉR (alapérték; felirat: `Detect duplicates on import`) |
+| `Clear cache files` | `disposepreviews` (`0x00c95630`) | 0 (`0x006e0d07`) | `optionsClearCacheFilesCheck` | `view/disposePreviewsOnExit` | hamis | EGYEZIK (felirat, kapcsoló, alapérték; az OK utáni memóriaürítés és a jelölő nullázása a #7332-től, kilépéskor semmi nem ürül) |
+| `Delete from disk without confirmation` | `DoNotConfirmDeleteFromDisk` (`0x00c98f48`) | 0 (`0x006e0d14`) | `optionsSkipDeleteConfirmCheck` | megerősítési döntés: `delete` | hamis | EGYEZIK |
+| `Remove from album without confirmation` | `DoNotConfirmRemoveFromAlbum` (`0x00c98f64`) | 0 (`0x006e0d24`) | `optionsSkipRemoveConfirmCheck` | megerősítési döntés: `removeFromAlbum` | hamis | EGYEZIK |
+| `Send anonymous usage stats to Google` | `ReportStats` (`0x00c80118`), nincs a regisztrálóban | `-1` hiányzó értéknél (`0x006e1327`); a jelölőnégyzet hamis/üres (`0x006e1340-0x006e13dc`), az „nincs tárolva” jelző külön megmarad (`0x006e1354`) | `optionsUsageStatsCheck` (letiltva) | nincs | hamis | HIÁNYZIK (letiltott; felirat: `Send anonymous usage statistics`) |
+| `Privacy...` (link) | `privacy` (`0x00ca9af8`), cél: sablon szerinti súgó-URL | - | `optionsPrivacyLink` | nincs (külső URL) | - | ELTÉR (cél: nálunk `policies.google.com/privacy`) |
+| `Automatic updates:` (popup: `Update automatically`, `Ask before downloading updates`, `Don't check for updates`) | `AutoUpgradeCheck` (`0x00c860e0`, alapérték 1 a `0x006e0cb9`-en), `AutoUpgradeAsk` (`0x00c860d0`, alapérték 0 a `0x006e0cc6`-on) | alapértékük az 1. tétel; a teljes leképezést lásd a 13. szakaszban (`0x006e14a7-0x006e1519`) | `optionsAutomaticUpdatesCheck` (`Check for updates automatically`, működő jelölő) | `updates/autoCheck` | igaz | SAJÁT FUNKCIÓ (#6340): a GitHub-kiadások ellenőrzése, nem az eredeti külső frissítő |
+| `Language:` (popup, Windows) | `language` (`0x00c9fdec`, a 2026-09-24-es szakasz szerint; 42 tétel a `0x006e5e10`-ben) | -1 (nincs beállítva, `0x00406103`) | `optionsLanguageCombo` | `general/language` | rendszer | ELTÉR (2 nyelv a 41 helyett, lásd „A nyelvválasztó” szakaszt) |
+| `Save imported pictures in:` (`Browse...`) | `importdest` (`0x00ca9b0c`), nincs a regisztrálóban | NYITVA | `optionsImportDestField`, `optionsImportDestBrowseButton` | `import/defaultdestination` | NYITVA | ELTÉR (felirat: `Import destination folder:`) |
+
+#### #7330: az `importdest` cél alkalmazása az OK útján (2026-11-20)
+
+`0x006e5820` az `importdest` (`0x00ca9b0c`) kulcs értékét adja vissza. A
+`0x005cf5b0` ezt a sztringet a lokális deltába másolja (`0x005cf9d0`, a
+`0x005c2100` segítségével), majd a delta második szavába `2`-t ír
+(`0x005cf9e1`). A hívó ezt a deltát a `0x004f6a20`-nak adja át
+`0x005cfa4c`-nél: a `__fastcall`-ként visszafejtett hívásban ECX az üres
+vektorra, EDX az egybejegyzéses deltára mutat; a híváshely stacken készíti
+elő a vektor- és tárolómutatókat (`0x005cfa35`-`0x005cfa4c`). A fogadó a
+vektorok második szavát `>> 1`-gyel darabszámmá alakítja
+(`0x004f6a9c`-`0x004f6ab8`), ezért a delta `2` értéke itt **egy** bejegyzést
+jelöl.
+
+A közös tároló mutatója a híváshelyen `[this+0x2bc]+0xf8`
+(`0x005cfa2f`-`0x005cfa47`). Ha a `0x004f6a20` nulla eredménnyel tér vissza,
+a hívó előbb a `0x004f5960`-at, majd a `0x004f5d90`-at hívja ugyanezen
+közös tárolóval (`0x005cfa53`-`0x005cfacf`). A sztring-xrefek ezeket rendre
+a `watchedfolders.txt` és a `frexcludefolders.txt` fájlhoz kötik. Ez az
+OK-út a közös tároló módosítását és az ezt követő két hívást igazolja; **nem**
+bizonyítja, hogy ezen az úton közvetlenül kiíródik a `scanlist.txt`. A
+célzottan diszasszemblált `0x005cf5b0` és `0x004f6a20` egyikében sincs
+közvetlen hívás a `scanlist.txt` kezelőjére, a `0x004f61c0`-ra. Ez a
+negatív eredmény csak a közvetlen hívásra vonatkozik, nem zárja ki a
+közvetett vagy későbbi kiírást.
+
+**PicasaPy:** az Opciók OK-ja lefuttatja a piszkozat íróit
+(a PicasaPy-ban: `OptionsDialog.qml:60-68,112-115`); az importcél írója a
+`setDefaultDestination` (a PicasaPy-ban: `OptionsTabGeneral.qml:430-435`), amely a
+létező mappa normalizált útvonalát a `QSettings` `import/defaultdestination`
+kulcsába menti (a PicasaPy-ban: `import_source_controller_state.py:185-201`). Az
+importpárbeszéd ezt induló célként használja (a PicasaPy-ban: `ImportSourceDialog.qml:220-224`).
+A bejárt útban közös mappatár-frissítő hívás nem szerepel.
+
+**Bizonyítottság:** a kulcs beolvasása → egybejegyzéses delta → közös
+`+0xf8` tároló út statikusan megerősített: a Ghidra-dekompiláció és a helyi
+utasításszintű visszaolvasás egyezik, továbbá a fogadó oldali `>> 1`
+ellenőrzi az egy bejegyzés értelmezést. A Colab M5 mérés, amely a futás
+közbeni hatást igazolná, ebből a helyi munkamenetből nem érhető el; a
+`scanlist.txt` tényleges kiírásának ideje és közvetett útja nyitott. Az
+`importdest` alapértéke továbbra is **NYITVA**.
+
+### 3. E-Mail
+
+| eredeti felirat | eredeti kulcs | eredeti alapérték | nálunk: elem | nálunk: kulcs | nálunk: alapérték | állapot |
+|---|---|---|---|---|---|---|
+| `E-mail program:` csoport, 1. tétel: `Let me choose each time I send pictures` | `mailprog` (`0x00ca9b80`), vezérlőnév; kijelölése a `EmailPrepType` (`0x00ca9b48`) és `DoNotPromptForEmailPref` (`0x00ca9b58`) értékéből jön | alapértelmezettként az 1. tétel (`EmailPrepType=3`, `DoNotPromptForEmailPref=0`; `0x006e1710`, `0x006e1735`, `0x006e1771-0x006e1807`) | `optionsMailChooseRadio` (1. helyen) | `mail/useDefaultClient` (hamis) | hamis | EGYEZIK |
+| 2. tétel: `Use my computer's default e-mail program` | `defaultmail` (`0x00ca9b94`) | NYITVA | `optionsMailDefaultRadio` (2. helyen) | `mail/useDefaultClient` (hamis) | hamis | ELTÉR (felirat: `Use this computer's default email program`) |
+| 3. tétel: `Use my Google account` | a `mailprog` 3. tétele, nincs külön kulcs | - | `optionsMailGoogleRadio` (letiltva) | nincs | - | HIÁNYZIK (letiltott; nálunk nincs Google-fiók-integráció) |
+| `Size for multiple pictures:` (csúszka 0-7, 8 fokozat: 160 ... 1600 képpont) | `picsize` (`0x00ca9b8c`, vezérlőnév); a tárolt képpontérték kulcsa `EmailExportSize` (`0x00ca9b70`) | 480 képpont, 2. pozíció (`0x006e1756`, leképezés: `0x006e59e0`) | `optionsMailSizeSlider`, `optionsMailSizeValue` | `mail/exportSize` | 480 (a PicasaPy-ban: `email_controller.py`) | EGYEZIK (a 8 fokozat egyezik) |
+| `Size for single pictures:`, 1. tétel: `Same as multiple (%s pixels)` | `EmailSinglePicture` (`0x00ca9b18`), a vezérlőérték 0/1 | alapérték 0: 1. tétel; 1 = `Original size` (`0x006e16cb-0x006e16f3`, ellenőrző olvasás: `0x0073f394`) | `optionsMailSingleSameRadio` | `mail/singlePictureOriginal` | hamis (a PicasaPy-ban: `email_controller.py`) | EGYEZIK (a tétel szövege egyezik) |
+| 2. tétel: `Original size` | `EmailSinglePicture` | 1 = 2. tétel; alapértékként nincs kiválasztva (`0x006e16cb-0x006e16f3`) | `optionsMailSingleOriginalRadio` | `mail/singlePictureOriginal` | hamis (a PicasaPy-ban: `email_controller.py`) | ELTÉR (a kulcs nálunk külön logikai beállítás) |
+| `Send movies as:`, 1. tétel: `First frame` | `EmailMovie` (`0x00ca9b2c`), a vezérlőérték 0/1 | alapérték 0: 1. tétel; 1 = `Full movie` (`0x006e16d3-0x006e16f3`, ellenőrző olvasás: `0x0073f3b5`) | `optionsMailMovieFirstFrameRadio` | `mail/movieFull` | hamis (a PicasaPy-ban: `email_controller.py`) | EGYEZIK |
+| 2. tétel: `Full movie` | `EmailMovie` | 1 = 2. tétel; alapértékként nincs kiválasztva (`0x006e16d3-0x006e16f3`) | `optionsMailMovieFullRadio` | `mail/movieFull` | hamis (a PicasaPy-ban: `email_controller.py`) | EGYEZIK |
+| `Output format:` csoportcím | `labelgroup57` | - | `optionsMailOutputFormatLabel` (a HTML-jelölő előtt) | nincs | - | EGYEZIK (a sorcím megjelenik) |
+| `Send inline photos and captions (Outlook only)` (Windows) | `UseHTMLMailer` (`0x00ca9b38`), nincs a regisztrálóban | NYITVA | `optionsMailUseHtmlCheck` (letiltva) | nincs | - | HIÁNYZIK (letiltott; csak Windows/Outlook) |
+
+### 4. Fájltípusok
+
+| eredeti felirat | eredeti kulcs | eredeti alapérték | nálunk: elem | nálunk: kulcs | nálunk: alapérték | állapot |
+|---|---|---|---|---|---|---|
+| `.BMP` | `SupportBMP` (`0x00c80fd4`) | 1 (`0x006e0e64`) | `optionsFileTypeBmpCheck` | `library/fileTypes/bmp` | igaz | ELTÉR (felirat: `.bmp`) |
+| `.GIF` | `SupportGIF` (`0x00c81010`) | 0 (`0x006e0e7e`) | `optionsFileTypeGifCheck` | `library/fileTypes/gif` | igaz | ELTÉR (alapérték: 0 és igaz; felirat: `.gif`) |
+| `.PNG` | `SupportPNG` (`0x00c81004`) | 0 (`0x006e0e8b`) | `optionsFileTypePngCheck` | `library/fileTypes/png` | igaz | ELTÉR (alapérték: 0 és igaz; felirat: `.png`) |
+| `.TGA` | `SupportTGA` (`0x00c86388`) | 0 (`0x006e0e98`) | `optionsFileTypeTgaCheck` | `library/fileTypes/tga` | igaz | ELTÉR (alapérték: 0 és igaz; felirat: `.tga`) |
+| `.TIF, .TIFF` | `SupportTIF` (`0x00c80fec`) | 1 (`0x006e0e47`) | `optionsFileTypeTiffCheck` | `library/fileTypes/tiff` | igaz | ELTÉR (felirat: `.tif, .tiff`) |
+| `.WEBP` | `SupportWEBP` (`0x00c80ff8`) | 1 (`0x006e0e57`) | `optionsFileTypeWebpCheck` | `library/fileTypes/webp` | igaz | ELTÉR (felirat: `.webp`; a szkenner a `.webp`-t nem indexeli, lásd #2344) |
+| `.PSD (Photoshop)` | `SupportPSD` (`0x00c80fe0`) | 1 (`0x006e0e71`) | `optionsFileTypePsdCheck` | `library/fileTypes/psd` | igaz | ELTÉR (felirat: `.psd (Photoshop)`) |
+| `RAW formats` | `SupportRAW` (regisztráló: `0x006e0ea5`) | 1 (`0x006e0ea5`) | `optionsFileTypeRawCheck` | `library/fileTypes/raw` | igaz | EGYEZIK |
+| `Supported Formats` (link a RAW mellett) | nincs kulcs; cél: sablon szerinti súgó-URL | - | `optionsFileTypeSupportedFormatsLink` (belső RAW-lista) | nincs | - | ELTÉR (cél: a sablonban külső súgó, nálunk belső ablak) |
+| `Movies (.AVI, .MPG, .ASF, .WMV)` | `SupportMovies` (`0x00c8101c`), számított | számított (NYITVA) | `optionsFileTypeMoviesCheck` (felirat: `Videos (.mov, .mpg, .m4v, .3gp, .avi, ...)`) | `library/fileTypes/movies` | igaz | ELTÉR (felirat: a Mac-os lista; alapérték: számított és igaz) |
+| `Quicktime Movies (.MOV)` | `SupportQuicktime` (`0x00c86358`), számított (`0x006e0e1c`) | számított (NYITVA) | `optionsFileTypeQuickTimeCheck` | `library/fileTypes/quicktime` | igaz | NYITVA (a felirat egyezik; az alapérték telepítéstől függ) |
+
+A fejléc (`Display JPEG files and:`) egyezik. Az összevetés Windows-blokkot használ, mert a PicasaPy a PicasaPy-ban: `OptionsTabFileTypes.qml` fejléce szerint a két csoport egyesített.
+
+### 5. Diavetítés (Slideshow)
+
+| eredeti felirat | eredeti kulcs | eredeti alapérték | nálunk: elem | nálunk: kulcs | nálunk: alapérték | állapot |
+|---|---|---|---|---|---|---|
+| `Loop slideshow` | `LoopSlideshow` (`0x00ca9a54`) | 0 (`0x006e0df4`) | `optionsSlideshowLoopCheck` | `view/slideshowLoop` | hamis | EGYEZIK |
+| `Play music tracks during slideshow` | `PlayMP3Tracks` (`0x00ca9a64`) | 1 (`0x006e0e01`) | `optionsSlideshowPlayMusicCheck` | `view/slideshowMusicEnabled` | igaz | EGYEZIK |
+| `Select a folder of music tracks:` + `Browse...` | `MP3SlideshowPath` (`0x00c97920`), nincs a regisztrálóban | NYITVA | `optionsSlideshowMusicPathField`, `optionsSlideshowMusicBrowseButton` | `view/slideshowMusicFolder` | üres | NYITVA (a felirat és a funkció egyezik; az alapérték nincs igazolva) |
+
+### 6. Nyomtatás (Printing)
+
+| eredeti felirat | eredeti kulcs | eredeti alapérték | nálunk: elem | nálunk: kulcs | nálunk: alapérték | állapot |
+|---|---|---|---|---|---|---|
+| `Available print sizes:` (5 popup: `print1` ... `print5`, 3+2 oszlop) | `print%d` (`0x00ca9bb8`), nincs a regisztrálóban | 16 tétel, a sorrendet lásd a 13. szakaszban (`0x006e5d70`, `0x00775ce0`); a kiválasztott érték alapértéke külön nincs megadva | `optionsPrintSizeCombo0` ... `4` (5 legördülő, 3+2 oszlop) | előbeállítás-kulcsok (a PicasaPy-ban: `print_controller.py`) | területi készletből indul (a PicasaPy-ban: `print_controller.py`) | ELTÉR (a saját lista sorrendje eltér, és `FullPage`-et is tartalmaz) |
+| `Previews:` / `Use high quality previews (slower)` | `PrintProxyPreview` (`0x00ca9a40`) | 1 (`0x006e0d74`; a gyors proxy az alap) | `optionsPrintHiResPreviewCheck` (megfordított: jelölt = nem proxy) | `printing/proxyPreview` | jelöletlen | EGYEZIK |
+| `Printer quality:` (Windows) / `Compatible (half-res)`, `High Quality (full-res)` | `PrinterQuality` (`0x00ca9a18`) | 2 = `Compatible`, 3 = `High Quality`; alapérték 2 (`0x006e0d47`-`0x006e0d51`; olvasás `0x006e23e7`, mentés `0x006e419f`) | `optionsPrintQualityCompatibleRadio`, `optionsPrintQualityHighQualityRadio` (csak Windows) | `printing/printerQuality` | 2 = `Compatible`, 3 = `High Quality`; alapérték 2 | EGYEZIK |
+| `Print resampler quality:` / `General (Lanczos-3)`, `Extra sharp (Lanczos-8)` | `PrintResamplerQuality` (`0x00ca9a28`) | 5 = `General (Lanczos-3)`, 8 = `Extra sharp (Lanczos-8)`; alapérték 5 (`0x006e0d5a`; olvasás `0x006e238d`-`0x006e24a7`, mentés `0x006e4224`-`0x006e4255`) | `optionsPrintResizeGeneralRadio` (5), `optionsPrintResizeSharpRadio` (8) | `printing/resamplerQuality` | 5 = General, 8 = Extra sharp; alapérték 5 | EGYEZIK (a korábbi 3-as érték a General választást jelenti) |
+
+Az eredeti `PrintResamplerQuality` 5-ös tárolt értéke a Lanczos-3 szűrősugarat választja; a PicasaPy ezt a belső 3-as sugárra fordítja rendereléskor. A korábbi PicasaPy-beállításban mentett 3-as érték betöltéskor szintén a General rádiót jelenti, de az új választás már 5-ként mentődik.
+
+### 7. Hálózat (Network)
+
+| eredeti felirat | eredeti kulcs | eredeti alapérték | nálunk: elem | nálunk: kulcs | nálunk: alapérték | állapot |
+|---|---|---|---|---|---|---|
+| `Proxy username:` (Windows) | `ProxyUser` (`0x00ca9bc0`), nincs a regisztrálóban | NYITVA | `optionsNetworkProxyUserField` (letiltva, üres) | nincs | - | HIÁNYZIK (letiltott; felirat: `Proxy username (Windows only):`) |
+| `Proxy password:` (Windows) | `ProxyPass` (`0x00ca9bcc`), nincs a regisztrálóban | NYITVA | `optionsNetworkProxyPasswordField` (letiltva) | nincs (a jelszót nem tároljuk) | - | HIÁNYZIK (letiltott; szándékos, a jelszó-tárolás nem kell) |
+| `Automatically detect network settings` | `autoProxy` (`0x00ca9bec`), nincs a regisztrálóban | NYITVA | `optionsNetworkAutoDetectCheck` (letiltva) | nincs | igaz (statikus) | HIÁNYZIK (letiltott) |
+| `Network log level:` (popup, 5 tétel) | `LogLevel` (`0x00ca9bf8`); alapérték 2 (`0x006e2b05`, a `0x006e2aff` olvasóban) | 2 | `optionsNetworkLogLevelCombo` (5 tétel) | `Preferences/LogLevel` | 2 | ELTÉR (felirat: `Network logging level:`; az első tétel: `Disable logging`, az eredetiben `Disable Logging`) |
+| `Log:` (csak olvasható útvonal) | nincs kulcs (vezérlőnév: `log`) | - | `optionsNetworkLogPathField` (olvasható) | nincs (rögzített `network.log`) | - | ELTÉR (felirat: `Log file:`; a funkció egyezik) |
+
+`loglevel` (`0x00ca9c04`) a FEN legördülő vezérlőneve, nem második `Preferences`-kulcs. A kezelő a `Preferences\LogLevel` értéket olvassa 2 alapértékkel (`0x006e2aed-0x006e2b0d`), majd a kapott indexet a `loglevel` nevű vezérlőhöz köti. A `0x006e2b39`-nél nullázott helyi érték a különleges vezérlő-összeállításban szerepel; ott nincs új `Preferences\loglevel` olvasás.
+
+### 8. Webalbumok (Web Albums)
+
+Az egész fül **letiltott** (`enabled: false` az a PicasaPy-ban: `OptionsTabWebAlbums.qml` gyökerén). A bináris a `0x006e1116`-nál hívott feltétel nem nulla eredményére a `web_albums_tab` címkét `Google Photos`-ra állítja (`0x00ca9a98`, `0x00c92398`); nulla esetén a sablon `Web Albums` címe marad. A feltétel futás közbeni eredmény, nem rögzített buildcímke; részlete a 13. szakaszban.
+
+| eredeti felirat | eredeti kulcs | eredeti alapérték | nálunk: elem | nálunk: kulcs | nálunk: alapérték | állapot |
+|---|---|---|---|---|---|---|
+| `Default upload size:` (popup, 5 tétel: `Original size (slowest upload)`, `Best for web sharing (2048px)`, `Recommended: 1600 pixels ...`, `Medium: 1024 pixels (for sharing)`, `Small: 800 pixels ...`) | `PWADefaultSize` (`0x00ca9c80`) | **1600** (`0x006e0d84`, a `0x006e0b20`-ban; az érték a `0x006e0d7a`-n) | `optionsWebUploadSizeCombo` (letiltva, 4 tétel: `800px`, `1024px`, `1600px`, `Original size`) | nincs | 800px (0. tétel) | HIÁNYZIK (letiltott; a 2048-as tétel hiányzik, az alapérték 1600 és 800px eltér) |
+| `When syncing large files, upload previews first` | `PWAStriped` (`0x00ca9c60`) | 0 (`0x006e0dda`) | `optionsWebStripedUploadCheck` (letiltva) | nincs | hamis | HIÁNYZIK (letiltott; az alapérték egyezik) |
+| `Preserve original image quality (uses more storage)` | `PWAUseHiQualityJPEG` (`0x00ca9c6c`) | 0 (`0x006e0de7`) | `optionsWebKeepJpegQualityCheck` (letiltva) | nincs | hamis | HIÁNYZIK (letiltott; az alapérték egyezik) |
+| `JPEG Quality:` csoportcím | `labelgroup154` | - | `optionsWebJpegQualityLabel` | nincs | - | EGYEZIK (a sorcím megjelenik) |
+| `Syncing:` csoportcím | `labelgroup158` | - | `optionsWebSyncingLabel` | nincs | - | EGYEZIK (a sorcím a két szinkronjelölő előtt jelenik meg) |
+| `Sync starred photos only` | `PWAStarred` (`0x00ca9c44`) | 0 (`0x006e0db7`) | `optionsWebStarredOnlyCheck` (letiltva) | nincs | hamis | HIÁNYZIK (letiltott; az alapérték egyezik) |
+| `Don't confirm every sync (use the above settings)` | `confirmsync::disable` (`0x00c96d24`), nincs a regisztrálóban | NYITVA | `optionsWebConfirmSyncDisableCheck` (letiltva) | nincs | - | HIÁNYZIK (letiltott) |
+| `Include with photo uploads` (`Name Tags:` csoport) | `enablefruploads` (vezérlőnév, `0x00ca9abc`), `FREnableUploads` (`0x00c802bc`) | 1 (`0x006e0ecf`) | `optionsWebUploadNameTagsCheck` (letiltva) | nincs | hamis | HIÁNYZIK (letiltott; az alapérték is eltér: 1 és hamis) |
+| `Add a watermark for all photo uploads:` | `haswatermark` (`0x00ca9de4`), nincs a regisztrálóban | NYITVA | `optionsWebWatermarkCheck` (letiltva) | nincs | - | HIÁNYZIK (letiltott) |
+| `Watermarks:` csoportcím | `labelgroup163` | - | `optionsWebWatermarksLabel` | nincs | - | EGYEZIK (a sorcím megjelenik) |
+| vízjel szövegmező (a sablonban: `Stamp photos with your name, a web domain, or a copyright notice.`) | `PWAWatermark` (`0x00ca9df4`), nincs a regisztrálóban | NYITVA | `optionsWebWatermarkTextField` (letiltva) | nincs | - | HIÁNYZIK (letiltott; a súgószöveg megjelenik) |
+
+A három csoportcím és a vízjelmező súgószövege a #5899-ben bekerült a QML-be; a Web Albums fül továbbra is letiltott.
+
+### 9. Névcímkék (Name Tags)
+
+| eredeti felirat | eredeti kulcs | eredeti alapérték | nálunk: elem | nálunk: kulcs | nálunk: alapérték | állapot |
+|---|---|---|---|---|---|---|
+| `Enable face detection` (vezérlőnév `enablefacedetection`, `0x00ca9e04`) | `BgFaceDetectThread` (`0x00c7ecd4`); a párosítás a kezelőben egymás mellett van (`0x006e3145`, `0x006e3178`) | 1 (`0x006e0eb2`) | `optionsFaceDetectionCheck` | `faces/automaticDetection` | igaz | EGYEZIK |
+| `Enable suggestions:` (vezérlőnév `enablefacesuggestions`, `0x00ca9e18`) | `FRAddSuggesetions` (`0x00c81b7c`, a bináris névben elgépelés) (`0x006e31ee`, `0x006e321e`) | 1 (`0x006e0ec2`) | `optionsFaceSuggestionsCheck` | `faces/suggestionsEnabled` | igaz | EGYEZIK |
+| `Suggestion threshold:` (csúszka, 10 lépés: 50-95) | `FRSuggestionThreshold` (`0x00c81cc0`); vezérlőnév `facethresh0` (`0x00ca9e44`) | **85** (`0x006e0ed5`, a `0x006e0b20`-ban) | `optionsFaceSuggestionThresholdSlider` (50-95, 5-ös lépés) | `faces/suggestStep` | 85 | EGYEZIK |
+| `Cluster threshold:` (csúszka, 10 lépés: 50-95) | `FRSortThreshold` (`0x00c81cf4`); vezérlőnév `facethresh1` (`0x00ca9e50`) | **85** (`0x006e0ee8`, a `0x006e0b20`-ban) | `optionsFaceClusterThresholdSlider` | `faces/clusterStep` | **70** | ELTÉR (alapérték: 85 és 70; a 70 a kódban SFace-kalibrált érték, ezért mérés nélkül nem változtatható) |
+| `Store name tags in photo` (vezérlőnév `persistfacetofile`, `0x00ca9e30`) | `PersistFaceToFile` (`0x00c81bdc`), nincs a regisztrálóban | NYITVA | `optionsFacePersistToFileCheck` (felirat: `Store name tags in the file`) | `faces/writeXmpOnName` | igaz | ELTÉR (felirat: nálunk `in the file`; alapérték NYITVA) |
+| `Upload people album thumbnails to Google Contacts` | `uploadcontactphotos` (`0x00ca9ad8`), nincs a regisztrálóban | NYITVA | `optionsFaceUploadContactPhotosCheck` (rejtett, magassága 0) | nincs | - | HIÁNYZIK (rejtett; a szolgáltatás megszűnt, a döntés a QML fejlécében) |
+
+### 10. Regisztrált vagy hivatkozott, de vezérlő nélküli kulcsok
+
+- `AutoInfoCheck` (alapérték 1, `0x006e0cd3`): nincs vezérlő a sablonban.
+- `PWASyncOrder` (alapérték 1, `0x006e0dc4`): nincs vezérlő.
+- `SupportAudio` (alapérték 0, `0x006e0e3a`): nincs vezérlő.
+- `PWADefaultSizeES` (alapérték 2048, `0x006e0d97`): a Google-ág alapértéke, nincs vezérlő.
+- `PWAShareAccess` (`0xc7e1e0`): alapérték 0 (`0x006e0da0-0x006e0da7`).
+- `EmailPrepType` (`0x00ca9b48`): alapérték 3 (`0x006e1710`); `DoNotPromptForEmailPref` (`0x00ca9b58`): alapérték 0 (`0x006e1735`); `EmailExportSize` (`0x00ca9b70`): alapérték 480 (`0x006e1756`). Ezek a kezelő belső állapotát adják, a sablonban nincs külön vezérlőjük.
+- A `0x006e0bc0` függvény a `Preferences\PWAWatermark` karakterláncot olvassa (`0xc7e1b0`); ez nem regisztráló hívás. A `0x006e0d51` hívás a `PrinterQuality` kulcsot (`0x00ca9a18`) regisztrálja 2 alapértékkel (`0x006e0d47`).
+
+Egy megjegyzés a saját kódunkról: az a PicasaPy-ban: `email_controller.py` docstringjei 480-as méret- és 0-s egyképes alapértéket írnak. A #5483 ezeket már közvetlenül igazolja az eredeti kezelőben (`0x006e1756`, `0x006e16cb-0x006e16f3`); a `DoNotPromptForEmailPref=0` alapértéket pedig a `0x006e1735` adja.
+
+### 11. Összesítés
+
+**58 sor:** 13 EGYEZIK · 27 ELTÉR · 16 HIÁNYZIK · 2 NYITVA.
+
+| fül | EGYEZIK | ELTÉR | HIÁNYZIK | NYITVA |
+|---|---:|---:|---:|---:|
+| Általános | 4 | 6 | 2 | 0 |
+| E-Mail | 0 | 7 | 2 | 0 |
+| Fájltípusok | 1 | 9 | 0 | 1 |
+| Diavetítés | 2 | 0 | 0 | 1 |
+| Nyomtatás | 3 | 1 | 0 | 0 |
+| Hálózat | 0 | 2 | 3 | 0 |
+| Webalbumok | 0 | 0 | 8 | 0 |
+| Névcímkék | 3 | 2 | 1 | 0 |
+
+A fő megmaradt mérhető eltérés a klaszter-küszöb alapértéke (bináris 85, nálunk 70); a nyomtatási méretlista eltérését a #5492 viszi. A 70 értéke a kódban SFace-hez kalibrált, ezért a változtatás előtt külön mérés kell.
+
+### 12. Megvalósítási jegy-javaslatok és nyitott kérdések
+
+A jegyek szövege (fülenként egy, „Eredeti:” sorral) a `.codex-jelentes.md`-ben van. Egy jegyet sem nyitottunk, mert ez a kör nem nyúl a GitHubhoz. Fülenként egy jegy készül a HIÁNYZIK/ELTÉR tételekre: Általános, E-Mail, Fájltípusok, Nyomtatás, Hálózat, Webalbumok, Névcímkék. A Diavetítés fülnek nincs HIÁNYZIK/ELTÉR tétele, ezért nem kap jegyet.
+
+**A #5483 hat kérdésének állapota:** a 13. szakasz mindegyikre bináris című választ ad. Az általános `-1` viselkedésre vonatkozó állítás a `ReportStats` konkrét olvasójára korlátozódik; nem általánosítható minden beállítástípusra.
+
+**További nyitott kérdések:**
+
+- A #5516 statikus felirattérképe és a Tools ▸ Feltöltés menü külön építési útja tisztázódott a 13.6/a-c. pontban. A tiszta profil `0x00431290`-eredménye a job-238 mérésből hamis: az Opciók webalbum-fülének címe `Web Albums` (lásd lent). A fotótálca feliratának futásidejű láthatóságát a job-237 jelentés rögzíti.
+
+Az ezen kívüli két NYITVA sor a fájltípusok QuickTime alapértékére és a diavetítés zene-mappájára vonatkozik; ezek nem a #5483 által feltett kérdések.
+
+### 13. #5483 / #5489: a kezelő olvasói és a legördülők értékei
+
+**Vizsgálat:** a #5483 az érintett függvényeket külön, utasításszinten olvasta ki. A #5489 kiegészítő körében a teljes `.text` darabolt pásztázása a `paszta.py` eszközzel történt. A sablon tételei a `runtime/options.fen` fájlból valók.
+
+#### 1. `PrintResamplerQuality`
+
+- A regisztráló az `0x00ca9a28` kulcshoz 5-öt ad alapértékül (`0x006e0d5a`).
+- A kezelő a `0x006e238d` olvasóban 5-öt ad alapértékül, majd a `0x006e249a-0x006e24a7` kódrész a `PrintResamplerQuality` értékét 5-tel hasonlítja össze. Az 5 a `General (Lanczos-3)` első rádiót választja; minden más érték a `Extra sharp (Lanczos-8)` rádiót választja.
+- A külön mentőút (`0x006e4224-0x006e4255`) az első rádió állapotából 5-öt, a másodikéból 8-at készít. Ez az ellenkező irányú út is megerősíti a leképezést.
+- **Válasz:** 5 = első rádió, 8 = második rádió; alapértelmezés 5, tehát az első rádió.
+- **Bizonyítottság:** megerősített. A kezelő olvasója és a külön mentőfüggvény egymástól független irányból ugyanazt a két értéket adja; a rádiók feliratát a sablon adja.
+
+#### 2. Hálózati napló legördülője
+
+- A beállítás a `Preferences\LogLevel` (`0x00ca9bf8`), olvasási alapértéke 2 (`0x006e2aed-0x006e2b0d`). A kezelő a 0-5 tartomány fölötti értéket 5-re korlátozza (`0x006e2b12-0x006e2b25`).
+- A sablonbeli legördülő vezérlő neve `loglevel` (`0x00ca9c04`, `runtime/options.fen`). A kezelő ezt a nevet használja vezérlőazonosítóként (`0x006e2b39` és `0x006e2c04`); ezen a helyen nem olvas `Preferences\loglevel` beállítást.
+- **Válasz:** a legördülő beállításkulcsa `LogLevel`; a kisbetűs `loglevel` a vezérlő neve. Alapértelmezett kijelölés a 2. indexű, `Minimal log information` tétel.
+- **Bizonyítottság:** megerősített. A beállításolvasás a binárisban a `LogLevel` sztringhez kötődik, a sablon pedig a látható vezérlőt `loglevel` néven azonosítja.
+
+#### 3. E-Mail beállítások
+
+| vezérlő vagy kulcs | alapérték és értékleképezés | bináris cím |
+|---|---|---|
+| `mailprog` vezérlőnév | Az alapértelmezett `EmailPrepType=3` és `DoNotPromptForEmailPref=0` mellett az 1. tétel, `Let me choose each time I send pictures`. Ha a rákérdezés tiltott, `EmailPrepType=3` a 2. tétel, `Use my computer's default e-mail program`; `EmailPrepType=5` a 3. tétel, `Use my Google account`. A `mailprog` maga nem tárolt beállításkulcs. | `0x006e1710`, `0x006e1735`, `0x006e1763-0x006e1807` |
+| `picsize` vezérlőnév | A tényleges méretkulcs `EmailExportSize`, alapértéke 480 képpont. A csúszka indexei: 0=160, 1=320, 2=480, 3=640, 4=800, 5=1024, 6=1200, 7=1600 képpont. | `0x006e1756`, `0x006e59e0-0x006e5a4a` |
+| `EmailSinglePicture` | Alapérték 0: `Same as multiple`; 1: `Original size`. | `0x006e16cb-0x006e16f3`; független olvasás: `0x0073f394` |
+| `EmailMovie` | Alapérték 0: `First frame`; 1: `Full movie`. | `0x006e16d3-0x006e16f3`; független olvasás: `0x0073f3b5` |
+
+Az `EmailSinglePicture` és `EmailMovie` beállításokat a kezelő nulla alapértékkel adja át; az email-küldési útvonalak ezeket külön is nulla alapértékkel olvassák (`0x0073f340`, `0x0073f394-0x0073f3d1`, illetve `0x0074303b`, `0x007430a1-0x007430d8`). A 0/1 sorrend a sablonban látható két rádiógomb sorrendjével egyezik.
+
+#### 4. Frissítés és nyomtatási méret legördülők
+
+Az automatikus frissítés sablonsorrendje: `Update automatically`, `Ask before downloading updates`, `Don't check for updates`.
+
+| `AutoUpgradeCheck` | `AutoUpgradeAsk` | kijelölt tétel | alapérték |
+|---:|---:|---|---|
+| 1 | 0 | `Update automatically` | igen |
+| 1 | 1 | `Ask before downloading updates` | nem |
+| 0 | figyelmen kívül marad | `Don't check for updates` | nem |
+
+Az olvasó alapértékei `AutoUpgradeCheck=1` és `AutoUpgradeAsk=0` (`0x006e145e-0x006e149b`). A `0x006e14a7-0x006e1519` ág a fenti három állapotot a sablon sorrendjéhez rendeli. Így az alapértelmezés az első tétel.
+
+A `print1`-`print5` vezérlők mindegyikéhez ugyanaz a 16 elemű lista épül fel. A `0x006e5d70` indexenként egy belső kódot ad, a `0x00775ce0` ezt a kódot felirattá alakítja:
+
+| index | enum | tétel |
+|---:|---:|---|
+| 0 | 5 | `Wallet` |
+| 1 | 2 | `3.5 x 5` |
+| 2 | 1 | `4 x 6` |
+| 3 | 3 | `5 x 7` |
+| 4 | 4 | `8 x 10` |
+| 5 | 6 | `5 x 8 cm` |
+| 6 | 7 | `9 x 13 cm` |
+| 7 | 8 | `10 x 15 cm` |
+| 8 | 9 | `13 x 18 cm` |
+| 9 | 10 | `15 x 20 cm` |
+| 10 | 11 | `20 x 25 cm` |
+| 11 | 12 | `CD Cover Size` |
+| 12 | 13 | `Contact Sheet` |
+| 13 | 14 | `Passport` |
+| 14 | 15 | `3 x 4` |
+| 15 | 16 | `4 x 5` |
+
+Az enum 0 (`FullPage`) a feliratfüggvényben létezik (`0x00cb36f4`), de a 16 elemes menüindex-tábla nem adja vissza (`0x006e5d70-0x006e5dfd`). Az öt vezérlő létrehozási ciklusa a `print1`-`print5` neveket állítja elő (`0x006e2260-0x006e2273`). A hiányzó kulcsok öt alapértékét, a nyomtatási képernyő fogyasztóit, a sztringtáblát és a `FullPage` helyét a 7. pont igazolja.
+
+**Bizonyítottság:** a frissítési leképezés megerősített a kezelő ága és a sablon sorrendje alapján. A nyomtatási lista feltételes: az index-tábla és a feliratválasztó utasításszintű kiolvasása egymással összhangban van, de ehhez a sorrendhez nem találtam második, független bináris útvonalat.
+
+#### 5. `-1` hiányzó beállítás
+
+- A kezelő a `ReportStats` értékét `-1` alapértékkel olvassa (`0x006e1327`), majd `-1`-et vizsgál (`0x006e1340-0x006e1354`) és külön hiányzóérték-jelzőt állít be.
+- A jelölőnégyzet logikai értéke csak akkor igaz, ha a tárolt érték pontosan 1 (`0x006e13d4-0x006e13dc`). Hiányzó beállításnál, amikor az olvasó `-1`-et ad vissza, a vezérlő hamis, vagyis nincs bejelölve. A vezérlő a sablonban egy egyszerű checkbox.
+- **Válasz:** a vizsgált ágban a `ReportStats` checkbox nincs bejelölve, ha nincs tárolt értéke. Ez nem általános állítás minden, regisztrálatlan kulcsról.
+- **Bizonyítottság:** megerősített az olvasó ága, a checkbox sablondefiníciója és a mentőútban megismételt `-1` alapérték alapján (`0x006e3a0a-0x006e3a15`).
+
+#### 6. Webalbumok címe, `0x006e0bc0` és `0x006e0d51`
+
+- A `0x006e1116` a `0x00431290` feltételt hívja. Nem nulla eredménynél a `web_albums_tab` cím `Google Photos` lesz (`0x006e1121-0x006e1164`, címkulcs `0x00ca9a98`, szöveg `0x00c92398`). Nulla eredménynél az ág a sablon `Web Albums` címét hagyja meg.
+- A `0x00431290` előbb a `0x00926c20` által elért Gaia-állapotból kérdez. Ha a kapott kliens `vtable+0x10(0,0,1)` próbája igaz, ugyanazt a metódust `vtable+0x10(8,0,1)` paraméterrel hívja, az eredményt visszaadja, majd `0x00401900`-n át a `Preferences\LastUserESState` kulcsba írja (`0x0043129b-0x00431310`). A `0x00970440` metódus a 8-as paramétert `1 << 8` maszkká alakítja, majd a kliens `+0x1c4` mezőjének `0x100` bitjét vizsgálja (`0x009704a2-0x009704b1`), a kliens-előfeltételek teljesülése esetén.
+- Ha nincs használható kliensállapot, a függvény a beállítást olvassa a `0x004019b0` olvasóval. A lokális érték előtte nulla (`0x004312c3`), a visszatérési érték pedig `!= 0` (`0x00431316-0x0043131d`): a mentett `0` hamis, bármely nem nulla érték igaz. Hiányzó kulcs ezen az ágon ezért hamis eredményt ad.
+- A `0x0059cac0` szintén írja ugyanezt a kulcsot: a `0x0059cb46`-nál kért 8-as állapotértéket a `0x0059cb59` a `0x00401900` íróhoz adja. A `paszta.py` teljes utasításpásztázása a `LastUserESState` literál öt hivatkozását találta (`0x004312ae`, `0x0059cae2`, `0x005df988`, `0x00734ecb`, `0x0074a827`); ezek közül az első kettő az író út, a másik három az olvasó út.
+- Hiányzó `LastUserESState` mellett, ha a Gaia-kliens hiányzik vagy az első próbája hamis, a lokális nulla marad érvényben: a feltétel hamis, így a fül `Web Albums`, a dinamikus feltöltési menü `Upload to &Picasa Web Albums...`. Ha a kliens első próbája igaz, a hiányzó kulcs nem döntő: a függvény a `0x100` bit eredményét menti és adja vissza. A mérőadat-archívumban nincs frissen indított eredeti Picasa-profil futásidejű állapota, ezért a tényleges újprofil-ág nincs megmérve.
+- A `0x006e0bc0` függvény a `Preferences\PWAWatermark` karakterláncot olvassa (`0xc7e1b0`, `0x006e0bdc-0x006e0bfa`). Ez getter, nem regisztráció.
+- A `0x006e0d51` egy regisztrálási hívás: a `PrinterQuality` (`0x00ca9a18`) alapértéke 2 (`0x006e0d47-0x006e0d51`). A kapcsolódó `PWAShareAccess` kulcs (`0xc7e1e0`) alapértéke 0 (`0x006e0da0-0x006e0da7`).
+- A `PrinterQuality` olvasója 2-t hasonlít (`0x006e23e7-0x006e23ea`): a 2 az első, `Compatible (half-res)` rádiót választja, a 3 a második, `High Quality (full-res)` rádiót. A külön mentőút 2-t ír az első és 3-at a második rádió állapotára (`0x006e419f-0x006e41a6`); a feliratsorrend a `runtime/options.fen`-ből való.
+- **Bizonyítottság:** a bináris feltétel, a címágak, az írók és a felirat-erőforrások statikus hozzárendelése megerősített. A ténylegesen friss profil Gaia-állapotához nincs mérés, ezért az új profilban megjelenő feltételes ág összesített eredménye feltételes marad.
+
+#### Független utak és cáfoló ellenőrzés
+
+- **A út:** a kezelő (`0x006e1100`) olvasási, ág- és vezérlő-hozzárendelési utasításai.
+- **B út:** külön mentőút (`0x006e3990`, benne a `PrinterQuality` 2/3 és a `PrintResamplerQuality` 5/8 visszaírása), az email küldő függvények (`0x0073f320`, `0x00743030`), valamint a kezelőtől különálló `runtime/options.fen` vezérlőnevek és tételfeliratok.
+- A két út a `PrinterQuality` 2/3, a nyomtatási átméretező 5/8 leképezésében és az e-mail alapértékekben egyezik. A printméret-lista sorrendjénél a második út nem független, ezért az a rész feltételes marad.
+- **Cáfoló kísérlet:** ellenőriztem azt az alternatív feltevést, hogy az 5 a második, Extra sharp rádióhoz tartozik. A mentőút a nem kiválasztott második rádió esetén 5-öt, a kiválasztásakor 8-at ír (`0x006e424e-0x006e4255`), ezért az alternatív feltevés nem áll meg. A két állapotot a mentőút és az olvasó út külön-külön is ugyanazzal a mércével írja le.
+- **Összesített bizonyítottsági fok:** feltételes, mert a printméret-tételek sorrendjéhez csak egy bináris útvonal bizonyult függetlennek, a #5516 újprofil-ágához pedig futásidejű mérés kell. A fotótálca címkéjének láthatóságát a job-237 jelentés rögzíti; a nyers mérőtag nem érhető el.
+
+##### 6/a. #5516: a `LastUserESState` és a változó feliratok
+
+| felület és hívóhely | igaz eredmény | hamis eredmény | bizonyíték |
+|---|---|---|---|
+| Opciók, Webalbumok fül (`0x006e1116`) | `Google Photos` | `Web Albums` | A címkulcs `0x00ca9a98`, az igaz ág szövege `0x00c92398`; a hamis ág a `runtime/options.fen` sablonszövegét hagyja meg, amely a binárisban `0x00c7ec40`. |
+| Webalbumok címkéje (`0x0059b23e`) | `Google Photos` | `Web Albums` | A `NCWebAlbums::Label1ES` / `NCWebAlbums::Label1` erőforrás és a `0x00c92398` / `0x00c7ec40` szövegág. |
+| Feltöltési menütétel (`0x00730797` a `0x00730790`-ben; `0x00731057` a `0x00731050`-ben) | `Upload to Google &Photos...` | `Upload to &Picasa Web Albums...` | A két menüépítő a feltételből választ szöveget (`0x00730e03-0x00730e16`, `0x00731650-0x00731663`); a szövegek `0x00cadde8` és `0x00cade2c`. |
+| Feltöltési menük felirata (`0x007319f7`, `0x00732167`) | `Upload to Google &Photos...` | `Upload to Google &Photos...` | A feltétel csak a parancsazonosítót választja (`0x00731fb4-0x00731fbd`, `0x007323f4-0x007323fd`); mindkét ág a `0x00cadde8` szöveget rendeli a menütételhez. |
+| Fotótálca feltöltőgomb címkeerőforrása (`0x00573e20`) | `Upload to Google Photos` erőforrást rendeli hozzá | `Upload to Google Photos` | A feltétel eredménye a `thumbui/webupload_icon` tulajdonságra megy (`0x00573e2d-0x00573e40`). Külön `thumbui/webupload-label` node (`0x00c8fb34`) kapja a `CThumbUI::ShareButtonLabelEs` kulcsot (`0x00c8fbb4`) és az `Upload to Google Photos` szöveget (`0x00c8fb9c`) mindkét ágon (`0x00573e75-0x00573e8d`, `0x00573eb8-0x00573ed0`). A job-237 mérési jelentése szerint a gomb az új profilban látható volt ezzel a felirattal; a nyers mérőtag az archívumban nincs meg. |
+
+A `0x00573e20` további menücímkéi (`Import from Google Photos...`, `Upload to Google &Photos`) feltétel nélkül kapnak ES-erőforrást (`0x00573f21-0x00573f8c`), ezért a predikátum eredménye nem választja ki a szövegüket. A `0x00749ba0` külön `CAlbumLabel`-út: az RTTI-index szerint a `CAlbumLabel::vftable` része (`0x00cb166c`). Itt a `LastUserESState` csak a `sharetooltip` / `sharetooltip_es` kulcsot választja (`0x0074a827-0x0074a872`); mindkét angol erőforrás szövege `Upload album to Google Photos`. A gombcímke mindkét ágon `CThumbUI::ShareButtonLabel` = `Upload` (`0x0074a882-0x0074a896`), ez nem a fotótálca gombja.
+
+A feltétel további, nem fül- vagy menüfelirat jellegű felhasználói szövegeket is választ: frissítési figyelmeztetés (`0x0059fa04`), korábbi import állapota (`0x005d2d41`), címkézett arcok online törlése (`0x005fd9de`), albumok eltávolításának megerősítése (`0x0067a230`), letöltési feliratok és ablakcím (`0x006fa2a2`, `0x006fa2f6`, `0x006fa83c`), névcímke-figyelmeztetés (`0x0074c51e`), személytörlési figyelmeztetés (`0x007ba97c`), album szinkronizálási kérdés (`0x007df263`) és importmenü (`0x007f92eb`). A true ág ezeknél Google Photos vagy Google+ Photos, a false ág Web Albums vagy Picasa Web Albums szöveget választ; az utóbbi két címen csak true ágú szöveg szerepel.
+
+**A két független út:** **A út:** az `0x00431290`, `0x0059cac0`, `0x00559150`, `0x00573e20` és a négy `0x0073…` menüépítő utasításszintű olvasása; a `0x00573e20` kimenetét a célzott Ghidra-kimenettel is összevetettem. **B út:** a `paszta.py` teljes `.text` pásztázása öt `LastUserESState` hivatkozást talált; az öt cím (`0x004312ae`, `0x0059cae2`, `0x005df988`, `0x00734ecb`, `0x0074a827`) közül az első kettő író, a többi olvasó. Az index `string_xrefs` ettől függetlenül a `eMenuTools::ID_TOOLS_UPLOAD` és alapfeliratát a `0x00559150`-hez, az `eMenuTools::ID_TOOLS_UPLOAD_ES` frissítését a `0x00573e20`-hoz, a négy `0x0073…` függvény feliratait pedig `AlbumPhoto`/`Album` parancsazonosítókhoz köti. A két út egyezik: a négy korábban megadott `0x0073…` cím nem az Eszközök menü építője.
+
+**Cáfoló kísérlet:** ellenőriztem, hogy hiányzó `LastUserESState` minden esetben hamisat jelent-e. Ez megdőlt: ha a kliens első próbája igaz, a függvény a `0x100` állapotbitet menti és adja vissza, a kulcs olvasási ágának kihagyásával (`0x004312d4-0x00431310`, `0x009704a2-0x009704b1`). A cáfolatot a `0x0059cac0` külön íróútja és a független újralevezetés is ugyanazzal az utasításszintű mércével ellenőrzi.
+
+Második cáfoló feltevésként ellenőriztem, hogy a `0x00749ba0` lenne a fotótálca gombjának hamis ági felirata. Nem: a Ghidra fejléc az RTTI `CAlbumLabel::vftable` adat-xrefjét mutatja, a függvény `share` elemet keres, a `thumbui.tre` pedig külön `thumbui/webupload-label` node-ot nevez meg; a teljes szövegliterál-pásztázás az alap címkekulcs egyetlen hivatkozását is csak a `0x00749ba0`-ban találta. E cáfolatot a típus-xref, az erőforrásfa és a bináris szöveghivatkozások egymástól függetlenül ellenőrzik.
+
+##### 6/b. Eszközök ▸ Feltöltés: a négy `0x0073…` cím nem ezt a menüt építi
+
+A négy kérdésben szereplő cím a `0x00730790`, `0x00731050`, `0x007319f0` és `0x00732160` függvények feltételvizsgálatának belső helye (`0x00730797`, `0x00731057`, `0x007319f7`, `0x00732167`). Az első kettő fotó-környezetmenü: igaz ágon `Upload to Google &Photos...`, hamis ágon `Upload to &Picasa Web Albums...` (`0x00730e03-0x00730e16`, `0x00731650-0x00731663`). A másik kettő album-/mappakörnyezet-menü: mindkét ágon `Upload to Google &Photos...`; csak a parancsazonosító vált (`0x00731faf-0x00731fc2`, `0x007323ef-0x00732402`). E négy függvény `AlbumPhoto::`/`Album::` parancsazonosítókat állít össze, nem `eMenuTools` elemeket.
+
+Az Eszközök ▸ Feltöltés főmenü-elemeit a `0x00559150` állítja össze: az `eMenuTools::ID_TOOLS_UPLOAD` (`0x00c8db90`) alapfelirata `Upload to Google &Photos` (`0x00c8dbac`, utasítások `0x0055be44-0x0055be4e`), mellette szerepel az `Upload to a Collaborative Web Album` (`0x0055be6c-0x0055be71`) és az `Upload to &YouTube` (`0x0055beb6-0x0055bebb`). A `0x00573e20` később frissíti a menüt: meghívja a `0x00431290` feltételt (`0x00573e2d`), feloldja az `eMenuTools::ID_TOOLS_UPLOAD_ES` kulcsot az `Upload to Google &Photos` alapfelirattal (`0x00573f82-0x00573f8c`), majd a Tools almenü 6. pozíciójának `0x9df7` azonosítójú elemére alkalmazza (`0x00574036-0x00574075`). A frissítőnek ezen a címzett felirat-útján nincs `Picasa Web Albums` szövegág; a hamis állapotú `Picasa Web Albums` menüfeliratot a két fotó-környezetmenü építi.
+
+A felhasználó által átadott job-237 futásjelentés szerint a friss profil `Picasa2\\Preferences` kulcsa hiányzott, de az Eszközök ▸ Feltöltés almenü látható elemei `Upload to Google Photos`, `Upload to a Collaborative Web Album`, `Upload to YouTube` voltak; mind szürke állapotban. A bináris és a jelentett felület tehát abban egyezik, hogy a Tools menü felirata Google Photos, nem a fotó-környezetmenü hamis ágának `Picasa Web Albums` szövege. Ez nem bizonyítja, hogy a `0x00431290` futásidejű eredménye hamis volt: a mérési jelentés a Gaia-próba eredményét nem rögzíti. A `meroadat.tar` nem tartalmaz job-237 nevű tagot vagy a mérési szöveget, ezért a nyers futásképet/kimenetet itt nem tudtam újraellenőrizni.
+
+**A PicasaPy-oldali összevetés:**
+
+| felület | eredeti | nálunk | teendő |
+|---|---|---|---|
+| Opciók ▸ Web Albums fül | hamis ágon `Web Albums`, igaz ágon `Google Photos`; a job-237 nem mérte meg a fül címét | a PicasaPy-ban: `OptionsDialog.qml:128`: `Web Albums` | A PicasaPy a hamis ággal egyezik; a tiszta profil tényleges ága a Gaia-próba méréséig nyitott. |
+| Fotó-környezetmenü | hamis ágon `Upload to &Picasa Web Albums...`, igaz ágon `Upload to Google &Photos...` | a PicasaPy-ban: `PhotoContextMenu.qml:484`: `Upload to &Picasa Web Albums...` | A hamis ággal egyezik; az aktuális profil tényleges ága nincs mérve. |
+| Album-/mappakörnyezet-menü | mindkét ágon `Upload to Google &Photos...` | a PicasaPy-ban: `AlbumContextMenu.qml:145`, a PicasaPy-ban: `FolderContextMenu.qml:243`: ugyanez | Egyezik; nincs teendő. |
+| Fotótálca gomb | mindkét ág erőforrása `Upload to Google Photos`; a job-237 jelentés szerint látható volt | a PicasaPy-ban: `TrayBar.qml:1866`: `Upload to Google Photos` | Egyezik; a feltöltés tényleges működése kívül esik e vizsgálaton. |
+| Fájl ▸ Import from Google Photos... | a job-237 jelentésben `Import from Google Photos...`; a `0x00573e20` ES-menüútján a szövegforrás `0x00c8fbd4` (`0x00573f21-0x00573f2b`) | a PicasaPy-ban: `PicasaMenuBar.qml:746`: `Import From Google Photos...` | **Eltér a kis- és nagybetű:** a `From` legyen `from`; a menüpont maradjon letiltott. |
+| Eszközök ▸ Feltöltés almenü gyermekei | a job-237 jelentésben `Upload to Google Photos`, `Upload to a Collaborative Web Album`, `Upload to YouTube` | a PicasaPy-ban: `PicasaMenuBar.qml:2416`: az `Upload` almenü letiltott és üres | **Felirat-hiány:** külön, csak a három szürke címkét pótló fejlesztői jegy javasolt; feltöltési műveletet ne kössön hozzá. |
+
+##### 6/c. A #5516 felirat-összevetésének eredménye
+
+A statikus feltételágak és a PicasaPy-forrás összevetése alapján a fül, a fotómenü, az album-/mappamenü és a fotótálca szövegei az ismert ágakhoz illenek. A tiszta profil `0x00431290`-eredménye nem ismert, így a fül és a fotómenü új profilban érvényes ága nyitva marad. A job-237 jelentés két ismert felirati eltérést jelez: hiányoznak az Eszközök ▸ Feltöltés almenü gyermekfeliratai, és a Fájl menüben a `From` nagybetűs. A fejlesztői javaslat kizárólag a címkék pótlása/pontosítása; a tételek maradjanak letiltva, feltöltési működés nélkül.
+
+#### Fülenkénti fejlesztési jegyjavaslat
+
+| fül | Eredeti | Nálunk | Teendő |
+|---|---|---|---|
+| Általános | A frissítés alapja az automatikus ellenőrzés. A `ReportStats` hiányzó értéke üres checkboxot mutat. | A frissítés legördülő le van tiltva, nincs beállításkulcsa; a használati statisztika jelölője szintén le van tiltva. | Ha a frissítő megvalósul, a három választást az `AutoUpgradeCheck`/`AutoUpgradeAsk` leképezésével kell kötni. A hiányzó `ReportStats` érték maradjon kikapcsolt alapállapot. |
+| E-Mail | Három `mailprog` választás; a `picsize` mögött a `EmailExportSize` képpontértéke van; `EmailSinglePicture` és `EmailMovie` 0/1 rádióválasztás. | A két aktív levelezőválasztás sorrendje fordított, a Google-fiók választás letiltott helyőrző. A képméret és a két rádió alapállapota megfelel az eredeti viselkedésnek. | A levélküldési választást az eredeti sorrendhez igazítani, vagy explicit értékleképezéssel tárolni; a 480 képpontos alapértéket és a 0/1 rádióleképezést megtartani. |
+| Nyomtatás | A `PrinterQuality` 2 = Compatible, 3 = High Quality; a nyomtatási lista sorrendje a fenti 16 tétel; a resampler 5 = General, 8 = Extra sharp. | A minőséget szöveges `compatible`/`highQuality` érték tárolja. A PicasaPy-ban: `print_controller.py` listája más sorrendű és a `FullPage` tételt is tartalmazza. A resampler `General` értéke 3, az `Extra sharp` értéke 8. | A nyomtatási minőségnél az eredeti 2/3 értékeket a két rádióhoz kötni; a popup listából a `FullPage`-t külön képernyőműveletbe kivezetni. A teljes 16 elem sorrendjét csak független második bináris igazolás után átírni. A resampler beállításrétegében az eredeti 5/8 értékeket a meglévő megjelenítési minőségekhez rendelni úgy, hogy az algoritmus számkódja ne keveredjen össze velük. |
+| Hálózat | A `LogLevel` beállítás alapja 2; a vezérlő neve `loglevel`. | A `Preferences/LogLevel` beállítást használja 2 alapértékkel, a QML vezérlőneve `optionsNetworkLogLevelCombo`. | A jelenlegi beállításkötés megtartása; a specifikációban a tárolt kulcs és a vezérlőnév külön fogalomként szerepeljen. |
+| Webalbumok | A fül és egy Webalbumok címke állapottól függően `Web Albums` / `Google Photos`; két fotó-környezetmenü `Upload to &Picasa Web Albums...` / `Upload to Google &Photos...` között vált; két album-/mappamenü mindkét ágon Google Photos feliratot használ; a fotótálca erőforrása mindkét ágon `Upload to Google Photos`. A job-237 jelentés az Eszközök ▸ Feltöltés három címkéjét és a Fájl menü `Import from Google Photos...` alakját is rögzíti. | A fül letiltott és `Web Albums`; a fotómenü `Upload to &Picasa Web Albums...`, az album-/mappamenü Google Photos; a fotótálca gomb `Upload to Google Photos`; a letiltott Tools ▸ Upload almenü üres; a Fájl menüben `Import From Google Photos...`. | Az Eszközök ▸ Feltöltés alá pótolni a három letiltott címkét (`Upload to Google Photos`, `Upload to a Collaborative Web Album`, `Upload to YouTube`), és a Fájl menüben `From` → `from`. Feltöltőlogika nélkül. A fül és a fotómenü profilfüggő eltérését csak a Gaia-próba pontos mérése után lehet eldönteni. |
+
+**Nyitott:**
+
+- **LEZÁRVA (job-238, 2026-10-22):** friss profilban (első indítás, `LastUserESState` kulcs nélkül) az Eszközök ▸ Opciók fülsora `General · E-Mail · File Types · Slideshow · Printing · Network · Web Albums · Name Tags`; a webalbum-fül címe `Web Albums`. Mivel a `0x006e1116` csak nem nulla eredményre írja át a címet `Google Photos`-ra, a `0x00431290` friss profilban **hamis** eredményt ad, és a mérés után a kulcs sem jelent meg a registryben. Ebből a feltételes felületek hamis ága érvényes: a fül `Web Albums`, a két fotó-környezetmenü `Upload to &Picasa Web Albums...`. A PicasaPy mindkettőt így mutatja (a PicasaPy-ban: `OptionsDialog.qml`, a PicasaPy-ban: `PhotoContextMenu.qml`), tehát itt nincs eltérés. A Gaia-próba belső visszatérési értékeit a mérés nem bontja ki; a felületi következmény ettől függetlenül eldőlt. A megmaradt két eltérést (Eszközök ▸ Feltöltés almenü, `Import from`) a #5570 viszi.
+
+
+#### 7. #5489: a Nyomtatás méretlistájának második bináris ellenőrzése
+
+Ez a rész a #5483-ban kiolvasott listát egészíti ki a #5489 második bináris
+ellenőrzésével. A vezérlőneveket a helyi `runtime/options.fen` adja; a
+viselkedést a `Picasa3.exe` utasításai igazolják.
+
+##### 1. A `0x00775ce0` feliratfüggvény fogyasztói
+
+Az `0x00775ce0` közvetlen hívói a teljes `.text` `paszta.py`-val végzett
+darabolt pásztázásában:
+
+| felhasználás | hívó és hívási cím | bináris bizonyíték |
+|---|---|---|
+| Opciók, Nyomtatás fül: a 16 popup-tétel felépítése | `0x006e1100`, hívás `0x006e22c3` | a `print%d` vezérlőciklus `0x006e2260`-nál indul; a ciklus `0x006e5d70` kódját adja a `0x00775ce0`-nak, majd hozzáadja a visszaadott feliratot (`0x006e22b0`-`0x006e2338`) |
+| Nyomtatási képernyő: az öt mentett gyorsválasztó címkéje | `0x00743700`, hívás `0x00743819` | a panel a `PrintSize0`-`PrintSize4` értékeket beolvassa, majd a `0x006e5d70` és `0x00775ce0` útján címkézi őket (`0x0074373d`, `0x0074380c`-`0x0074382a`) |
+
+A `0x00743700` ugyanitt a külön `0x00775f30` függvényt is hívja
+(`0x0074382a`). Ez a `ytPrintTip` súgókulcsait adja vissza. A teljes
+utasításpásztázásban `0x00775f30` egyetlen közvetlen hívója `0x00743700`;
+a `0x006e5d70` harmadik hívása `0x00744693`, a nyomtatási képernyő
+választás-ellenőrző ágában.
+
+A két felület ugyanazt a leképezést és ugyanazt a méretfelirat-függvényt
+használja. A nyomtatási képernyő öt mentett gyorsválasztót mutat, nem a teljes
+16 elemű popup-listát. Ez a második fogyasztó igazolja a közös használatot,
+de nem ad független, második forrást a 16 elem sorrendjére.
+
+##### 2. A popup szövege és sorrendje
+
+A `0x00775ce0` a `ytPrintSizes::` kulcsokat adja át a szövegfeloldó függvénynek
+(`0x009ae560`). Példák: `Wallet` / `ytPrintSizes::eWallet`
+(`0x00cb3788`, `0x00cb3790`), `4 x 6` / `ytPrintSizes::e4x6`
+(`0x00cb3718`, `0x00cb3720`), és `FullPage` / `ytPrintSizes::eFullPage`
+(`0x00cb36f4`, `0x00cb3700`). A képernyőn használt leírások külön
+`ytPrintTip::` kulcsok: például a `0x00775f30` `ytPrintTip::eFullPage`
+kulcsot adja át (`0x00cb392c`).
+
+A `ytPrintSizes` a címke- és enum-feloldó tábla; a popup sorrendjét a
+`0x006e5d70` 16 elemű leképezése állítja elő. Mindegyik sornál az első cím
+a leképezésben tárolt enumérték, a második a `ytPrintSizes` címkeágának
+címe:
+
+| popup-index | enumérték | felirat | bináris címek |
+|---:|---:|---|---|
+| 0 | 5 | `Wallet` | `0x006e5d76`, `0x00775d82` |
+| 1 | 2 | `3.5 x 5` | `0x006e5d7d`, `0x00775d2b` |
+| 2 | 1 | `4 x 6` | `0x006e5d85`, `0x00775d0e` |
+| 3 | 3 | `5 x 7` | `0x006e5d8d`, `0x00775d48` |
+| 4 | 4 | `8 x 10` | `0x006e5d95`, `0x00775d65` |
+| 5 | 6 | `5 x 8 cm` | `0x006e5d9d`, `0x00775d9f` |
+| 6 | 7 | `9 x 13 cm` | `0x006e5da5`, `0x00775dbc` |
+| 7 | 8 | `10 x 15 cm` | `0x006e5dad`, `0x00775dd9` |
+| 8 | 9 | `13 x 18 cm` | `0x006e5db5`, `0x00775df6` |
+| 9 | 10 | `15 x 20 cm` | `0x006e5dbd`, `0x00775e13` |
+| 10 | 11 | `20 x 25 cm` | `0x006e5dc5`, `0x00775e30` |
+| 11 | 12 | `CD Cover Size` | `0x006e5dcd`, `0x00775e4d` |
+| 12 | 13 | `Contact Sheet` | `0x006e5dd5`, `0x00775e6a` |
+| 13 | 14 | `Passport` | `0x006e5ddd`, `0x00775e87` |
+| 14 | 15 | `3 x 4` | `0x006e5de5`, `0x00775ea4` |
+| 15 | 16 | `4 x 5` | `0x006e5ded`, `0x00775ec1` |
+
+A `0x00775ce0` enum-ágainak sorrendje `FullPage`, `4 x 6`, `3.5 x 5`,
+`5 x 7`, `8 x 10`, `Wallet` (`0x00775cf1`-`0x00775d82`), ami nem a popup
+sorrendje. A méretfelirat-függvény enum szerint választ címkét; az
+`0x006e5d70` rendezi át a popup-indexeket. A `ytPrintTip` ugyanazokhoz az
+enumértékekhez ad külön súgószöveget, nem második popup-listát.
+
+##### 3. Hiányzó kulcs esetén az öt alapérték
+
+A `0x006e5ab0` a `GetLocaleInfoA` függvényt hívja `0x400` lokálazonosítóval,
+`0x0d` (`LOCALE_IMEASURE`) információtípussal és 2 bájtos pufferrel
+(`0x006e5acf`-`0x006e5b27`). Ha az eredmény első bájtja `'0'`, a függvény a
+metrikus tömböt használja; minden más eredménynél, beleértve a sikertelen
+lekérdezést, a hüvelyk-alapú tömböt (`0x006e5b31`-`0x006e5b5f`). A tömbök
+utáni `Preferences\PrintSize%d` olvasásban a hiányzó kulcs az átadott
+alapértéket kapja (`0x006e5b66`-`0x006e5ba7`); az index 0-4, az érvényes
+mentett érték 0-15 (`0x006e5c64`-`0x006e5d0b`).
+
+Az `options.fen` vezérlőciklusa `print1`-től `print5`-ig halad
+(`0x006e2260`-`0x006e226e`), és rendre az öt `PrintSize0`-`PrintSize4`
+értékből állítja be a popup kijelölését (`0x006e2341`-`0x006e2367`). A
+hiányzó-kulcs alapértékek és az általuk kijelölt `ytPrintSizes` címkék:
+
+| mértékág | `print1` | `print2` | `print3` | `print4` | `print5` | bináris cím |
+|---|---|---|---|---|---|---|
+| `LOCALE_IMEASURE='0'` | `10 x 15 cm` (7) | `13 x 18 cm` (8) | `15 x 20 cm` (9) | `20 x 25 cm` (10) | `Contact Sheet` (12) | `0x006e5ab0`, `0x006e5d70`, `0x00775ce0` |
+| minden más eredmény vagy hiba | `Wallet` (0) | `3.5 x 5` (1) | `4 x 6` (2) | `5 x 7` (3) | `8 x 10` (4) | `0x006e5ab0`, `0x006e5d70`, `0x00775ce0` |
+
+Zárójelben a popup-index áll. Az alapértékek a `Preferences\PrintSize0`-
+`Preferences\PrintSize4` kulcsokra vonatkoznak, nem a vezérlőnevekre. A
+`print1`-`print5` vezérlőazonosítók (`0x00ca9bb8`, `0x006e2260`-`0x006e226e`).
+
+##### 4. A `FullPage` helye
+
+A `0x00775ce0` és a `0x00775f30` tartalmaz `FullPage` méret- és súgócímkét
+(`0x00775cf1`, `0x00775f41`). A popup 0-15 indexet ad át a
+`0x006e5d70`-nek; a visszaadott enumértékek 5, 2, 1, 3, 4, majd 6-16,
+tehát a 0 enumérték nem kerül a `print1`-`print5` popupokba
+(`0x006e5d70`-`0x006e5df7`). A nyomtatási képernyő külön `fullbutton`
+vezérlőt használ (`0x007439a6`, sztringcím `0x00cb07b0`), és annak saját
+`ytPrintSizes::eFullPage` / `ytPrintTip::eFullPage` címkéje van.
+
+##### Független utak, cáfoló ellenőrzés és bizonyítottság
+
+- **A út:** az Opciók kezelője `0x006e1100` felépíti a 16 listatételt a
+  `0x006e5d70` leképezésével, címkézi őket a `0x00775ce0`-val, majd a
+  `0x006e5ab0` eredményéből állítja be a vezérlők alapértékét.
+- **B út:** a nyomtatási képernyő `0x00743700` a `0x006e5ab0` öt értékét
+  olvassa, és ugyanazokat a `0x006e5d70` / `0x00775ce0` függvényeket hívja;
+  mellettük a külön `0x00775f30` tooltip-függvényt használja.
+- **Egyezés:** a két felület ugyanazt a közös leképezést használja. A B út
+  ezért megerősíti a másik felületen való használatot és a címkék jelentését,
+  de nem független sorrendforrás. A teljes popup-sorrend bizonyítottsága
+  **feltételes** marad: egyetlen listázó leképezés áll rendelkezésre, a
+  `0x006e5d70`.
+- **Cáfoló kísérlet:** azt próbáltam cáfolni, hogy a `ytPrintTip` külön
+  sorrendet ad a méretlistához, és azt, hogy a régi nyomtatási spec metrikus
+  címkéi helyesek. A teljes `.text` pásztázás a `0x00775ce0` két közvetlen
+  hívóját találta (`0x006e1100`, `0x00743700`), a `0x00775f30` egy hívója
+  `0x00743700`; a második felület is az első leképezését használja. A bináris
+  lánc `[7,8,9,10,12]` értékekre a `10 x 15 cm`, `13 x 18 cm`, `15 x 20 cm`,
+  `20 x 25 cm`, `Contact Sheet` címkéket adja. A korábbi
+  `picasa-nyomtatas.md` metrikus címkesora ezzel nem egyezik, ezért lent
+  helyesbítettem. A cáfoló eredményt az alapérték-tömb, a map-függvény, a
+  címkefüggvény és a képernyőbeli fogyasztó utasításaival ellenőriztem.
+
+**Bizonyítottsági fok:** a `print1`-`print5` hiányzó-kulcs nyers alapértékei
+és a címke-feloldásuk bináris utasításokból visszafejthető. A teljes 16 tétel
+sorrendje **feltételes**, mert a második felhasználó ugyanazt a
+`0x006e5d70` leképezést használja; független második sorrendforrást nem
+találtam. Ez a #5489 feltételét teljesítő, kimondott ok, nem becsült érték.
+
+##### Eredeti / nálunk / teendő
+
+| | Eredeti Picasa | PicasaPy a munkafában | Teendő |
+|---|---|---|---|
+| `print1`-`print5` tételek | A 16 tétel sorrendjét a fenti tábla adja; `FullPage` nincs a popupban (`0x006e5d70`, `0x00775ce0`). | `printOptionSizes()` a `_PRINT_OPTION_SIZES` 17 tételét adja vissza, sorrendben `M3X4`, `M3_5X5`, `M4X5`, `M4X6`, `M5X7`, `M8X10`, `M5X8CM`, `M9X13CM`, `M10X15CM`, `M13X18CM`, `M15X20CM`, `M20X25CM`, `TARCA`, `CDSIZE`, `PASSPORT`, `CONTACT`, `TELJES_OLDAL` (a PicasaPy-ban: `src/picasapy/app/print_controller.py:147-165, 262-265`). | A popup listából a `FullPage`-t külön képernyőgombba kivezetni. A 16 elem sorrendjét ne írjuk át a jelenlegi feltételes bizonyíték alapján; ehhez előbb független második bináris forrás kell. |
+| hiányzó `PrintSize0`-`PrintSize4` | Metrikus: `10x15`, `13x18`, `15x20`, `20x25 cm`, `Contact Sheet`; más ág: Tárca, `3.5x5`, `4x6`, `5x7`, `8x10` (`0x006e5ab0`-`0x006e5b5f`, majd a címkézők). | A metrikus alaplista `5x8`, `9x13`, `10x15`, `13x18`, `20x25 cm`; a hüvelyk-alaplista Tárca, `3.5x5`, `4x6`, `5x7`, `8x10` (a PicasaPy-ban: `src/picasapy/printing/dpi.py:171-186`). | A hiányzó kulcs metrikus alapértékeit az eredeti bináris szerinti listára igazítani; a mentett választás elsőbbségét megtartani. A hüvelyk-alapértékek már egyeznek. |
+
+**Nyitva:** a 16 elemű popup-sorrendhez nincs független második forrás. A
+Ghidra-dekompilálás nem oldaná fel a hiányt: a második ismert képernyőbeli út
+is a közös `0x006e5d70` függvényt hívja (`0x00743700`, `0x00744693`). A
+feltételes minősítés oka ezért lezárt kutatási megállapítás; új, külön
+listázó adatszimbólum vagy másik felület felfedezése nyitná újra.
+
+---
+
+## A MEGŐRZÖTT elrendezés-állapot - mit ír ki a Picasa, hova, mikor (2026-09-03)
+
+> **Bizonyítottság: megerősített.** Minden állítás mellett cím vagy
+> `.tre` fájl + sor. Az egyik állítás **kimerítő negatív** - három
+> egymástól független lekérdezéssel.
+
+### 1. A főablak pozíciója és mérete
+
+| kulcs | szakasz | formátum | cím |
+|---|---|---|---|
+| `mainwinpos` | `Preferences` | **`rect(%ld %ld %ld %ld)`** | `0x00575f50` (visszaállítás), `0x005760e0` (mentés) |
+| `mainwinismax` | `Preferences` | maximalizált-jelző | ugyanott |
+
+A maximalizált állapot **külön kulcs**, nem a téglalapba kódolva - a
+normál geometria így megmarad a maximalizálás visszavonásához.
+
+### 2. ⛔ `HLISTDIV` és `VLISTDIV` - BEÍRVA, de SOHA NEM OLVASVA
+
+Az induló kód (`0x00565920`, 969 bájt) két `resvars`-változót vet be:
+
+```asm
+0x00565974  push 0xc8e67c   ; "HLISTDIV"
+0x00565979  push 0xc7fe64   ; "resvars"
+0x0056598c  call 0x407630   ; kiolvasás
+…                            ; üres/hiányzó?
+0x00565a02  push 0xc8e688   ; "0.216406"   <- ALAPÉRTÉK
+0x00565a20  call 0x407760   ; beírás
+0x00565a2a  push 0xc8e694   ; "VLISTDIV"
+0x00565ab3  push 0xc8e6a0   ; "0.1"        <- ALAPÉRTÉK
+```
+
+| változó | alapérték | hol |
+|---|---|---|
+| `HLISTDIV` | **`0.216406`** | `0xc8e67c` / `0xc8e688` |
+| `VLISTDIV` | **`0.1`** | `0xc8e694` / `0xc8e6a0` |
+
+A beírás **feltételes**: csak akkor, ha a kulcs hiányzik vagy üres
+(`0x005659ee` állítja a jelzőt, `0x00565a00` ágazik el rajta).
+
+**És ezzel vége - semmi nem olvassa őket.** Három, egymástól független
+lekérdezés:
+
+1. **`string_xrefs` index:** mindkét névre pontosan **egy** hivatkozó
+   függvény, a `0x00565920`.
+2. **Nyers bájtminta a teljes PE-n** a sztringek CÍMÉRE (`0xc8e67c`,
+   `0xc8e694`, és a két alapérték-sztringé is): szekciónként végigpásztázva
+   **1-1 hivatkozás**, mind a `0x00565920`-ban.
+3. **Mind a 141 `.tre` erőforrás** végiggrepelve: **0 találat** - egyetlen
+   felületleíró sem hivatkozik rájuk.
+
+Nincs dinamikusan összerakott név sem: a teljes fájlra futtatott
+`[ -~]{0,12}LISTDIV[ -~]{0,12}` reguláris keresés **pontosan a két
+literált** adja, `%sLISTDIV`-szerű formátumsztring nincs.
+
+⇒ **Elsőindulási maradék. NE valósítsuk meg.**
+
+> ⚠️ **Miért került ide külön szakasz:** a `0.216406` első ránézésre a bal
+> panel **arányos** szélességének látszik (a lap fenti táblája viszont fix
+> **240 képpontot** mond). A negatív eredmény ezt a csapdát zárja le: a
+> `HLISTDIV` nem a könyvtár osztóvonala. A könyvtár osztója a
+> `HLISTOFFSET2`, ahogy eddig is állt:
+>
+> ```
+> thumbui.tre:517   XConstraint 0, 0, HLISTOFFSET2=240, -4
+> thumbui.tre:518   Handler hsplitoffset HLISTOFFSET2
+> ```
+>
+> **A lap eddigi állítása („FIX 240 képpont, nem százalék") tehát
+> MEGERŐSÍTVE**, nem cáfolva.
+
+### 3. Az induláskori felület-állapot alkalmazója - `0x0040bf70`
+
+A 3486 bájtos függvény a `Preferences`-t és a `resvars`-t olvassa, és
+ebből állítja be **név szerint** a felületi elemek láthatóságát. Az általa
+érintett elemek és kulcsok (a `string_xrefs` teljes listája erre a
+függvényre):
+
+| kulcs / változó | érintett elem |
+|---|---|
+| `RIGHTDRAWEROFFSET` | `thumbui/right_drawer`, `thumbui/rightdrawerpanel` |
+| `LEFTDRAWEROFFSET`, `left_drawer_open` | `editpanel/toggle_left_drawer` |
+| `LastCaptionButton` | `editpanel/captionbutton` |
+| `EnableScreenCap` | - |
+| `hosting`, `UIFolder` | a webes szolgáltatások megléte |
+| - | `thumbui/webcambutton`, `thumbui/visitweb`, `thumbui/uploadmgr`, `thumbui/webmode` |
+| - | `searchoptions/webview`, `searchoptions/label_webview`, `searchoptions/dupesearch` |
+| - | `rightdrawerpanel/propertiespanel` · `/tagpanel` · `/peoplepanel` · `/geopanel` |
+| - | `printpanel/nextbutton`, `printpanel/prevbutton` |
+| - | `editpanel/picnik`, `editpanel/adorner_container`, `publish/picsizemenu`, `thumbui/addtobuttcon`, `thumbui/albums` |
+
+⇒ **A megszűnt webes szolgáltatásokhoz kötött gombok (`visitweb`,
+`uploadmgr`, `webmode`, `webcambutton`) nem külön ágon, hanem EBBEN az
+egy függvényben kapcsolódnak ki-be.**
+
+### 4. `hviewtoggle` - nem vezérlő, hanem a nézetváltó pár TARTÓJA
+
+A lefedettségi mérés `thumbui/hviewtoggle`-t „bizonytalan"-ként hozta. A
+forrás egyértelmű:
+
+```
+thumbui.tre:406   thumbui/folderview: thumbui/hviewtoggle
+thumbui.tre:407-408                   (#Property showtarget leftindent/rightindent - kikommentelve)
+thumbui.tre:409   Property prenotify 1
+thumbui.tre:412   thumbui/flatview:   thumbui/hviewtoggle
+thumbui.tre:415   thumbui/hviewtoggle: thumbui/buttonbarsets
+```
+
+⇒ **`hviewtoggle` a `buttonbarsets`-ben ülő csoport**, két gyerekkel:
+`folderview` és `flatview`. A mappanézet ↔ egyszerű nézet váltás tehát az
+eredetiben **eszköztár-gombpár**, nem csak menütétel. A két gomb mérete a
+#587 mérése szerint 2 × 30 × 22; a hiányuk a **#1421**-ben van
+nyilvántartva.
+
+> ⛳ **A lefedettségi mérés „feltáratlan" besorolása ELAVULT (2026-09-06).**
+> A `ui-lefedettseg.md` 2026-09-04-i változata a `thumbui/hviewtoggle`-t még
+> **`hianyzik`** (feltáratlan) tételként hozza. Ez a szakasz - és a
+> `ui-audit-mainwindow.md` 1.4 (`0x00559150`) - teljes néven, horgonnyal
+> leírja, tehát a mai fán az osztályozó **`lekutatva`**-t adna rá. ⇒ **Nem
+> kutatói, hanem fejlesztői tétel** (#1421); a mérést újra kell futtatni.
+
+### 4/b `thumbui/editpanel` és `thumbui/listdetail` - szerkezeti nézetek, nem külön vezérlők (#3328)
+
+A lefedettségi mérés ezt a két, felirat nélküli elemet `bizonytalan`-ként hagyta, holott a `thumbui.tre` szülő- és állapotsorai eldöntik a szerepüket:
+
+| elem | mért szerep | bizonyíték |
+|---|---|---|
+| `thumbui/editpanel` | rejtett, teljes méretű alap-panel; a `thumbui/basepanel` gyereke, nem szerkesztőgomb | `thumbui.tre:708-710`, `m_hidden` |
+| `thumbui/listdetail` | rejtett alternatív nézet az albumterületen; az `albumsback` gyereke, nem önálló művelet | `thumbui.tre:183-188`, `m_hidden` |
+
+⇒ Mindkettő **`lekutatva`**, nem kutatói hiány. Az első a fő könyvtárnézet panelváltási fája, a második az albumterület részletes nézetének tartója. A megvalósítási hiányt a könyvtárnézet fejlesztési jegyei kezelik; új bináris kutatás ezekhez nem szükséges.
+
+### 5. Nálunk - MÉRVE (2026-09-03)
+
+| | eredeti | nálunk | állapot |
+|---|---|---|---|
+| főablak-geometria | `Preferences/mainwinpos` = `rect(l t r b)` + `mainwinismax` | `QSettings` `window/x·y·width·height·maximized`, virtuális asztalhoz igazítva (a PicasaPy-ban: `app/window_geometry.py`, #192) | **megvan** |
+| bal panel szélessége | `HLISTOFFSET2 = 240`, húzható (`Handler hsplitoffset`) | alap **240**, húzható `SplitView`, `QSettings` `view/folderPaneWidth` (a PicasaPy-ban: `app/controller.py:86`) | **megvan** |
+| a húzás korlátai | **NINCS fix korlát** (ld. 6.) | 160 … 600 (`_clamp_folder_pane_width`, a PicasaPy-ban: `controller.py:91`) | a miénk **saját kiegészítés**, nem mért érték |
+| mappanézet ↔ egyszerű | eszköztár-gombpár (`hviewtoggle`) | csak a Nézet menüben (#1454) | **hiányzik** → #1421 |
+| `HLISTDIV` / `VLISTDIV` | beírva, sosem olvasva | nincs | **helyesen nincs** |
+
+### 6. A húzható osztó kezelője - és a 240 MÁSODIK, független előfordulása
+
+A `.tre` `Handler hsplitoffset` sora egy gyártó-osztályra mutat:
+
+| lépés | cím |
+|---|---|
+| a névadó csonk (`"hsplitoffset"`) | `0x0040aa80` → `0xc7fbd0` |
+| `HSplitOffsetCreator::vftable` | `0x0060cbd0` · `0x0040aa80` · **`0x009da130`** · `0x00401570` |
+| a gyártó `Create` metódusa | **`0x009da130`** (113 b) |
+| a létrehozott kezelő | `ytSplitterOffsetHandler`, **`0x009d9d80`** (712 b) |
+
+A `Create` a `0x009c9de0`-nal olvassa ki a `resvars`-változót, foglal egy
+`0x1c` bájtos objektumot, és **beleteszi a `240.0f`-ot**:
+
+```asm
+0x009da164  fld  dword ptr [0xcf48b0]   ; 240.0f
+0x009da16e  fstp dword ptr [eax + 0x18]
+```
+
+⇒ **A 240 kétszer, egymástól függetlenül van rögzítve:** a
+`thumbui.tre:517` (`HLISTOFFSET2=240`) és a `0xcf48b0` kódkonstans.
+
+**A korlátokról - kimerítő negatív:** a `ytSplitterOffsetHandler` teljes
+712 bájtos törzsében **nincs egyetlen abszolút című lebegőpontos konstans
+sem**, és nincs `cmp <reg>, <immediate>` sem; az egyetlen immediate-
+összehasonlítás az esemény-típusé (`cmp dword ptr [esi+8], 0x1b`). Az
+összes lebegőpontos összehasonlítás a konstruktorban eltárolt
+`[obj+0x18]`-ra és futásidejű értékekre megy.
+
+⇒ **Az eredetiben nincs beégetett alsó/felső határ a bal panel
+szélességére.** A mi `160 … 600` korlátunk (a PicasaPy-ban: `controller.py:91`) tehát nem
+egy mért eredeti érték átvétele, hanem **saját kiegészítés**. Ez nem
+feltétlenül baj - de ne hivatkozzunk rá úgy, mintha az eredetiből jönne.
+
+---
+
+## A könyvtár-nézet alsó sávjának JOBB SZÉLE - teljes elemlista és három mért NEGATÍV eredmény (2026-09-04, #2305)
+
+> **Bizonyítottság: megerősített.** Minden állítás forrása a `respack.yt`-ból
+> kicsomagolt `thumbui.tre` / `thumbui_text.tre`, illetve a rétegfejlécek
+> `int16 x0,y0,x1,y1` mezői. A tulajdonos 2026-09-04-i képernyőmentése
+> (`Picasa 3`, 1920 × 1200) mindhárom állítást megerősíti.
+
+### A teljes sorrend, mért koordinátákkal
+
+Mindkét csoport `m_offsetRT` a `basecontrolset`-en (jobb felső sarokhoz kötve,
+`thumbui.tre:283` és `thumbui.tre:297`), tehát **a sáv jobb szélén** ülnek,
+ebben a sorrendben. A koordináták a `respack.yt` rétegfejléceiből
+(`respack.yt:3241330` `scale_group`, `respack.yt:3243743` `metadata_group`):
+
+| # | elem | x | szélesség | y | magasság |
+|---|---|---|---|---|---|
+| 1 | `thumbui/scale_group` | 366…525 | 159 | 448…475 | 27 |
+| 1a | └ `thumbui/loupehit` (`m_offsetLT`) | 366…391 | **25** | 451…470 | 19 |
+| 1b | └ └ `thumbui/loupe` (ikon) | 368…391 | 23 | 452…468 | 16 |
+| 1c | └ `thumbui/scalecontainer` (`m_offsetLT`) | 398…525 | **127** | 448…475 | 27 |
+| 2 | `thumbui/metadata_group` | 545…785 | 240 | 448…472 | 24 |
+| 2a | └ `people_toggle` (`m_offsetLT`) | 545…605 | 60 | 448…472 | 24 |
+| 2b | └ `places_toggle` (`m_offsetLT`) | - | 60 | - | 24 |
+| 2c | └ `tags_toggle` (`m_offsetLT`) | - | 60 | - | 24 |
+| 2d | └ `properties_toggle` (**`m_offsetRT`**) | - | 60 | - | 24 |
+
+⇒ **A nagyítás-csúszka MEGELŐZI a négy panelkapcsolót** (525 < 545). Ez eddig
+is benne volt a lapban számként, de a **sorrend** nem következett belőle
+olvasásra; most ki van mondva.
+
+### ⛔ NEGATÍV 1 - a négy kapcsolónak NINCS felirata
+
+*Forrás: `thumbui.tre:476` (`thumbui/timelinebutton`).*
+
+A `thumbui_text.tre` 55-65. sorában mind a négy elemnek **kizárólag `Tooltip`
+sora van**, `Label` sora egyiknek sincs. *(Kontroll: közvetlenül alatta
+`Label thumbui/timelinebutton` áll, tehát a fájl ismeri a `Label` kulcsszót;
+és a `#Tooltip thumbui/addkeywords` mutatja, hogy a kikommentelt sor is
+felismerhető alak.)*
+
+A `thumbui.tre` 255-281. sora szerint mindegyik kapcsoló egyetlen gyereket
+tartalmaz - a saját `_icon` rétegét, középre kényszerítve
+(`m_centerX`/`m_centerY`, illetve `XConstraint 0.5, 0.5, 1…2`). **Szövegelem
+nincs bennük.**
+
+Az angol buboréksúgók (`thumbui_text.tre`), a hivatalos magyarral
+(`referencia/panel-feliratok-hu.tsv` 5150-5153):
+
+| elem | angol | magyar |
+|---|---|---|
+| `people_toggle` | Show/Hide People Panel | Az Emberek párbeszédpanel megjelenítése/elrejtése |
+| `places_toggle` | Show/Hide Places Panel | A Helyek párbeszédpanel megjelenítése/elrejtése |
+| `tags_toggle` | Show/Hide Tags Panel | A Címkék párbeszédpanel megjelenítése/elrejtése |
+| `properties_toggle` | Show/Hide Properties Panel | A Tulajdonságok párbeszédpanel megjelenítése/elrejtése |
+
+⚠️ **A típusnév NEM bizonyíték - épp az ellenkezőjét sugallja.** A négy gomb
+sminkje `buttcon_LS_text_RC` / `_MS_text_RC` / `_RS_text_RC`, tehát a **neve
+tartalmazza a `text` szót**. A sminkfájl megnyitva viszont
+(`referencia/tre-eroforrasok/buttcon_LS_text_RC.tre`) csak három
+állapot-képet és a `button_buttcon` tulajdonságot deklarálja - **feliratelemet
+nem**. A `text` a fájlnévben a szegmens-grafika változatát jelöli
+(a másik változat a `thin_*`), nem a feliratot. Ezt az irányt nem kell újra
+végigjárni.
+
+### ⛔ NEGATÍV 2 - a csúszka mellett NINCS `-` és `+` gomb
+
+A `scale_group` **159** képpont széles, és pontosan kitölti a két gyereke:
+`loupehit` 25 + a köztük lévő 7 képpontos rés + `scalecontainer` 127 = **159**.
+A csoport jobb széle (525) egybeesik a csúszka jobb szélével ⇒ **fizikailag
+sincs hely** további gombnak, és a `respack.yt` listájában a `scale_group` és a
+`metadata_group` között csak `loupehit`, `loupe`, `infotext_clip`, `infotext` és
+a kikommentelt `#addkeywords` áll - nagyítás/kicsinyítés gomb nincs.
+
+### ⛔ NEGATÍV 3 - a két nagyítás-gomb NEM ebbe a sávba való
+
+*Forrás: `editpanel.tre:1320` (`editpanel/1to1`) · `editpanel.tre:1313` (`editpanel/fit`).*
+
+A „Beillesztheti a fotót a megjelenítési területbe" és a „Fotó megjelenítése
+tényleges méretben" buboréksúgójú gombok elemneve **`editpanel/fit`** és
+**`editpanel/1to1`** - vagyis a **szerkesztő (egyképes) nézet** alsó sávjáé,
+nem a könyvtár-nézeté. A könyvtár-nézet sávjában az eredetiben sincsenek ott.
+Részletes leírásuk: [`ui-audit-editor.md`](ui-audit-editor.md), „A szerkesztő
+nagyítás-hármasa".
+
+### Egy viselkedési részlet: `Property mousedown 1`
+
+Mind a négy kapcsoló - és a szerkesztő `fit`/`1to1` gombja is - **lenyomásra**
+sül el, nem felengedésre (`thumbui.tre` 258-281., `editpanel.tre` 1315./1322.).
+
+## A KÖNYVTÁR OSZTÓSÁVJA - `ytSplitterOffsetHandler`, 240-es alsó ÉS felső korlát, és hogy MIÉRT nem őrzi meg (2026-09-04, #2329)
+
+> **Bizonyítottság: megerősített.** Minden szám cím + kiolvasott érték. A
+> záró negatív eredmény kimerítő: a teljes PE-t végigpásztázza.
+>
+> Ez a szakasz a fenti „MEGŐRZÖTT elrendezés-állapot" 2. pontját folytatja:
+> ott az dőlt el, hogy a `HLISTDIV` **nem** az osztóvonal; itt az, hogy
+> **mi az**, hogyan viselkedik húzás közben, és hogy induláskor honnan jön.
+
+### 1. Az osztósáv KÉT elem, nem egy
+
+```
+thumbui.tre:512   thumbui/hlisthandle: thumbui/hlistsizer
+thumbui.tre:513                        m_centerY
+thumbui.tre:514                        m_alignL
+thumbui.tre:516   thumbui/hlistsizer:  thumbui/mainuipanel
+thumbui.tre:517                        XConstraint 0, 0, HLISTOFFSET2=240, -4
+thumbui.tre:518                        Handler hsplitoffset HLISTOFFSET2
+thumbui.tre:519                        YConstraint 0, 0, searchtop
+thumbui.tre:520                        YConstraint 1, 1, publishbottom
+```
+
+- **`hlistsizer`** - a húzható sáv. Bal széle a `HLISTOFFSET2` **-4**
+  képponton áll, tehát a fogási zóna 4 képponttal a határvonal ELŐTT
+  kezdődik. Függőlegesen a keresősor aljától (`searchtop`) a publikálósáv
+  tetejéig (`publishbottom`) ér.
+- **`hlisthandle`** - a sávon belüli fogantyú-rajz: **függőlegesen
+  középre** (`m_centerY`), **balra igazítva** (`m_alignL`).
+
+### 2. Mit mozgat egyszerre a húzás
+
+A `HLISTOFFSET2` **három további elem** vízszintes rögzítése is:
+
+| elem | `.tre` sor | mit köt hozzá |
+|---|---|---|
+| `thumbui/listdecrect` | `thumbui.tre:441-443` | a bal hasáb kerete (`XConstraint 1, 0, HLISTOFFSET2`) |
+| `thumbui/albumsback` | `thumbui.tre:506-508` | a rács háttere (`XConstraint 0, 0, HLISTOFFSET2`) |
+| `thumbui/searchgroup` | `thumbui.tre:558-561` | a keresőcsoport bal széle |
+
+⇒ Az osztósáv húzása **egyetlen változón át** mozgatja a hasáb keretét, a
+rácsot és a keresőcsoportot - nincs külön szinkronizálás.
+
+### 3. A kezelő osztálya és az alapérték
+
+| mi | érték | cím |
+|---|---|---|
+| kezelő neve a `.tre`-ben | `hsplitoffset` | sztring: `0x00c7fbd0` |
+| a név-visszaadó tonk | `mov eax, 0xc7fbd0 / ret` | `0x0040aa80` |
+| a beállító tábla sora | 20 bájtos rekord | `0x00c8072c`-`0x00c8073c` |
+| **gyártó függvény** | 0x1c bájtos objektum | **`0x009da130`** |
+| vtábla | 13 bejegyzés | `0x00cda7e8` |
+| RTTI típusnév | **`.?AUytSplitterOffsetHandler@@`** | `0x00d4734c` |
+| **az objektum `+0x18` mezője** | **`240.0`** (float) | a konstans: **`0x00cf48b0`**, betöltés: `0x009da166` |
+
+A **függőleges** osztó (`vsplitoffset`, gyártó `0x009da1b0`) **ugyanezt az
+osztályt és ugyanezt a `240.0` konstanst** használja (`0x009da1e7`); csak
+két bájt-jelzőben tér el (`+0x14`/`+0x15`: `1,1` vízszintesnél,
+`0,1` függőlegesnél).
+
+### 4. ⛔ A 240 nem csak alapérték - ez az ALSÓ KORLÁT, és a felső is belőle jön
+
+A húzást a vtábla eseménykezelője végzi (`0x009d9d80`, esemény-azonosító
+`0x1b`). A korlátozás két lépésben, `0x009d9df4`-`0x009d9e56`:
+
+```asm
+0x009d9df4  fld dword ptr [eax]        ; a JELENLEGI eltolás
+0x009d9df6  fld dword ptr [ebx+0x18]   ; 240.0
+0x009d9df9  fcompp                     ; 240 < jelenlegi ?
+0x009d9dfd  test ah, 0x41 / jne …      ; ha igen: nincs teendő
+0x009d9e06  fld dword ptr [ebx+0x18]   ; különben: 240.0 …
+0x009d9e0e  fstp dword ptr [edx]       ; … BEÍRÁS az eltolásba
+```
+
+```asm
+0x009d9e21  mov edx, [esp+0x28]
+0x009d9e25  sub edx, [esp+0x20]        ; a szülő téglalap SZÉLESSÉGE (jobb - bal)
+0x009d9e2d  fild dword ptr [esp+0x14]
+0x009d9e31  fsub dword ptr [ebx+0x18]  ; szélesség - 240
+0x009d9e34  fld dword ptr [eax]        ; a jelenlegi eltolás
+0x009d9e36  fcomp st(1)                ; jelenlegi > (szélesség - 240) ?
+0x009d9e50  fstp dword ptr [eax]       ; ha igen: BEÍRÁS (szélesség - 240)
+```
+
+⇒ **A bal hasáb szélessége `240` és `(a főpanel szélessége - 240)` közé
+van szorítva** - ugyanaz a konstans mindkét oldalon. Tehát:
+
+- **soha nem lehet keskenyebb 240 képpontnál**;
+- a jobb oldal (a rács) sem szorítható 240 alá;
+- a felső korlát **nem fix szám**, hanem az ablak méretével együtt mozog.
+
+A téglalapot a szülő panel adja (`0x009d9dc5`, a szülő 0x30-as
+vtábla-bejegyzése); ha az eltolás a húzás végén nem változott, a kezelő
+`0x009d9e72`-nél jelzi a „nincs változás" ágat.
+
+### 5. ⛔ KIMERÍTŐ NEGATÍV: az osztósáv állása NEM őrződik meg
+
+A `HLISTOFFSET2` **nem szerepel a bináris egyetlen sztringjében sem**,
+tehát semmilyen kód nem tudja néven olvasni vagy kiírni:
+
+| név | előfordul a PE-ben? | hol |
+|---|---|---|
+| `HLISTOFFSET` (bármely alak) | **0** | csak `thumbui.tre` (5 sor) |
+| `RIGHTDRAWEROFFSET` | 1 | `0x00c7fe08` |
+| `LEFTDRAWEROFFSET` | 1 | `0x00c7fe50` |
+| `HLISTDIV` | 1 | `0x00c8e67c` (az elsőindulási maradék, ld. fent) |
+| `hsplitoffset` | 1 | `0x00c7fbd0` - és **pontosan egy** kódhivatkozás rá: a saját név-visszaadója, `0x0040aa81` |
+
+Módszer: a teljes PE nyers pásztázása a nevekre ÉS a sztringcímek
+mutató-előfordulásaira, szekciónkénti cím-visszafejtéssel; valamint a
+`string_xrefs` index. Ez ugyanaz az eljárás, amivel a `HLISTDIV`
+negatívja készült.
+
+⇒ **A fiókok eltolása (`RIGHTDRAWEROFFSET`, `LEFTDRAWEROFFSET`) MEGŐRZŐDIK**
+- ezeket a `0x0040bf70` induló függvény név szerint olvassa (ld. a fenti
+szakasz 3. pontját) -, **a könyvtár osztósávjáé viszont NEM.** Az eredeti
+Picasa minden indításkor **240 képponton** kezdi.
+
+### 6. Eredeti / nálunk / teendő
+
+| | eredeti (mért) | nálunk (mért) | eltérés |
+|---|---|---|---|
+| alapértelmezett szélesség | **240** (`0x00cf48b0`) | **240** (a PicasaPy-ban: `controller.py:87`) | ✅ egyezik |
+| **legkisebb** szélesség | **240** (`0x009d9df6`) | **160** (a PicasaPy-ban: `controller.py:88`) | ❌ 80 képponttal keskenyebbre engedjük |
+| **legnagyobb** szélesség | **panelszélesség - 240** (`0x009d9e31`) | **600** rögzítve (a PicasaPy-ban: `controller.py:89`) | ❌ fix szám az ablakfüggő helyett |
+| fogási zóna | a határvonal **-4** képponttól (`thumbui.tre:517`) | a `SplitView` alapértelmezett fogantyúja | nem mérve |
+| megőrzés újraindításkor | **nincs** (5. pont) | **van**: `view/folderPaneWidth` (a PicasaPy-ban: `controller.py:524`) | tudatos eltérés |
+
+**Ajánlás:** a megőrzést **tartsuk meg** (a #322 kifejezetten ezt kérte, és
+a felhasználónak kényelmesebb), a **korlátokat viszont igazítsuk** az
+eredetihez: alsó korlát 240, felső korlát a rendelkezésre álló szélesség
+mínusz 240. Jegy: #2329.
+
+## A `varbutton` KEZELŐ - a felület EGYETLEN ki-be kapcsoló mechanizmusa (2026-09-04, #754)
+
+> **Bizonyítottság: megerősített.** A nyelvtan a bináris formátumsztringjéből
+> és a beolvasó kódból jön; a jelentést **két, egymástól független
+> felhasználás** (jobb és bal fiók) erősíti meg.
+
+A `.tre`-kben tizenegy helyen áll `Handler varbutton …`. Eddig egyik sem
+volt megfejtve - pedig **ez az a mechanizmus, amivel a Picasa felülete
+minden ki-be kapcsolható részét mozgatja**: a jobb oldali fiókot, a
+szerkesztő bal panelét, a teljes képernyős módot, a publikálósávot és a
+kereső sávot is.
+
+### 1. A nyelvtan
+
+| mi | érték | cím |
+|---|---|---|
+| a kezelő neve | `varbutton` | sztring `0x00c7fc00`, név-visszaadó `0x0040aab0` |
+| gyártó | `0x009da240` | tábla-rekord `0x00c80764`-`0x00c80778` |
+| **feldolgozó formátum** | **`%s %f %f %d %s %s`** | `0x00cda73c` |
+| elfogadott mezőszám | **2 … 6** | `0x009da2a3` (`lea eax,[ebp-2] / cmp eax,4 / ja`) |
+| objektum | 0x48 bájt, vtábla `0x00cda77c` | `0x009d7b30` |
+| RTTI típusnév | **`.?AUytVarButtonHandler@@`** | a `0x00cda778` COL-on át |
+
+```
+Handler varbutton <változó> <lenyomott> [<felengedett>] [<animál>] [<cél1>] [<cél2>]
+```
+
+**A két elhagyható érték alapértéke a binárisból, nem találgatásból:**
+
+| mező | alapérték | hol állítja be |
+|---|---|---|
+| `<felengedett>` (2. `%f`) | **-1000.0** | `0x009da25f` tölti a cél-rekeszbe (`0x00cf4da4`) |
+| `<animál>` (`%d`) | **1** | `0x009da294` (`mov dword ptr [esp+0x28], 1`) |
+
+A rekesz-azonosítás a `lea`/`push` sorozat visszaszámolásából: a 2. `%f`
+és az `%d` pontosan azokra a helyekre ír, amelyeket a függvény előre
+feltöltött.
+
+### 2. Mit jelentenek az értékek
+
+Az objektum mezői: `+0x2c` = a lenyomott érték, `+0x30` = a felengedett,
+`+0x34` = az **emlékezett eredeti**, `+0x38` = az animálás-jelző.
+
+A kapcsolás (`0x009d7d5d`-`0x009d7dac`), a gomb `+0x359`-es lenyomott-jelzője
+szerint:
+
+- **lenyomva** → a változó a **`+0x2c`** (1. `%f`) értéket veszi fel; ha
+  `+0x34` még a **-1000** őrszem (`0x00cf4ce8`), előbb **elteszi a
+  változó AKKORI értékét** - ezt fogja visszaadni elengedéskor;
+- **elengedve** → a **`+0x30`** (2. `%f`); de ha az a -1000 őrszem, akkor
+  a `+0x34`-ben eltett **eredeti** érték jön vissza.
+
+⇒ **A második érték elhagyása azt jelenti: „engedéskor állítsd vissza
+oda, ahol volt".** Erre épül a keresősáv (`searchcontainer.tre:27`), ahol
+csak egyetlen érték áll.
+
+**Az animálás:** ha a jelző nem 0, a változó **0,4 másodperc** alatt
+mozog át (`0x009d7dc1` ág; az időtartam a `0x00cf4ce0`-as dupla pontosságú
+`0.4`, a `0x009a5210` által adott aktuális időhöz adva). `0` esetén ugrik.
+
+A záró két `%s` **további elemeket** nevez meg, amelyeket a mozgás
+együtt érint (`0x009da349` a 6. mezőre) - a szerkesztő előnézeti képe így
+nyúlik a fiókkal együtt.
+
+### 3. Mind a tizenegy felhasználás - jelentéssel
+
+| hely | változó | lenyomva | elengedve | animál | együtt mozog |
+|---|---|---|---|---|---|
+| `thumbui.tre:700` | `RIGHTDRAWEROFFSET` | **-280** | 0 | **igen** | `editpanel/previewimage`, `…image2` |
+| `editpanel.tre:1413` | `LEFTDRAWEROFFSET` | 0 | **-279** | **igen** | `editpanel/previewimage` |
+| `editpanel.tre:1404` | `editbackmargin` | 4 | 0 | nem | - |
+| `editpanel.tre:1405` | `previewx0` | 5 | 0 | nem | - |
+| `editpanel.tre:1406` | `previewx1` | -5 | 0 | nem | - |
+| `editpanel.tre:1407` | `previewy0` | 5 | 0 | nem | - |
+| `editpanel.tre:1408` | `previewy1` | -25 | 0 | nem | - |
+| `editpanel.tre:1409` | `movieparenty` | -39 | 0 | nem | - |
+| `panelroot.tre:59` | `tabdiv` | 29 | 0 | *(alap: igen)* | - |
+| `thumbui.tre:85` | `publishbottom` | -105 | -212 | *(alap: igen)* | - |
+| `searchcontainer.tre:27` | `searchtop` | 62 | *(-1000 = vissza az eredetire)* | *(alap: igen)* | - |
+
+**A `fullscreenswitcher` hat változót kapcsol egyszerre** (`editpanel.tre:1404-1409`,
+`Property setpressed 1`): a teljes képernyős mód nem külön ablak, hanem a
+margók **nullázása** - és mind a hat **animálás nélkül**, egyszerre ugrik.
+
+### 4. A két fiók iránya - mert a puszta szám félrevezet
+
+| | `.tre` bizonyíték | mit jelent |
+|---|---|---|
+| **jobb fiók** | `thumbui.tre:534` `XConstraint 0, 1, RIGHTDRAWEROFFSET`, a kapcsoló `Property setpressed 0` | 0 = **csukva** (nulla széles), -280 = **280 képpont széles, nyitva**; induláskor csukva |
+| **bal fiók (szerkesztő)** | `editpanel.tre:1228` `LEFTDRAWEROFFSET=0`, `:1421` a szomszéd `LEFTDRAWEROFFSET, 279`, a kapcsoló `Property setpressed 1` | 0 = **nyitva** (279 széles), -279 = **kicsúszva balra**; induláskor nyitva |
+
+⇒ Mindkettőnél a **lenyomott állapot = látszik a fiók**. A jobb fiók
+szélessége **280**, a bal **279** - a `.tre`-ből, nem becslésből.
+
+### 5. Eredeti / nálunk / teendő
+
+| | eredeti (mért) | nálunk (mért) | eltérés |
+|---|---|---|---|
+| jobb oldali panel | **EGY fiók, 280 képpont** | **négy külön hasáb**: Címkék 190, Helyek 320, Tulajdonságok 210, Emberek 200 (a PicasaPy-ban: `Main.qml:1977/2014/2029/2048`) | ❌ szerkezet és méret is |
+| nyitás/csukás | **0,4 s animáció** | `visible` átbillentés, animáció nélkül | ❌ |
+| induló állapot | csukva (`setpressed 0`) | csukva (`activeDrawerTab: ""`, a PicasaPy-ban: `Main.qml:100`) | ✅ |
+| megőrzés | **igen**, `RIGHTDRAWEROFFSET` (ld. a „MEGŐRZÖTT elrendezés-állapot" 3. pontját) | `utolsoFiokLap` (a PicasaPy-ban: `Main.qml:143`) | eltérő tárolás, nem mérve, hogy túléli-e az újraindítást |
+
+Jegy: **#754** (a négy hasáb → egy fiók). A 0,4 másodperces animáció és a
+280-as szélesség ott, kommentben.
+
+## A FŐABLAK MÓD-GÉPE és a „képernyőn kívülre rakott" elemek (2026-09-04, #440 / #2074)
+
+> **Bizonyítottság: megerősített.** Minden állítás `.tre` fájl + sor. A
+> „soha nem látszik" állítás **kimerítő**: mind a 141 erőforrás-fájlt
+> végigpásztázza.
+
+Két, egymással összefüggő szerkezeti dolog derült ki, és mindkettő **a
+lefedettségi mérésünk pontosságát is érinti**.
+
+### 1. `macros.tre` „MODE MACROS" - a módok teljes leírása egy helyen
+
+A `macros.tre` 192-300. sora egy külön, `# MODE MACROS` felirattal jelölt
+blokk. Minden mód egy makró, és a makró **felsorolja, mely paneleket
+mutatja és melyeket rejti el**. A módváltás tehát nem kódba égetett
+láncolat, hanem erőforrás-adat.
+
+| makró | melyik vezérlő viseli | mit MUTAT | mit REJT |
+|---|---|---|---|
+| `m_enable_albummode` (`macros.tre:196`) | `acquirepanel/anowbutton` (`acquirepanel.tre:264`) | `mainuipanel`, `infowell`, `secretcoinclip` | `acquirepanel`, `printpanel`, `editpanel`, `fullview` |
+| `m_albumtoggle` (`macros.tre:205`) | `thumbui/viewswitch` (`thumbui.tre:36`) | `editpanel`, `1to1`, `fit` | `albumsback`, `throttlegroup`, `listdecrect`, `listbutton`, `hlistsizer`, `searchgroup`, `searchcontainer` |
+| `m_basecontrolset_enable` (`macros.tre:224`) | `thumbui/publishswitcher` (`thumbui.tre:81`) | `thumbui/basecontrolset`, `thumbui/importbutton`, `thumbui/buttongroup1`, `activitycontainer` | - |
+| `m_cdcontrolset_enable` (`macros.tre:233`) | `thumbui/cdmode` (`thumbui.tre:484`) | `thumbui/controlsettop`, `thumbui/publishcontrolsets`, `publish/presentation_group`, `thumbui/cd_label` | `searchcontainer`, `thumbui/bottombevel_base`, `logo` |
+| `m_backupcontrolset_enable` (`macros.tre:245`) | `thumbui/backup` (`thumbui.tre:96`) | `thumbui/controlsettop`, `thumbui/publishcontrolsets`, `publish/backup_group`, `thumbui/backup_label` | `searchcontainer`, `thumbui/bottombevel_base`, `logo` |
+| `m_replicatecontrolset_enable` (`macros.tre:257`) | `thumbui/replicate` (`thumbui.tre:76`) | `thumbui/controlsettop`, `thumbui/publishcontrolsets`, `publish/replication_group`, `thumbui/replication_label` | `searchcontainer`, `thumbui/bottombevel_base`, `logo` |
+| `m_acquire_enable` (`macros.tre:281`) | `thumbui/importbutton` (`thumbui.tre:452`), `thumbui/acquirebutton` (`thumbui.tre:32`) | `panelroot/acquiretab` (+ `downtarget`) | - |
+| `m_print_enable` (`macros.tre:285`) | `outputlayout/pbutton` (`outputlayout.tre:38`) | `thumbui/printpanel` | `acquirepanel`, `editpanel`, `mainuipanel`, `infowell`, `secretcoinclip` |
+
+*A `.tre` a cél-elemeket **puszta** néven írja; a fenti táblában ott
+minősítettük őket, ahol a leltárban a név egyértelmű. Az
+`activitycontainer` NEM az: `thumbui/`, `editpanel/` és
+`capturemoviepanelpopup/` alatt is van ilyen elem.*
+
+### 1/b A Biztonsági mentés gombja a KIADOTT felületen nem látszik
+
+```
+thumbui.tre:95    ###currently not shown in UI###
+thumbui.tre:96    thumbui/backup: thumbui/globalmode
+thumbui.tre:100   m_hidden
+```
+
+A `thumbui/backup` - a `m_backupcontrolset_enable` módot viselő gomb -
+**`m_hidden`**, és a forrás saját megjegyzése is kimondja. A mód tehát
+LÉTEZIK és teljesen le van írva, de a kiadott 3.9-es felületen a **gomb
+maga** nincs kirakva. Ez nem jelenti azt, hogy az akció elérhetetlen: a
+menü-diszpécser `0x005cb990` függvényének `0x005cbdee-0x005cbdf3` ága
+`thumbui/backup` célra hívja a közös kattintási útvonalat (`0x009cd8a0`).
+A gomb rejtettsége és a Tools-menü belépési pontja tehát két külön dolog.
+
+A módmakró a `publish/backup_group`-ot és a `thumbui/backup_label`-t mutatja
+(`macros.tre:245-252`), nem magát a rejtett gombot. ⇒ **A három publikáló
+mód (Ajándék CD · Biztonsági mentés · Replikáció) pontosan ugyanazt a hármat
+rejti el**: a keresősávot, az alsó él-díszítést és a logót. Ez **normatív**:
+ha ezeket a módokat megépítjük, a keresősávnak el kell tűnnie.
+
+⛔ **Három mód-makró DEFINIÁLVA VAN, de egyetlen `.tre`-elem sem viseli:**
+`m_webcontrolset_enable` (`macros.tre:269`), `m_collage_enable`
+(`macros.tre:296`), `m_search_disable` (`macros.tre:221`). *(Hatókör: a 141 erőforrás-fájlban nincs
+használójuk. Hogy a program KÓDBÓL elvégzi-e ugyanezt a mutat/rejt sort -
+a `0x0040bf70` induló függvény név szerint kapcsolgat elemeket -, ez a kör
+NEM mérte.)*
+
+### 2. `m_render_offscreen` - 20 elem, amely SOHA nem látszik
+
+```
+macros.tre:7   #define m_render_offscreen
+macros.tre:8   XConstraint 0, 0, -9999
+macros.tre:9   YConstraint 0, 0, -9999
+```
+
+Ez nem elrejtés (`m_hidden` = `setvisible 0`), hanem **a vászonon kívülre
+helyezés**. Az így megjelölt elem létezik, célozható, van buboréksúgója -
+de **nem rajzolódik oda, ahol a felhasználó láthatná**.
+
+Mind a **20** előfordulás, fájl + sor szerint:
+
+| fájl:sor | elem |
+|---|---|
+| `editpanel.tre:112` | `editpanel/writetodisk` |
+| `editpanel.tre:1358` | `editpanel/edithelpbutton` |
+| `makemoviepanel.tre:549` | `makemoviepanel/viewedit` |
+| `printpanel.tre:239` | `printpanel/phelpbutton` |
+| `printpanel.tre:250` | `printpanel/statustext` |
+| `thumbui.tre:26` | `thumbui/largethumbs` |
+| `thumbui.tre:29` | `thumbui/smallthumbs` |
+| `thumbui.tre:32` | `thumbui/acquirebutton` |
+| `thumbui.tre:40` | `thumbui/horizonadjust` |
+| `thumbui.tre:43` | `thumbui/prev` |
+| `thumbui.tre:48` | `thumbui/next` |
+| `thumbui.tre:53` | `thumbui/fit` |
+| `thumbui.tre:56` | `thumbui/1to1` |
+| `thumbui.tre:59` | `thumbui/morethumbs` |
+| `thumbui.tre:64` | `thumbui/lessthumbs` |
+| `thumbui.tre:69` | `thumbui/soloview` |
+| `thumbui.tre:76` | `thumbui/replicate` |
+| `thumbui.tre:88` | `thumbui/uploadmgr` |
+| `thumbui.tre:103` | `thumbui/visitweb` |
+| `thumbui.tre:106` | `thumbui/makealbum` |
+
+**A `thumbui`-beliek a `root` gyerekei** (a `makealbum` a
+`buttonbarsets`-é; a `writetodisk`, `viewedit`, `phelpbutton`,
+`statustext` a saját paneljüké), és egyiknek sincs második,
+látható definíciója - a `thumbui/next`, `prev`, `fit`, `1to1`,
+`smallthumbs`, `largethumbs`, `visitweb`, `uploadmgr`, `soloview`,
+`replicate`, `morethumbs`, `lessthumbs`, `horizonadjust`, `acquirebutton`,
+`makealbum` **egyszer** szerepel a fájlban, azzal az egy blokkal.
+
+⇒ **Parancs-proxik**: a menü, a gyorsbillentyű és a `showtarget`/`uptarget`
+hivatkozások ezeket célozzák; a látható vezérlő máshol, más néven ül.
+Erre a legjobb bizonyíték a **nagyítás-hármas**: a látható gombok az
+`editpanel/fit` és `editpanel/1to1` (mért geometria: `ui-audit-editor.md`),
+miközben a `thumbui/fit` és `thumbui/1to1` a `-9999`-en áll.
+
+### 3. Következmény a saját lefedettségi mérésünkre
+
+*Forrás: `thumbui.tre:32` (`thumbui/acquirebutton`).*
+
+A `docs/specs/ui-lefedettseg-elemek.csv` és a belőle számolt „fehér
+foltok" ezt a 20 elemet **hiányzó felületi elemként** kezelhetik, pedig
+soha nem is látszottak. A `thumbui/acquirebutton` sora ezért ebben a
+körben megkapta a magyarázatot; a többi már korábban `megvan`/`lekutatva`
+besorolást kapott, tehát a számot nem torzítja.
+
+*(A többi panel `m_render_offscreen`-es eleme - `writetodisk`,
+`edithelpbutton`, `phelpbutton`, `statustext`, `viewedit` - nincs a
+lefedettségi táblában feltáratlanként, tehát nem kell átsorolni.)*
+
+##### ✅ LEZÁRVA (2026-09-04): IGEN - a pásztázó modul ebből a táblából dolgozik
+
+A hiányzó szem megvan. A táblát **a pásztázó/változásfigyelő modul saját
+objektuma tartja**, és ugyanennek a modulnak a függvénye keresi ki belőle a
+fájl kiterjesztését.
+
+**A modul azonosítása** (sztringek szerint): `CChangeLogger`
+(`0x004e2050`), `CChangeLoggerWindows` (`0x004e21e0`), **`Dirscanner`**
+(`0x004e2f60`), `BadParentString` (`0x004e41f0`),
+`runtime\filters.txt` (`0x004e4ea0`).
+
+**Az ÍRÓ oldal ide fut be:** a regisztráló (`0x004fadb0`) a
+`0x004fb79c`-`0x004fb931` közti ágakból a **`0x004e3670`** metódust hívja -
+ez a modul objektumán ül, és a kapcsoló értéke szerint **beszúr**
+(`0x004fa590`) vagy **keres/eltávolít** (`0x004fa8b0`).
+
+**Az OLVASÓ oldal - a kiterjesztés→típus keresés (`0x004e2c40`):**
+
+| cím | mit tesz |
+|---|---|
+| `0x004e2c4f` | `call 0x004e2a00` - **a kiterjesztés kiszedése**: a `0x004e2a30`-on visszafelé keresi a `0x2e` (`.`) bájtot, azaz `strrchr(név, '.')` |
+| `0x004e2c5c` | `test dword ptr [edi+0x3e0], 0xfffffffe` - az elemszám (csomagolt, `>>1`) |
+| `0x004e2c70`-`0x004e2c76` | a tömb `[edi+0x3dc]`, **8 bájtos párokkal**: kulcs a `+0`-n, érték a `+4`-en |
+| `0x004e2c86` | `call 0x00bf697a` - kis-nagybetűt nem néző sztring-összevetés |
+| `0x004e2ca9`-`0x004e2caf` | találatnál a **párosított értéket** adja vissza (`[eax + esi*8 + 4]`) |
+| `0x004e2ca2` | ha nincs találat: **`0x3e8` = 1000** |
+
+⇒ **A `Support*` kapcsolók által feltöltött tábla AZ a tábla, amiből a
+pásztázó modul a fájlokat kiterjesztés szerint besorolja.** Ismeretlen
+kiterjesztés a **1000**-es őrszemet kapja.
+
+*(A tároló azonosítását nem csak az azonos `+0x3dc`/`+0x3e0` eltolás adja:
+az ÍRÓ thunk (`0x004e3670`) ugyanennek a modulnak a metódusa, tehát a
+kapcsolat közvetlen - nem eltolás-egybeesésre épül.)*
+
+**Bizalmi fok: megerősített.**

@@ -1,0 +1,361 @@
+# A szerkesztő FELSŐ SÁVJA (`editpanel/oneup_controls`)
+
+*Forrás: `editpanel.tre:1205` (`editpanel/oneup_controls`).*
+
+**Ez a lap normatív.** A szerkesztő fejléce **pontosan** így nézzen ki
+(`../decisions/szerkeszto-bal-panel.md`: *„a felület PONTOSAN úgy nézzen ki,
+mint az eredeti Picasa"*). Testvérlap a bal hasábról:
+[`szerkeszto-panel-meretek.md`](szerkeszto-panel-meretek.md).
+
+Kiváltó jegy: **#1905** (a tulajdonos egymás mellé tett felvétele).
+
+## 0. Forrás és módszer
+
+Két, egymástól független forrás - és a lap azért erős, mert **a kettő
+egymást igazolja**:
+
+1. **`respack.yt` rétegtéglalapok** - `int16 x0, y0, x1, y1` a 13 bájtos
+   rekordfejlécben ([`picasa-respack-format.md`](picasa-respack-format.md) 3.).
+   A kötések az `editpanel.tre`-ből.
+2. **A tulajdonos felvétele** - `research/Picasa3-vs-PicasaPy-fejlec-elteresek/`,
+   1920×1080, a Picasa 3 ablaka az `x = 962…1918` sávban. A vezérlők
+   vízszintes kiterjedése képpontra mérve (PIL, oszloponkénti maximális
+   eltérés a sáv medián színétől, küszöb 40).
+
+```python
+# a PicasaPy-ban: tools/picasa
+import struct, sys; sys.path.insert(0, "tools/picasa"); import respack
+adat = open("research/copy_Picasa_3_7/Picasa3/runtime/respack.yt", "rb").read()
+for e in respack.read_index(adat):
+    if not e.is_tre and e.name.startswith("layer:editpanel/"):
+        x0, y0, x1, y1 = struct.unpack("<hhhh", adat[e.offset:e.offset + 8])
+```
+
+### A két forrás egyezése - ez a lap alapja
+
+| elem | mért (felvétel) | tervezővászon (`respack`) |
+|---|---:|---:|
+| `albumview` („Vissza a könyvtárhoz") | 971…1093 = **122** | **122** |
+| `quickupload` | 1222…1256 = **34** | **34** |
+| `sbutton` („Lejátszás") | 1329…1423 = **94** | **94** |
+| `prev` (kör alakú ◀) | 1440…1470 = **30** | **29** |
+| `next` (kör alakú ▶) | 1692…1721 = **29** | **29** |
+| `layout_2up_group` (`A`/`AB`/`AA`) | 1733…1848 = **115** | **116** |
+
+⇒ **A tervezővászon méretei a futásidejű képpontméretek.** Nincs skálázás.
+(A ±1 az élsimítás és a JPEG-tömörítés.)
+
+## 1. A sáv váza
+
+| elem | méret | horgony (`editpanel.tre`) |
+|---|---:|---|
+| `oneup_controls` | **520 × 37** | `insetleft`, `m_offsetT` + **`m_centerX`** |
+| `insetleft` | - | `root`; bal él `root.bal + LEFTDRAWEROFFSET` (alap **279**), jobb él `root.jobb + RIGHTDRAWEROFFSET`, alsó él `root.alsó - 92` |
+
+**A sáv a képterület fölött vízszintesen KÖZÉPEN áll**, nem az ablak
+közepén - a bal fiók 279 képpontja ki van véve belőle.
+
+*Igazolás a felvételen:* `insetleft` = 1241…1918, közepe **1579,5**; az
+`oneup_controls` bal éle a mért `sbutton`-ból visszaszámolva **1319**, a
+jobb 1319 + 520 = **1839**, közepe **1579** ✓.
+
+## 2. A vezérlők - teljes lista, eltolás az `oneup_controls` bal élétől
+
+A tervezővászon `oneup_controls`-a `x = 280…800`, `y = 0…37`; az alábbi
+eltolások ebből számoltak. **A méret és az eltolás KÖTELEZŐ.**
+
+| elem | méret | Δx a sáv bal élétől | y | alapból |
+|---|---:|---:|---:|---|
+| `upload_buttons_container` | 34 × 22 | **-97** | 9…31 | látszik |
+| ↳ `quickupload` | 34 × 22 | -97 | 9…31 | `m_hidden` |
+| ↳ `quickupload-icon` | 23 × 15 | -91 | 12…27 | |
+| `weblink` | 43 × 22 | -53 | 9…31 | `m_hidden` |
+| `editcollage` / `editslideshow` | 128 × 22 | -138 | 9…31 | `m_hidden` |
+| `sbutton` („Lejátszás") | **94 × 22** | **+10** | 9…31 | látszik |
+| ↳ `sbutton_icon` | 11 × 11 | +16 | 15…26 | |
+| `filmcontainer` | **288 × 33** | **+114** | 3…36 | `m_centerX` |
+| ↳ `filmcontainer_overlay_L` | 20 × 33 | +114 | 3…36 | |
+| ↳ `filmcontainer_overlay_C` | 248 × 33 | +134 | 3…36 | |
+| ↳ `filmcontainer_overlay_R` | 20 × 33 | +382 | 3…36 | |
+| ↳ `prev` | **29 × 30** | +119 | 6…36 | `m_offsetLT`, **`m_autorepeat`** |
+| ↳ `filmclip` / `filmstrip` | **214 × 28** | +151 | 6…34 | `m_offsetLRB` |
+| ↳ `indicator` | **28 × 28** | - | 6…34 | **`m_centerX`** |
+| ↳ `next` | **29 × 30** | +371 | 6…36 | `m_offsetRT`, **`m_autorepeat`** |
+| `uploadchanges` | 34 × 22 | +423 | 9…31 | `m_hidden` |
+| ↳ `uploadchanges_icon` | 24 × 17 | +429 | 12…29 | |
+| `layout_2up_group` | **116 × 24** | **+413** | 8…32 | jobbra igazítva |
+| ↳ `only_1up_toggle` (`A`) | 39 × 24 | | 8…32 | `Property setpressed 1` |
+| ↳ `ab_2up_toggle` (`A B`) | 39 × 24 | | 8…32 | |
+| ↳ `aa_2up_toggle` (`A A`) | 39 × 24 | | 8…32 | |
+| ↳ `swap_2up_focus` | 36 × 22 | | 9…31 | `m_hidden` |
+| ↳ `swap_2up_layout` | 36 × 22 | | 9…31 | `m_hidden` |
+
+**A `layout_2up_group` NEM az `oneup_controls` gyereke geometriailag** - a
+mért helye 1733…1848, az `oneup_controls` jobb éle 1839: a hármas
+**túlnyúlik** a sávon 9 képponttal, és a bal éle 106 képponttal a sáv jobb
+éle előtt van. Ugyanez a tervezővásznon: 693…809 a 280…800-as sávban
+(-107 … +9). **A tervezővászon eltolása érvényes futásidőben is.**
+
+### A „Vissza a könyvtárhoz" gomb NEM a sáv gyereke
+
+*Forrás: `editpanel.tre:1332` (`editpanel/albumview`) · `thumbui.tre:141` (`thumbui/albumview`) · `thumbui.tre:468` (`thumbui/sbutton`).*
+
+`editpanel/albumview: root` - az ABLAKHOZ horgonyzott, nem a sávhoz:
+**122 × 22, `x = root.bal + 10`, `y = 9…31`**, ikonja (`albumview_icon`)
+**17 × 15** a bal szélen (`m_buttoniconleft`), a felirata `Back to Library`
+= **„Vissza a könyvtárhoz"**, buboréksúgója `Return to organized thumbnails`.
+A felvételen mérve: 971…1093, az ablak tartalmi bal éle 961 ⇒ +10 ✓.
+
+A `.tre` ki is mondja: `Property alias thumbui/albumview` - a szerkesztő
+ugyanazt a gombot használja, amit a könyvtár fejléce. Ugyanígy a
+`sbutton`: `Property alias thumbui/sbutton`.
+
+## 3. A vezérlők SORRENDJE
+
+Balról jobbra, ahogy a felvételen mérve áll:
+
+```
+[albumview 122]  …  [quickupload 34]  …  [sbutton 94]
+     …  [prev 29][filmstrip 214][next 29]  …  [A|AB|AA 116]
+```
+
+`971…1093` · `1222…1256` · `1329…1423` · `1440…1470` · `1499…1656` ·
+`1692…1721` · `1733…1848`.
+
+## 4. A „paletta-ikonos gomb" = **`editpanel/quickupload`** (#1905/2)
+
+⛔ **TULAJDONOSI DÖNTÉS (2026-09-10, #1935): ez a gomb NEM épül meg - se élőn,
+se szürkén.** A tulajdonos szava: *„Ez egy nem működő, hibás funkcióra vezető
+gomb. Jelenleg ne implementáljuk, csak dokumentáljuk, ha majd lesz újra
+bármiféle »Feltöltés a Webalbumok Főalbum mappájába« szerű funkció."* Ez
+felülírja a 2026-09-05-i „legyenek ott szürkén" döntést. Az alábbi mérés
+SZÁNDÉKOSAN marad itt: ha a funkció visszatér, ebből egy kör alatt
+megépíthető. A döntés lapja:
+[`nincs-webalbum-feltoltes-gomb.md`](../decisions/nincs-webalbum-feltoltes-gomb.md)
+(ADR-012); az őr: a PicasaPy-ban: `tests/app/test_nincs_webalbum_feltolto_gomb_1935.py`.
+
+A #1905 „paletta-ikonos gombnak" nevezte. **Nem paletta:** a 23 × 15-ös
+ikon egy **hármas fénykép-pakli, előtte zöld FELFELÉ nyíllal** - a
+`respack.yt` `layer:editpanel/quickupload-icon` rétege képpontra ugyanaz,
+mint a felvételen (`x 1222…1256`).
+
+| | |
+|---|---|
+| elem | `editpanel/superbutton(listheader_button): quickupload` |
+| buboréksúgó (`editpaneltext.tre`) | **„Upload to your Web Albums Drop Box"** |
+| parancsazonosító | **`OneUp::ID_QUICKUPLOAD`** (`0x00cae564`, hivatkozza `0x007327a0`) |
+| értesítés-tokenek | `QuickUploader::progress` (`0x00cb7144` → `0x007b3cb0`), `QuickUploader::errorMsg` (`0x00cb7170` → `0x007b3d70`) |
+| kötés | `0x00567a00` (elemnév-feloldás), `0x005d59f0` (elemnév-tábla) |
+
+**A párja ugyanabban a tárolóban:** `editpanel/uploadchanges`, ikonja
+kör-nyilas fénykép-pakli, buboréksúgója **„Update online copy with this
+version"**. Mindkettő `m_hidden` alapból, mindkettő `m_offsetRT` az
+`upload_buttons_container`-ben ⇒ **egymást kizárva, ugyanazon a helyen**
+jelennek meg.
+
+*A `0x007327a0` a `OneUp::` névtér parancstáblája: `ID_FILE_SAVE`,
+`ID_FILE_OPENINANEDITOR`, `ID_PICTURE_HIDE`, `ID_PICTURE_ROTATECLOCKWISE`,
+`ID_QUICKUPLOAD`, `ID_VIEWALBUM`.*
+
+## 5. A filmszalag VISELKEDÉSE (#1905/3)
+
+### 5.1 Pontosan HÉT férőhely - és a képlet kijön egészre
+
+| | mért |
+|---|---:|
+| bélyegkép | **28 × 28** (felvétel: `x 1503…1531`, `y 57…85`) |
+| osztásköz | **31** (1503 · 1534 · 1565 · 1596 · 1627) |
+| rés két kép közt | **3** |
+| `filmclip` szélessége (`respack`) | **214** |
+
+`7 × 28 + 6 × 3 = 214` - **pontosan a `filmclip` szélessége.** Nem
+kerekítés: a nyolcadik férőhely 245 lenne, a hatodik 183.
+
+⇒ **A szalag hét férőhelyes, fix.** Nem zsugorodik kevesebb képnél.
+
+### 5.2 Az AKTUÁLIS kép mindig a KÖZÉPSŐ férőhelyen áll
+
+Az `indicator` kötése `m_centerX` a `filmstrip`-ben (`editpanel.tre:1129`)
+- a kijelölés-keret a szalag közepén rögzített, tehát **a szalag mozog
+alatta**, nem a keret.
+
+*Mérve:* a mappában **öt** kép van, az aktuális a **harmadik**. A képek a
+2…6. férőhelyen állnak, az 1. és a 7. üres; az aktuális bélyegkép közepe
+**1578,5**, a `filmclip` közepe **1577**. Ha a szalag balról töltene, a
+harmadik kép a 3. férőhelyre esne - nem oda esik.
+
+### 5.3 A kijelölés-keret (`indicator`) rajza
+
+28 × 28, a közepe **átlátszó** (24 × 24 = 576 képpont), kerete **két
+képpont**: kívül **`#009EFF`** (108 képpont = 1 képpont vastag gyűrű),
+belül **`#D4D4D4`** (100 képpont). A felvételen mért szín `(0, 158, 254)`
+- a JPEG-tömörítés egy egységnyi eltérése.
+
+### 5.4 A két léptetőnyíl
+
+Kör alakúak (`globalbuttons/lfs_*`, `globalbuttons/rfs_*`), **29 × 30**, a
+`filmcontainer` bal és jobb szélén (`m_offsetLT` / `m_offsetRT`), és
+**mindkettőn `m_autorepeat`** ⇒ **nyomva tartva folyamatosan léptetnek.**
+
+### 5.5 ✅ A kattintás szemantikája - LEZÁRVA (2026-09-05, #1935)
+
+> **Bizalmi fok: megerősített.** A `CFilmstrip` eseménykezelője
+> diszasszemblálva, az eseménykódok a `picasa-eger-es-kijeloles.md` 4.2/b
+> **már megerősített** táblájából. Ghidra nem kellett.
+
+**A kattintás KIVÁLASZTJA a képet - de a gomb FELENGEDÉSÉRE, nem a
+lenyomására**, és a kiválasztás **visszavonható**.
+
+#### Az eseménykezelő és a kezelt kódok
+
+A `CFilmstrip::vftable` (`0x00c9359c`) **29. rése** a
+`FUN_005a73d0` (1 520 b). Az eseménykódot a `[esemény+8]` hozza
+(`0x005a7427`), és a kezelő **kilenc** kódra ágazik:
+
+| kód | jelentés (4.2/b) | a filmszalag ága |
+|---:|---|---|
+| `1` | **bal gomb LE** | `0x005a7860` → közös ág a `0x0d`-vel |
+| `0x0d` | (a 4.2/b-ben nincs megfejtve) | **ugyanaz az ág, mint az 1** |
+| `2` | egérmozgás | `0x005a7453` |
+| `4` | **gomb FEL** | `0x005a7781` |
+| `5` | jobb gomb le | `0x005a78fe` |
+| `0x0e`, `0x0f` | belépés/kilépés-jellegű | `0x005a76d1`, `0x005a76d6` |
+| `0x13` | találat-vizsgálat / kurzor | `0x005a742c` → `[vtbl+0x8c]` egy `double`-lel |
+| `0x17` | - | `0x005a795d` |
+
+#### LENYOMÁSKOR (kód 1 és 0x0d): csak céloz, nem választ
+
+```
+0x005a786e  cmp byte [esemény+0x6c], 0   ; szűrő - ha áll, nem kezeli
+0x005a7893  call [gazda_vtbl+4] (this, 1); értesítés a gazdának
+0x005a789b  [this+0x380] = -1            ; a „megfogott férőhely" törlése
+0x005a78d4  call [vtbl+0x80] (x, y, &[this+0x380])   ; TALÁLAT-VIZSGÁLAT:
+                                          ; a kezelő ide írja a férőhely indexét
+0x005a78dc  [this+0x378] = x             ; a húzás kezdőpontja
+0x005a78e4  [kimenő] = this              ; egérfogás (capture)
+0x005a78f0  return 0xF4240               ; „kezeltem"
+```
+
+⇒ **Lenyomásra semmi nem választódik ki** - a kezelő csak kiszámolja,
+melyik férőhelyre esett a kattintás, elmenti a húzás kezdő X-ét, és
+megfogja az egeret.
+
+#### FELENGEDÉSKOR (kód 4): ITT történik a kiválasztás
+
+```
+0x005a7796  call 0x009df260 / 0x00a57630 ; egérfogás elengedése
+0x005a77a0  eax = [this+0x380]           ; a lenyomáskor eltalált férőhely
+0x005a77a6  cmp eax, -1 · je 0x005a7852  ; ha üresre kattintott → NINCS kiválasztás
+0x005a77af  ecx = [this+0x388]           ; az EDDIGI aktuális index - elmentve
+0x005a77b5  [this+0x388] = eax           ; ← AZ ÚJ AKTUÁLIS INDEX
+0x005a77be  push 0x00c93584              ; a értesítés neve: "filmstripmove"
+0x005a77ee  call 0x00591560              ; az értesítés összeállítása
+0x005a7802  call [vtbl+0x70] (&üzenet)   ; a gazda kezelője
+0x005a7804  cmp eax, 0xF4242             ; ha a gazda VISSZAUTASÍTJA…
+0x005a7813  [this+0x388] = [mentett]     ; …a RÉGI index visszaáll  ← VISSZAVONÁS
+0x005a7847  call [vtbl+0x84] (új index, -1.0)  ; elfogadva → görgetés/középre állítás
+```
+
+⇒ Három, egymástól független állítás, mind a kódból:
+
+1. **A kiválasztás a FELENGEDÉSRE történik** (kód 4), nem a lenyomásra.
+2. **Üres területre kattintás nem választ** (`[this+0x380] == -1` ág).
+3. **A kiválasztás VISSZAVONHATÓ**: az új index előbb beáll, majd a
+   `filmstripmove` értesítés megy ki; ha a gazda `0xF4242`-vel
+   („nem kezeltem") válaszol, a **régi index visszaáll**.
+
+A `-1.0` (`0x00cf3ed0`, kiolvasva) a `[vtbl+0x84]`-nek átadott
+lebegőpontos paraméter - az 5.2 középre állítása ezen az ágon fut le,
+tehát a centrírozás **a kiválasztás következménye**, ahogy az 5.5 korábbi
+változata sejtette.
+
+#### MIT AD MA - nálunk (mérve)
+
+a PicasaPy-ban: `src/picasapy/app/qml/PicasaPy/PhotoViewer.qml:716-718`:
+
+```qml
+TapHandler {
+    onTapped: viewer.currentIndex = parent.racsSor
+}
+```
+
+A Qt `TapHandler`-e a `tapped`-et **felengedésre** adja (és húzásra
+elejti) ⇒ **a lényegi viselkedésünk MEGEGYEZIK az eredetivel**: a
+kiválasztás felengedésre történik, húzásra nem, és üres területre nincs
+delegate, tehát kattintás sem.
+
+| | eredeti (mért) | nálunk (mért) | teendő |
+|---|---|---|---|
+| mikor választ | **felengedésre** (kód 4) | `TapHandler.onTapped` = felengedés ✓ | nincs |
+| üres területre | nem választ | nincs delegate ⇒ nem választ ✓ | nincs |
+| visszavonhatóság | a gazda `0xF4242`-vel visszautasíthatja | **nincs vétó-út** | ld. lent |
+| utána | `[vtbl+0x84]`-gyel középre állít | `highlightMoveDuration: 100`, de nem középre (5.2) | az 5.2 sora már rögzíti |
+
+⚠️ **A vétó-út hiánya nem termékhiba.** Az eredetiben azért van, mert a
+szalag gazdája (a szerkesztő) elutasíthatja a váltást - például
+mentetlen szerkesztésnél. **Nálunk ilyen elutasítási ág nincs**, tehát
+nincs mit vétózni; ha a #6 (kétképes mód) vagy egy „mentetlen módosítás"
+párbeszéd megépül, akkor lesz értelme. Addig **nem teendő**.
+
+## 6. Eredeti / nálunk / teendő
+
+A „nálunk" oszlop **mérés** a mai `main`-en
+(a PicasaPy-ban: `src/picasapy/app/qml/PicasaPy/PhotoViewer.qml`, `6047135a`).
+
+| | eredeti (mért) | nálunk (mért) | teendő |
+|---|---|---|---|
+| sáv magassága | **37** | `height: 46` (:556) | 37 |
+| „Vissza a könyvtárhoz" | ikon (17 × 15) + kétsoros felirat, **122 × 22**, ablak bal éle + 10 | `"◀ " + qsTr(...)`, csak szöveg (:562) | ikon + kétsoros, 122 × 22 |
+| feltöltés-gomb | `quickupload` 34 × 22, zöld nyilas fénykép-pakli | **nincs** | új vezérlő → **#1935** |
+| „Lejátszás" | `sbutton` **94 × 22**, ikon balra | `"▶ " + qsTr("Play")` (:597) | 94 × 22 |
+| `A`/`AB`/`AA` | a szalag **UTÁN**, jobb szélen, 3 × **39 × 24** | a szalag **ELŐTT**, 28/32/32 (:616-:640) | sorrend + méret |
+| léptetőnyilak | **kör alakúak**, 29 × 30, `m_autorepeat` | szögletes `◀`/`▶`, 30 széles, nincs autorepeat (:641, :709) | kör alak + autorepeat |
+| szalag szélessége | **fix 214** (7 férőhely) | `Math.min(7, mappaDarab) * 44` (:685) | fix 214 |
+| bélyegkép | **28 × 28**, osztásköz **31** | delegate **42 × 38**, osztásköz 44 (:691) | 28 × 28 / 31 |
+| aktuális kép helye | **mindig a középső férőhely** | `currentIndex` a lista elején is lehet | középre |
+| kijelölés-keret | 28 × 28, `#009EFF` + `#D4D4D4`, 1-1 képpont | tömör `Theme.thumbSelection` háttér (:692) | kétszínű keret |
+| szalag forrása | a mappa képei | **a mappa képei** ✓ (`d745446c`, #1905/1) | kész |
+| hisztogram-doboz | alsó éle **`root.alsó - 95`** (`nerdview_container`, `editpanel.tre:1028`) | `anchors.bottom: parent.bottom`, `bottomMargin: 95` - de a **bal fiók** aljához (:1043) | az ABLAK aljához |
+
+### A hisztogram-doboz (#1905/3) - mért bizonyíték
+
+*Forrás: `nerdview.tre:8` (`nerdview/histoback`).*
+
+A felvételen az eredeti doboz fejléc-felirata `y 779…792`, a
+hisztogram-rajz `y 798…857` (**59 magas** = a `nerdview/histoback`
+`213 × 59`-e ✓). A doboz alja így a kék infó-csík fölé, `y ≈ 927`-re esik.
+
+Nálunk: fejléc `y 691…704`, rajz `y 712…782` (**70 magas**) ⇒ a doboz
+**mintegy 96 képponttal feljebb** ül, mert a bal fiók aljához horgonyzott,
+és a fiók az alsó tálca fölött ér véget.
+
+## 7. Nyitott kérdések mérlege
+
+`0 nyílt · 7 lezárva · 0 blokkolt · 0 hatókörön kívül · 0 csak-nyitva`
+
+| kérdés | állapot |
+|---|---|
+| a fejléc képpontos geometriája | **LEZÁRVA** - 1-3. szakasz |
+| a „paletta-ikonos" gomb funkciója | **LEZÁRVA** - 4. szakasz |
+| hány bélyegkép fér ki a szalagon | **LEZÁRVA** - 7, 5.1 |
+| mit tesz a két nyíl | **LEZÁRVA** - léptet, `m_autorepeat`, 5.4 |
+| hol áll az aktuális kép | **LEZÁRVA** - mindig középen, 5.2 |
+| a hisztogram-doboz horgonya | **LEZÁRVA** - `root.alsó - 95`, 6. |
+| mi történik a bélyegképre KATTINTVA | ✅ **LEZÁRVA (2026-09-05)** - kiválaszt, de a gomb **FELENGEDÉSÉRE**; üres területre nem választ; a kiválasztás **visszavonható** (`filmstripmove` értesítés, `0xF4242` = elutasítás). 5.5. ⛔ **Ghidra NEM kellett**: a `CFilmstrip::vftable` 29. rése (`FUN_005a73d0`) diszasszemblálva, az eseménykódok jelentése a `picasa-eger-es-kijeloles.md` 4.2/b már megerősített táblájából |
+
+## 8. Amit KIZÁRTAM
+
+- **„A `respack.yt` abszolút koordinátái nem használhatók."** Ezen a
+  panelen **használhatók**: hat vezérlő szélessége képpontra egyezik a
+  felvétellel, és a sáv középre igazítása is a tervezővászonból jön ki.
+  A [`picasa-respack-format.md`](picasa-respack-format.md) figyelmeztetése
+  a `.tre`-vel való ütközésre vonatkozik - itt nincs ütközés.
+- **„A gomb paletta."** Nem az: fénykép-pakli + zöld felfelé nyíl, a
+  buboréksúgó kimondja, hogy feltöltés.
+- **„A szalag a képek számához igazodik."** Nem: fix 214 képpont, hét
+  férőhely; kevesebb képnél a szélső férőhelyek üresen maradnak (mérve).
+
+*Bizonyítottsági fok: **megerősített** a geometriára (két független
+forrás egyezik), a `quickupload` azonosítására és a hét férőhelyre;
+**erős** a centrírozásra (a kötés + egy mért eset); a kattintás
+szemantikája **nincs mérve**.*

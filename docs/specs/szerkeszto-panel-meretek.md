@@ -1,0 +1,644 @@
+# A szerkesztő bal panelje - KÖTELEZŐ méretspecifikáció
+
+**Ez a lap normatív.** A szerkesztő bal panelje **pontosan** így nézzen ki.
+A tulajdonos döntése (`../decisions/szerkeszto-bal-panel.md`):
+
+> A felület PONTOSAN úgy nézzen ki, mint az eredeti Picasa.
+> **Egyetlen kivétel:** hét fül az eredeti öt helyett.
+
+Aki ehhez a panelhez nyúl, ezt a lapot pipálja végig. Ahol a mai kódunk mást
+mond, **a kód a rossz**.
+
+Testvérlapok: [`konyvtar-ablak-meretek.md`](konyvtar-ablak-meretek.md) ·
+[`jobb-fiok-meretek.md`](jobb-fiok-meretek.md).
+
+## 0. Forrás és módszer
+
+Minden szám a `respack.yt` **rétegtéglalapjaiból** való (`int16 x0, y0, x1, y1`
+a 13 bájtos rekordfejlécben - [`picasa-respack-format.md`](picasa-respack-format.md)
+3. szakasz, a módszer [`binaris-regeszet-modszertan.md`](binaris-regeszet-modszertan.md)
+14/c). A kötéseket az `editpanel.tre` adja. **Nem képernyőkép-mérés.**
+
+```python
+# a PicasaPy-ban: tools/picasa
+import sys; sys.path.insert(0, "tools/picasa"); import respack
+adat = open("research/copy_Picasa_3_7/Picasa3/runtime/respack.yt", "rb").read()
+for e in respack.read_index(adat):
+    if not e.is_tre and e.name.startswith("layer:editpanel/"):
+        r = respack.decode_layer(adat, e)     # r.x0, r.y0, r.x1, r.y1
+```
+
+**201 elem** a bal panelen (`x0 ≤ 285`), plusz **55** a szöveg-eszköz saját
+paneljén (`edittextpanel`).
+
+### Mi kötelező és mi tájékoztató
+
+| | státusz |
+|---|---|
+| **méretek** (szélesség × magasság) | **KÖTELEZŐ** |
+| **osztásközök, hézagok, egymáshoz képesti eltolás** | **KÖTELEZŐ** |
+| abszolút `y` a panel tetejétől | tájékoztató - a tervezővászon értéke |
+
+Az `x` a panelen belül kötelező (a `.tre` `MaintainOffset`-tel őrzi), az
+abszolút `y`-t viszont a futásidő eltolhatja. **Keresztellenőrzés:** az
+effekt-rács mérete és osztásköze a csomagban `88 × 71`, a képernyőképes
+mérésben ([`ui-audit-editor.md`](ui-audit-editor.md) 3.2) szintén `88 × 71` -
+a két független forrás a **méretekre betűre egyezik**, az abszolút tetőre
+nem. Ezért a fenti szétválasztás.
+
+---
+
+## 1. A panel váza
+
+| elem | méret | pozíció |
+|---|---:|---|
+| **tartalom-oszlop** (`editcontrols`, `edittabbase`, `fxthumbs`) | **276 × 351** | x 3..279 |
+| `editcontrol_well` (a beágyazott eszközök kerete) | **266 × 276** | x 8..274 |
+| **fülsáv** (`tabs`) | **276 × 25** | x 3..279, a panel tetején |
+| `filter_name` (az aktív szűrő neve) | **140 × 16** | x 14 |
+| **`filter_undo`** (Visszavonás) | **132 × 28** | x **7..139** |
+| **`filter_redo`** (Újra) | **132 × 28** | x **144..276** |
+| `albumview` („Vissza a könyvtárhoz") | **122 × 22** | x 10..132, y 9..31 |
+| `toggle_left_drawer` (panel be/ki) | 15 × 16 | x 1..16 |
+
+**A panel teljes szélessége 280 képpont** - a képnézet `x = 280`-nál kezdődik
+(`insetleft`), és a `LEFTDRAWEROFFSET` alapértéke **279**. A mai
+a PicasaPy-ban: `EditorPanel.qml` `implicitWidth: 280` **helyes, ezen ne változtass.**
+
+### A Visszavonás/Újra sor
+
+- a két gomb **azonos szélességű (132)**, közöttük **5 px** hézag
+  (139 → 144), és együtt **kitöltik a 276 px-es oszlopot** (7 + 132 + 5 +
+  132 = 276);
+- **a panel ALJÁHOZ van kötve**, nem a tartalom után úszik: a
+  tartalom-oszlop alja 391, a gombsor 361..389 - vagyis **2 px** margóval a
+  panel aljára ül;
+- magassága **28 px**.
+
+> ⚠️ A mai a PicasaPy-ban: `EditTabButton.qml` `width: Math.max(120, implicitWidth)` szabálya
+> **nem** ezt adja. Fix 132, 5 px hézaggal.
+
+### A fülsáv magassága 25 px
+
+A fülgombok `y 45..70`, az ikonjaik `y 49..68` - vagyis a **25 px-es** sávban
+**16-19 px magas** ikonok ülnek, függőlegesen középre. A mai
+a PicasaPy-ban: `EditTabButton.qml` 22 × 22-es ikonja **túl nagy**.
+
+| fül | ikon mérete |
+|---|---|
+| `tab1` (`basic_icon`) | 15 × 16 |
+| `tab2` (`tuning_icon`) | 17 × 18 |
+| `tab3` | 20 × 19 |
+| `tab4` | 25 × 19 |
+| `tab5` | 25 × 19 |
+
+---
+
+## 2. ⚠️ A KIVÉTEL: hét fül öt helyett
+
+Az eredeti öt fül **hézag nélkül, pontosan kitölti** a 276 px-es oszlopot:
+
+| fül | x | szélesség |
+|---|---|---:|
+| `tab1` | 3..58 | 55 |
+| `tab2` | 58..113 | 55 |
+| `tab3` | 113..169 | **56** |
+| `tab4` | 169..224 | 55 |
+| `tab5` | 224..279 | 55 |
+
+**5 × 55 + 1 = 276.** A minta: egyenlő szélesség, és a maradék egyetlen fülre
+kerül.
+
+**Hét fülre ugyanez a szabály:** `276 / 7 = 39,43`, tehát **39 px** az alap,
+és a maradék `276 - 7 × 39 = 3` képpont három fülre oszlik:
+
+```
+39 · 39 · 40 · 39 · 40 · 39 · 40   =  276
+```
+
+**A fülsáv magassága ettől NEM változik: marad 25 px**, és a fülek továbbra is
+hézag nélkül, pontosan kitöltik a 276 px-et. Az ikonok a keskenyebb fülben is
+középre kerülnek.
+
+---
+
+## 3. 1. fül - „Gyakori javítások" (`tabpanel1`)
+
+A fül lapja **273 × 277** (x 3..276).
+
+### A nyolc eszközcsempe
+
+> ⛔ **EZ AZ EGYETLEN ÉRVÉNYES FORRÁS A SORRENDRE.** Az alábbi rács a
+> `respack.yt` nyers koordinátáiból származik, és a tulajdonos **valódi
+> Picasa-képernyőképe** (2026-08-16, #464) betűre igazolja.
+>
+> **Az `editpanel.tre` deklarációs sorrendje NEM használható**: ott minden
+> gomb `m_offsetLT`-vel él (a szülő bal-felső sarkához, eltolás nélkül),
+> tehát a fájl a helyüket **nem adja meg** - tíz ilyen gomb egymáson ülne.
+> Két kutatói kör csúszott el pontosan ezen; a részletes cáfolat:
+> [`ui-audit-editor.md`](ui-audit-editor.md) → „⛔ Az 1. fül VALÓDI
+> elrendezése".
+
+**Minden csempe 44 × 30 képpont.**
+
+| | 1. oszlop **x 37** | 2. oszlop **x 118** | 3. oszlop **x 198** |
+|---|---|---|---|
+| **1. sor** (y 91) | `crop` Vágás | `horizonadjust` Kiegyenesítés | `redeye` Vörösszem |
+| **2. sor** (y 155) | `enhance` Jó napom van | `autolighting` Auto. kontraszt | `autocolor` Auto. szín |
+| **3. sor** (y 223) | `retouch` Retusálás | `edittext` Szöveg | ~~`picnik` Kreatív Kit~~ **REJTETT** |
+
+> A `picnik` (Kreatív készlet) csempéje a `respack.yt`-ban **kétszer**
+> szerepel, és az egyiket **`#` előzi meg** (kikommentezve):
+> `#button(picnik)` x0=187, 65×30 · `button(picnik)` x0=198, 44×30.
+> A tulajdonos képernyőképén a 3. sor **harmadik helye üres** - a
+> szolgáltatás 2012-ben megszűnt. **A mi felületünkön se legyen ott.**
+
+- **oszlopköz: 81 px** (37 → 118 → 198)
+- **sorköz: 64 px** az 1.→2. sor közt, **68 px** a 2.→3. közt
+- a felirat **külön elem, a csempe ALATT**, középre zárva
+  (`m_buttonfontCbelow` → `YConstraint 0, 1, 0`)
+
+> ⚠️ A mai a PicasaPy-ban: `ToolTile.qml` `Layout.preferredHeight: 94` és az
+> a PicasaPy-ban: `EditorTabCommonFixes.qml` `rowSpacing: 10` együtt **104 px** sorközt ad a
+> **64** helyett. Ez a bal sáv szétesésének fő oka (#741).
+> **Cél: 64 px-es sorköz, 44 × 30-as csempekép.**
+
+### A Derítőfény-sor
+
+| elem | méret | x |
+|---|---:|---|
+| `filllight_icon` (a kis kép) | **44 × 30** | **37..81** - a csempe-rács 1. oszlopával AZONOS x |
+| `filllightlabel` (felirat) | **141 × 14** | 94..235 |
+| `backlight_container` (csúszka) | **127 × 27** | 101..228 |
+
+A felirat `y 283..297`, a csúszka `y 294..321` - a **felirat a csúszka
+FÖLÖTT**, enyhén rálógva. A kis kép ugyanakkora, mint egy eszközcsempe.
+
+---
+
+## 4. 2. fül - „Finomhangolás" (`tabpanel2`)
+
+A fül lapja **273 × 316**.
+
+### A négy csúszka
+
+| elem | méret | x | y |
+|---|---:|---|---|
+| `editslider1_container` | **191 × 27** | 30..221 | 111 |
+| `editslider2_container` | 191 × 27 | 30..221 | 164 |
+| `editslider3_container` | 191 × 27 | 30..221 | 218 |
+| `editslider4_container` | 191 × 27 | 30..221 | 270 |
+
+**A csúszkák osztásköze 53 · 54 · 52 px** - gyakorlatilag egyenletes ~53.
+
+### A feliratok és a jelölők
+
+| elem | méret | x |
+|---|---:|---|
+| `editlabel1..4` (a csúszkák feliratai) | **151 × 12** | 50..201 |
+| `editcheckbox1` · `editcheckbox2` | **14 × 14** | 38..52 |
+| `editlabel5` · `editlabel6` (a jelölők feliratai) | 151 × 12 | 52..203 |
+| `greybalancelabel` | **219 × 14** | 25..244 |
+
+A felirat mindig **a csúszka fölött 17 px-rel** ül (94 → 111, 147 → 164,
+201 → 218, 253 → 270).
+
+### A színkorongok és a pipetta
+
+| elem | méret | x | y |
+|---|---:|---|---|
+| `colorwheel0` · `colorwheel1` | **62 × 50** | 94..156 | 94..144 |
+| `colorwheel_label0/1` | 151 × 12 | 50..201 | 96 / 80 |
+| `slidercircle0` · `slidercircle1` | **19 × 19** | 61 / 81 | 122..141 |
+| `droppertoggle` (pipetta) | **29 × 24** | 138..167 | 324..348 |
+| `editcircle1` | 21 × 22 | 111..132 | 325..347 |
+| `magic_lighting` | **26 × 24** | 245..271 | 165..189 |
+| `magic_color` | 26 × 24 | 245..271 | 325..349 |
+
+A két „varázspálca" gomb (`magic_lighting`, `magic_color`) a panel **jobb
+széléhez** tapad, a hozzájuk tartozó csúszka magasságában.
+
+---
+
+## 5. 3-5. fül - az effekt-rács (`fxthumbs`)
+
+**Tizenkét hely, 3 × 4 elrendezésben.** Ez a rács ma **már helyes**
+(a #704 a mért értékekre állította) - a számok itt a teljesség kedvéért
+állnak.
+
+| elem | méret | x | y |
+|---|---:|---|---|
+| `fx1..fx12` (a csempe kattintható rectje) | **88 × 71** | 8 / 96 / 184 | 102 / 173 / 244 / 315 |
+| `fxpreview1..12` (a bélyegkép) | **78 × 48** | +5 a csempétől | +5 a csempétől |
+| `fxlabel1..12` (felirat) | **86 × 14** | 9 / 97 / 185 | a csempe alja - 15 |
+| `fx1_adorn..fx12_adorn` (alkalmazva-jelvény) | **13 × 12** | a csempe jobb alsó sarka | |
+
+- **oszlopköz 88 px**, **sorköz 71 px**
+- a **látható** csempe 86 px széles (a 88-ból 2 px a hézag)
+- a jelvény a csempe **jobb alsó sarkában** ül
+
+---
+
+## 6. Az eszköz-panelek (a fül helyére nyílnak)
+
+Mindegyik a `editcontrol_well`-be (266 × 276) épül.
+
+### 6.1 Vágás (`crop_well`, 276 × 312)
+
+| elem | méret | x | y |
+|---|---:|---|---|
+| `crop_icon2` (a panel ikonja) | 44 × 30 | 14..58 | 81 |
+| `crop_label` | 208 × 16 | 62..270 | 82 |
+| `croptext` (magyarázó szöveg) | 257 × 54 | 14..271 | 115 |
+| **`crop_aspect_menu`** (képarány-legördülő) | **249 × 21** | 9..258 | 172 |
+| `crop_delete_custom` | 14 × 14 | 261..275 | 175 |
+| **`cropsug1..3`** (a három vágás-javaslat) | **80 × 50** | **10 / 102 / 190** | 203 |
+| `cropsug_preview1..3` | 77 × 47 | +1 a gombtól | |
+| `croprotatecrop` · `croppreview` | **98 × 28** | 38 / 142 | 282 |
+| `cropdiscard` | 98 × 28 | 90..188 | 316 |
+| **`cropapply` · `cropcancel`** | **98 × 28** | **38 / 142** | 351 |
+
+A három vágás-javaslat **osztásköze 92 · 88 px**, a gombok 80 px szélesek.
+
+### 6.2 Vörösszem (`redeye_well`, 276 × 288)
+
+| elem | méret | x | y |
+|---|---:|---|---|
+| `redeye_icon2` | 44 × 29 | 14..58 | 81 |
+| `redeye_label` | 88 × 16 | 62..150 | 82 |
+| `redeyetext` (állapotüzenet) | **242 × 129** | 18..260 | 115 |
+| `redeyeauto` · `redeyepreview` | **98 × 29** | **38 / 144** | 280 |
+| `redeyediscard` | 98 × 28 | **91..189** (középen) | 314 |
+| `redeyeapply` · `redeyecancel` | **98 × 29** | 38 / 144 | 348 |
+
+**A `Reset` gomb középre van igazítva** (x 91), a többi négy párban áll.
+
+### 6.3 Retusálás (`retouch_well`, 276 × 288)
+
+| elem | méret | x | y |
+|---|---:|---|---|
+| `retouch_label` | 256 × 16 | 14..270 | 80 |
+| `retouchtext` | 258 × 96 | 12..270 | 101 |
+| `retouch_brush_label` | 243 × 16 | 18..261 | 211 |
+| `brushslider_container` (ecsetméret) | **127 × 27** | 74..201 | 227 |
+| `retouchreset` | **118 × 28** | 80..198 | 257 |
+| `retouchundo` · `retouchredo` | **118 × 28** | **18 / 143** | 293 |
+| `retouchapply` · `retouchcancel` | **118 × 29** | 18 / 144 | 339 |
+| `eraserbutton` | 14 × 14 | 1..15 | 93 |
+
+A retusálás gombjai **118 px** szélesek (nem 98!), 25 px hézaggal.
+
+### 6.4 Szöveg (`edittextpanel`, 276 × 321)
+
+> ⛳ **2026-09-06 (#2529): a tábla TELJES elemnevekre és HORGONYRA javítva.**
+> Ez a szakasz eddig **levélneveket** használt (`align_label`) és **egyetlen
+> horgonyt sem** tartalmazott - a lefedettségi mérő ezért az EGÉSZ táblát
+> átugrotta, és a panel öt feliratát „**feltáratlan**"-ként tartotta nyilván,
+> holott a geometriájuk itt évek óta le van írva. Ugyanaz a néma hibafajta,
+> mint a #2182-ben és a #2504-ben. A `.tre`-sorok most horgonyként is
+> szolgálnak.
+
+| elem | méret | x | y | horgony |
+|---|---:|---|---|---|
+| `edittextpanel/text_icon` | 54 × 36 | 5..59 | 8 | `edittextpanel.tre:7` |
+| `edittextpanel/edittext_label` | 207 × 16 | 59..266 | 15 | `edittextpanel.tre:10` |
+| `edittextpanel/font_label` | 66 × 15 | 0..66 | 57 | `edittextpanel.tre:14` |
+| **`edittextpanel/fontfamily`** (betűtípus-legördülő) | **202 × 21** | 70..272 | 55 | `edittextpanel.tre:19` |
+| `edittextpanel/size_label` | 66 × 15 | 0..66 | 87 | `edittextpanel.tre:24` |
+| **`edittextpanel/sizelist`** (méret-legördülő) | **48 × 21** | 70..118 | 85 | `edittextpanel.tre:29` |
+| `edittextpanel/style_label` | 46 × 15 | 121..167 | 86 | `edittextpanel.tre:37` |
+| **`edittextpanel/bold` · `edittextpanel/italic` · `edittextpanel/underline`** | **27 × 27** | **172 / 202 / 232** | 81 | `edittextpanel.tre:45` · `:53` · `:61` |
+| `edittextpanel/no_fill` | 29 × 22 | 55..84 | 158 | `edittextpanel.tre:181` |
+| `edittextpanel/align_label` | 94 × 15 | 72..166 | 117 | `edittextpanel.tre:70` |
+| **`edittextpanel/leftalign` · `edittextpanel/centeralign` · `edittextpanel/rightalign`** | **27 × 27** | **172 / 202 / 232** | 112 | `edittextpanel.tre:78` · `:86` · `:94` |
+| `edittextpanel/separatorA` · `edittextpanel/separatorB` | **250 × 2** | 13..263 | 145 / 193 | `respack.yt` rétegfejléc |
+| `edittextpanel/colorcircle` · `edittextpanel/bgcolorcircle` | 19 × 19 | 31 / 115 | 159 | `edittextpanel.tre:189` · `:206` |
+| `edittextpanel/colorpicker_bevel` · `edittextpanel/bgcolorpicker_bevel` | 21 × 21 | 30 / 114 | 158 | `edittextpanel.tre:192` · `:209` |
+| `edittextpanel/outlineweightslider_container` | **127 × 27** | 137..264 | 158 | `edittextpanel.tre:135` |
+| `edittextpanel/transparency_label` | 127 × 15 | 79..206 | 202 | `edittextpanel.tre:118` |
+| `edittextpanel/textopacityslider_container` | **127 × 27** | 79..206 | 217 | `edittextpanel.tre:128` |
+| `edittextpanel/usecaption` · `edittextpanel/clearall` | **98 × 29** | 38 / 141 | 250 | `edittextpanel.tre:105` · `:111` |
+| `edittextpanel/edittextapply` · `edittextpanel/edittextcancel` | **98 × 29** | 38 / 141 | 284 | `edittextpanel.tre:146` · `:158` |
+
+A stílus- és igazítás-gombok **azonos rácson** ülnek: 27 × 27, x = 172 / 202 /
+232, tehát **30 px osztásköz**.
+
+#### A hat FELIRAT - szöveg, betűméret, igazítás (2026-09-06, #2529)
+
+A panel feliratai nem díszek: **címkeoszlopot** alkotnak a vezérlők bal
+oldalán. A `.tre` mindegyiknél kimondja a betűmakrót és az igazítást.
+
+| elem | EN | hivatalos HU | betűmakró | igazítás | mit címkéz | horgony |
+|---|---|---|---|---|---|---|
+| `edittextpanel/edittext_label` | „Edit Text" | **„Szöveg szerkesztése"** | `m_displayfont18_Reg` | - (alap: balra) | a panel FEJLÉCE, a `text_icon` mellett | `edittextpanel.tre:10` |
+| `edittextpanel/font_label` | „Font:" | **„Betűtípus:"** | `m_displayfont12` | **jobbra** | `edittextpanel/fontfamily` | `edittextpanel.tre:14` |
+| `edittextpanel/size_label` | „Size:" | **„Méret:"** | `m_displayfont12` | **jobbra** | `edittextpanel/sizelist` | `edittextpanel.tre:24` |
+| `edittextpanel/style_label` | „Style:" | **„Stílus:"** | `m_displayfont12` | **jobbra** | a `bold`/`italic`/`underline` hármas | `edittextpanel.tre:37` |
+| `edittextpanel/align_label` | „Alignment:" | **„Igazítás:"** | `m_displayfont12` | **jobbra** | a `leftalign`/`centeralign`/`rightalign` hármas | `edittextpanel.tre:70` |
+| `edittextpanel/transparency_label` | „Transparency" | **„Átlátszóság"** | `m_displayfont12` | ⚠️ **középre** | a `textopacityslider_container` - **FÖLÖTTE**, nem mellette | `edittextpanel.tre:118` |
+
+⚠️ **A `transparency_label` KIVÉTEL, és ez látszik is:** egyedül nála
+`Property textalign center`, és a geometria is ezt mondja - a felirat
+(`127 × 15`, x 79..206, y 202) **pontosan a csúszka fölött** ül
+(`127 × 27`, x 79..206, y 217), azonos szélességgel. A másik négy felirat a
+vezérlőjétől **balra**, jobbra igazítva.
+
+⛔ **Nálunk (MÉRVE, a PicasaPy-ban: `app/qml/PicasaPy/EditorTextPanel.qml`):**
+
+| eredeti felirat | nálunk | eltérés |
+|---|---|---|
+| „Szöveg szerkesztése" (18 pt) | `qsTr("Text")`, `Theme.fontSize + 3` (`:31`) | **más szöveg** |
+| „Betűtípus:" (jobbra) | `qsTr("Font")` **szakaszcímként a sor FÖLÖTT** (`:79`) | más szöveg, más elhelyezés |
+| „Méret:" | **nincs** | hiányzik |
+| „Stílus:" | **nincs** (csak B/I/U buboréksúgó) | hiányzik |
+| „Igazítás:" | **nincs** (csak három buboréksúgó) | hiányzik |
+| „Átlátszóság" (középre, a csúszka fölött) | `qsTr("Opacity")` (`:234`) | **más szöveg** |
+
+⇒ **A mi panelünk szakaszcímeket használ a vezérlők FÖLÖTT; az eredeti
+címkeoszlopot a vezérlők BAL oldalán.** Ez elrendezési eltérés, nem csak
+szóhasználat. Jegy: **#2535**.
+
+## 7. Visszatérő méretek - ezeket tartsd egységesen
+
+| minta | méret | hol |
+|---|---:|---|
+| „párban álló" művelet-gomb | **98 × 28-29** | crop, redeye, szöveg apply/cancel |
+| széles művelet-gomb | **118 × 28-29** | retusálás |
+| a panel teljes szélességű gombja | **132 × 28** | Visszavonás / Újra |
+| csúszka-konténer | **127 × 27** vagy **191 × 27** | ecsetméret / derítőfény, ill. finomhangolás |
+| legördülő (`popuplist`) | magasság **21** | képarány, betűtípus, méret |
+| jelölőnégyzet | **14 × 14** | finomhangolás, szöveg |
+| eszközcsempe (1. fül) | **44 × 30** | |
+| effekt-csempe (3-5. fül) | **88 × 71** (látható 86) | |
+
+---
+
+## 8. Megvalósítási ellenőrzőlista
+
+Ezt kell végigpipálni - mindegyik állítás **mérhető**:
+
+- [ ] a panel szélessége **280**, a tartalom-oszlop **276**
+- [ ] a fülsáv **25 px** magas, a hét fül **39/39/40/39/40/39/40** szélességgel,
+      hézag nélkül kitölti a 276-ot
+- [ ] a fülikonok **16-19 px** magasak (nem 22)
+- [ ] az 1. fül csempéi **44 × 30**, oszlopköz **81**, **sorköz 64**
+- [ ] a felirat a csempe **alatt**, középre zárva
+- [ ] a Derítőfény kis képe **44 × 30**, az **x 37**-en (a rács 1. oszlopával
+      egy vonalban), a felirat **a csúszka fölött**, a csúszka **127 × 27**
+- [ ] a Visszavonás/Újra **132 × 28**, 5 px hézag, a **panel aljához** kötve
+- [ ] a finomhangolás négy csúszkája **191 × 27**, ~53 px osztásközzel
+- [ ] az effekt-rács **88 × 71** osztásközzel (ez ma már jó)
+- [ ] a párban álló gombok **98 × 28**, a retusálásé **118 × 28**
+- [ ] a legördülők **21 px** magasak
+
+**Kirajzolt teszt kötelező** (a PicasaPy-ban: `tests/app/qml_functional/test_editor_panel_rendered_651.py`
+mintájára): a méreteket a **megjelenített** fán kell állítani, nem property-ből
+olvasva - és a javítás nélkül el kell buknia.
+
+### Állapot (#741)
+
+A fenti lista **a felső sáv kivételével teljesítve**; az őr-teszt
+a PicasaPy-ban: `tests/app/qml_functional/test_editor_panel_geometry_741.py` (49 állítás, a
+javítás előtt 44 bukott el). Ami NYITVA maradt:
+
+- a `MainToolbar` elrejtése szerkesztő módban - a PicasaPy-ban: `Main.qml`-t érinti, ezért
+  külön körben (ld. [`ui-audit-editor.md`](ui-audit-editor.md) 2.9,
+  eltérés-táblázat 15. sora).
+
+Két helyen a megvalósítás **szándékosan** tér el a lap betűjétől, mindkettő
+indoklással:
+
+1. **A Visszavonás/Újra sor függőleges helye.** A méret (132 × 28) és a
+   hézag (5) átvéve, de a sor NEM a panel aljára van szegezve: nálunk a
+   panel nyúlik, és a #616 épp azt javította, hogy nagy ablakban a gombok
+   több száz képponttal a tartalom alatt jelentek meg. A sor a tartalom
+   alja + kis rés, de sosem lejjebb a látható terület aljánál.
+2. **A csempe-cella 80 + 1 képpont** a 81 + 0 helyett - így a 44 képpontos
+   csempekép egész számú eltolással ül a cella közepén, és nem csúszik el
+   fél képponttal a Derítőfény-sorhoz képest. Az OSZTÁSKÖZ változatlanul 81.
+
+---
+
+*Bizonyítottsági fok: megerősített.* A `respack.yt` rétegtéglalapjai
+(201 + 55 elem), az `editpanel.tre` kötései, és a `.tre` makrói
+(`macros.tre`, `fontmacros_win.tre`). Az effekt-rács méretei független
+képernyőkép-méréssel is egyeznek ([`ui-audit-editor.md`](ui-audit-editor.md)
+3.2).
+
+## A csúszka- és színválasztó-komponensek mérete (`respack.yt`, 2026-08-16)
+
+A Picasa **öt különböző csúszka-változatot** használ, mindegyik önálló
+al-dokumentum a `respack.yt`-ban (saját `docbounds` origóval). Az alábbi
+méretek **normatívak**.
+
+| komponens | teljes | sáv (track) | fogantyú (thumb) | hol |
+|---|---|---|---|---|
+| **`bigslider`** | **191 × 27** | 171 × 27 (x 10) | **16 × 26** | nagy, panelszintű csúszka |
+| **`editslider`** | **191 × 27** | 171 × 27 (x 10) | **16 × 26** | a szerkesztő paraméter-csúszkái |
+| **`toolslider`** | **267 × 28** | 253 × 28 (x 7) | **16 × 24** | széles, eszköz-panelbeli |
+| **`scaleslider`** | **127 × 27** | alap 121 × 9 (3, 8) | **16 × 22** | rövid (pl. Derítőfény, hangerő) |
+| **`timeslider`** | **97 × 13** | alap 97 × 7 (0, 3) | **10 × 13** | a keresősáv dátumsávja |
+
+Két megfigyelés:
+
+1. **A fogantyú négy méretben van** (16×26 · 16×24 · 16×22 · 10×13) - a
+   csúszka magasságához igazodva. **Nem ugyanaz a kép nagyítva.**
+2. A `scaleslider` és a `timeslider` **vékony sávot** rajzol (9, illetve
+   7 képpont), a `bigslider`/`editslider`/`toolslider` **teljes magasságú
+   hátteret**.
+3. ⭐ **A RÉTEG és a RAJZ nem ugyanaz** (2026-09-08, #2664). A fenti
+   fogantyú-méretek a RÉTEG dobozai; a bennük álló **tömör rajz 2 képponttal
+   keskenyebb és 3-mal alacsonyabb**:
+
+   | réteg | a réteg | a tömör rajz |
+   |---|---|---|
+   | `scaleslider/thumb` | 16 × 22 | **14 × 19** |
+   | `editslider/thumb` | 16 × 26 | **14 × 23** |
+
+   A különbség a lágy **árnyék**, jobbra és lefelé.
+
+   *Forrás: `scaleslider.tre:1` (`scaleslider/thumb`) - a réteg
+   téglalapjai a `respack.yt`-ból; a tömör rajz a kibontott rétegkép
+   nem-átlátszó befoglalója.*
+
+   **Nálunk (megvalósítva, #2664):** a doboz marad a réteg mérete - a
+   Layout helye, tehát a környező elrendezés mért állandói (#1345/#1367)
+   érintetlenek -, és a RAJZ húzódik be. Ezért a #2641 vésése is a RAJZ
+   közepén áll (x = 6 és 7 a 14 széles rajzban), nem a dobozén, és a
+   függőleges 5-5 képpontos behúzás is a rajz két végétől számít.
+
+   ⛔ **MÉRT az árnyék KITERJEDÉSE** (2 és 3 képpont); a lágyulás profilja
+   **nincs mérve** - a mi rajzunk három, egyre halványabb rétege saját
+   döntés. Az őr (a PicasaPy-ban: `test_fogantyu_arnyek_2664.py`) ezért csak annyit köt
+   meg, hogy az árnyék sötétebb a háttérnél, világosabb a keretnél, és
+   kifelé halványul.
+
+A Derítőfény-sor `backlight_container`-e **127 × 27** - pontosan egy
+`scaleslider`.
+
+## A színválasztó komponensei
+
+*Forrás: `pickerpanel.tre:33` (`pickerpanel/base`) · `pickerpanel.tre:30` (`pickerpanel/bezels`) · `pickerpanel.tre:12` (`pickerpanel/mru_0`) - és további 1 elem ugyanott.*
+
+| komponens | méret | megjegyzés |
+|---|---|---|
+| `colorpicker` (dokumentum) | **225 × 140** | |
+| `colorpicker/spectrum_press` | 208 × 140 (x 17) | a **teljes** színskála |
+| `colorpicker/softerspectrum_press` | 208 × 140 | **lágyabb** skála-változat |
+| `colorpicker/fullspectrum_press copy` | 208 × 140 | harmadik változat |
+| `colorpicker/spectrum_normal` / `_hover` | **21 × 21** | a kis skála-gomb két állapota |
+| `pickerpanel` (dokumentum) | **225 × 225** | |
+| `pickerpanel/base` | 203 × 171 (12, 8) | a panel háttere |
+| `pickerpanel/bezels` | 183 × 28 (19, 14) | a felső sáv kerete |
+| `pickerpanel/palette_0` / `_1` | **181 × 147** (20, 15) | két paletta-változat |
+| `pickerpanel/mru_0` … `mru_4` | **26 × 26**, x = **51 · 82 · 113 · 144 · 175** | **öt** „legutóbb használt" szín, osztás **31** |
+| ~~`pickerpanel/#mru_5`~~ | 26 × 26 (206, 15) | **kikommentezve** - hatodik hely volt tervben |
+| `globalbuttons/dropper_n` / `_h` | **27 × 28** | a **pipetta** gomb (lenyomva 25 × 25) |
+
+> **Öt „legutóbb használt" szín**, nem hat: a hatodik rekesz megvan a
+> csomagban, de **`#`-kal kikommentezve**. A `31 px`-es osztás
+> (26 + 5 hézag) az öt rekeszre `51 … 201` sávot ad.
+
+*Bizonyítottsági fok: megerősített* (a `respack.yt` nyers rectjei; a
+`#` előtag a kikommentezés jelölése, ugyanúgy, mint a `.tre`-ben).
+
+---
+
+## ⛳ Az Alkalmaz/Mégse a KÉP FÖLÖTT lebeg - és egy CSÚSZKA is vele (2026-09-15, #3123)
+
+*Forrás: `referencia/tre-eroforrasok/editpanel.tre:21-33` és `:1044-1056`;
+a makrók `macros.tre:11-19`, `:53-81`, `:139`; a gomb-réteg mérete a
+`respack.yt`-ből (#3123 első köre).*
+
+A #3123 első köre kimérte, hogy a két gomb **saját, sötét rajzot** kap
+(82 × 28, kitöltés `#505050` alfa 229, keret `#CBCACA` alfa 229), és hogy a
+felirat fehér (`m_buttontypecolor3` = `FFFFFFFF` · `CCFFFFFF` · `FFFFFFFF`).
+Ez a szakasz a **helyüket** adja meg - a jegy 2. teendőjét.
+
+### A fa és a kényszerek
+
+```
+editpanel/tool_container: editpanel/preview     # a KÉP a szülő, nem a panel
+m_centerX                                       # XConstraint 0.5, 0.5, 0
+YConstraint 1, 1, -10                           # alul, 10 px-re a kép aljától
+m_hidden                                        # alapból rejtett
+
+  editpanel/tool_slider_container: editpanel/tool_container
+  m_offsetLTR                                   # bal+fent+jobb megtartva
+
+    toolslider/toolslider: editpanel/tool_slider_container
+    m_centerY
+    m_offsetLR
+    Property slider 0
+
+  editpanel/tool_cancel: editpanel/tool_container
+  m_buttontypecolor3 · m_offsetR · m_centerY
+  Property escapekey 1                          # az Esc EZT süti el
+
+  editpanel/tool_ok: editpanel/tool_container
+  m_buttontypecolor3 · m_offsetR · m_centerY
+```
+
+| makró | jelentése |
+|---|---|
+| `m_centerX` | `XConstraint 0.5, 0.5, 0` - vízszintesen középre |
+| `m_centerY` | `YConstraint 0.5, 0.5, 0` |
+| `m_offsetR` | `MaintainOffset right` - a jobb szélhez mért távolság marad |
+| `m_offsetLR` / `m_offsetLTR` | ugyanez bal+jobb, illetve bal+fent+jobb |
+
+### Amit ez kimond
+
+1. **A szülő az előnézeti KÉP** (`editpanel/preview`), nem a bal oldali
+   panel ⇒ a sáv a képen lebeg. Ezért működik rajta a sötét, áttetsző
+   háttér és a fehér felirat.
+2. **Vízszintesen középen, a kép aljától 10 képpontra.**
+3. ⭐ **A sávban egy CSÚSZKA is van** (`toolslider`, balra nyúlva, a két
+   gomb pedig jobbra igazodik).
+
+   ⛔ **HELYESBÍTÉS (2026-09-18, #3234).** Ez a pont eredetileg azt írta,
+   hogy „az eszközök paramétere (pl. a retusálás ecsetmérete) ITT áll, nem
+   a bal panelben". **Téves**, és két, egymástól független mérés mondja ki:
+
+   - a sáv a **KIEGYENESÍTÉS** átfedése - az `editpanel.tre`-ben a négy
+     bejegyzést (`toolslider/thumb` `:1040`, `toolslider/toolslider`
+     `:1044`, `tool_slider_container` `:1049`, `tool_container` `:1052`) a
+     `#---Straighen Overlay---` szakaszfejléc vezeti be (`:1038`);
+   - a többi eszköznek **saját** Alkalmaz/Mégse párja van a saját
+     paneljében: `cropapply`/`cropcancel` a `crop_well`-ben (`:817`,
+     `:805`), `retouchapply`/`retouchcancel` a `retouch_well`-ben (`:894`,
+     `:906`), `redeyeapply`/`redeyecancel` a `redeye_well`-ben (`:722`,
+     `:739`);
+   - a retusálás ecsetmérete a BAL panelben áll:
+     `editpanel/brushslider_container: editpanel/retouch_well` (`:869`), és
+     a retusáló kezelője is a `brushslider/scaleslider`-t nevezi meg
+     (`:962`).
+
+   ⇒ A `tool_container` **nem** a négy eszköz közös sávja.
+
+   ✅ **RENDEZVE (2026-09-19, #3320).** A négy eszköz - vágás, retusálás,
+   szöveg, vörösszem - Alkalmaz/Mégse párja visszakerült a SAJÁT paneljébe
+   (a mért `*_well`-ekbe), a kép fölötti sáv pedig a **kiegyenesítésé**
+   maradt: csúszka + a saját gombpárja. A gombok a #3123 óta használt
+   objektumnevüket vitték vissza (`cropApplyButton`, `retouchCancelButton`,
+   …), tehát a rájuk épülő működés és annak ellenőrzése nem szakadt meg. A
+   jel mindenütt a közös, RAJZOLT `EditorActionBadge` (#710).
+   ⛔ **HELYESBÍTÉS (2026-10-01, #4037):** a „mindenütt" a **kép fölötti sávra
+   NEM igaz** - annak két gombján az eredetiben **nincs jel** (ld. a
+   „A sáv gombjainak FELIRATA és JELE" szakaszt a lap végén).
+
+   ⚠️ A mai állapot tehát: **a kép fölött csak a kiegyenesítés sávja
+   jelenik meg**; a panelbeli gombok a szokásos `PanelButton` rajzát
+   viselik (a retusálásé 118 × 28, #741/#779), nem a sáv sötét, áttetsző
+   rajzát. A sáv sötét rajza (`#505050` alfa 229) továbbra is mért, és a
+   kiegyenesítésnél látszik.
+4. ⭐ **Az Esc a Mégse gombot süti el** (`Property escapekey 1`) - nem
+   külön billentyűkezelő.
+
+### ⛔ Amit a `.tre` NEM ad meg
+
+A sáv és a csúszka **abszolút mérete**. A `.tre` csak a kényszereket
+(viszonyokat) írja le; a konkrét szélesség/magasság a `respack.yt`
+rétegeiben van - onnan jött a gombok 82 × 28-as mérete is. A `MaintainOffset`
+jelzők azt mondják, mi marad fix átméretezéskor, nem azt, mennyi.
+
+*(Ez ismétlődő tanulság: a `.tre` a viszonyt adja, a respack a helyet.)*
+
+### ⛳ A sáv gombjainak FELIRATA és JELE - csupa nagybetű, jel NÉLKÜL (2026-10-01, #4037)
+
+*Forrás: `referencia/i18n/{enUS,hu}/tooltips.xml:186-191` (a `Picasa3i18n.dll` XMLF-erőforrásából kinyerve, ld. `referencia/i18n/OLVASS-EL.md`) · `referencia/tre-eroforrasok/editpanel.tre:21-34` (a sáv gombjai) és `:805-826` (a vágás gombjai) · `editpaneltext.tre:53-57` · `macros.tre:133-155` · `fontmacros_win.tre:122-132`, `:204-214` · élő felvétel: `picasa-colab-jobs` #69, `kepernyo__04.png` (angol 3.9.141, Wine, 1280 × 1024).*
+
+A #4029 mérése azt jelezte, hogy az eredeti sáv gombjai csupa nagybetűsek és jel nélkül állnak. A kérdés: mi a **magyar** felirat, és van-e jel a gomb mellett.
+
+**1. A felirat - megerősített.** A két gomb szövege **külön szövegsor**, nem a vágás-panel gombjaié:
+
+| elem | angol (`enUS`) | magyar (`hu`) | forrás |
+|---|---|---|---|
+| `editpanel/tool_ok` | **APPLY** | **ALKALMAZ** | `tooltips.xml:186-188` (`Label(editpanel/tool_ok)`) |
+| `editpanel/tool_cancel` | **CANCEL** | **MÉGSE** (az É = U+00C9) | `tooltips.xml:189-191` (`Label(editpanel/tool_cancel)`) |
+| `editpanel/cropapply` · `retouchapply` · `redeyeapply` | Apply | Alkalmaz | vágás: `tooltips.xml:357-367`; a másik kettő: `panel-feliratok-hu.tsv:4994-5012` |
+| `editpanel/cropcancel` · `retouchcancel` · `redeyecancel` | Cancel | Mégse | uo. |
+
+- A nagybetű **a szövegben van**, nem a megjelenítés alakítja át: egyetlen `.tre`-ben sincs nagybetűsítő tulajdonság (`upper|caps|textcase` → 0 találat), az angol alapszöveg is `APPLY`/`CANCEL` (`editpaneltext.tre:53-57`).
+- ⚠️ A nagybetű **nem általános szabály a nyelvekre**: a német `Übernehmen`, a finn `Peruuta` és az `enUK` `Cancel` vegyes betűs. Ezért a felirat **nyelvenként kapott szöveg**, nem egy `toUpperCase()`.
+- ⚠️ **Amit NEM láttunk:** magyar nyelvű Picasa felvétele nincs. A magyar nagybetűt a nyelvi erőforrás szövege adja (két független forrás egyezik: a DLL és a `.tre`), nem közvetlen látás.
+
+**2. A jel - megerősített: a sávon NINCS.**
+- `editpanel.tre:21-34`: a `tool_ok` és a `tool_cancel` mellett **csak** egy `-label` gyerek áll (`m_buttonfontC`); `_icon` gyerek nincs. A teljes `tre-eroforrasok/` mappában a két név csak ezekben a sorokban és az `editpaneltext.tre`-ben fordul elő.
+- A vágás, a retusálás és a vörösszem gombjának viszont **van** `_icon` gyereke (`cropapply_icon`, `cropcancel_icon`, … `m_buttoniconright`, a jobb szélhez `XConstraint 1, 1, -9`, `macros.tre:153-155`), és a feliratuk a jelnek helyet hagyó, aszimmetrikus `m_buttonfontLC` (bal 8, jobb 32 képpont). Tehát a **jel a panelbeli gombok** tulajdona, a sávé nem.
+- Élő felvétel (`#69`, `kepernyo__04.png`), mért képpontok: az APPLY gomb kerete x 835-916 × y 850-877 (82 × 28), a CANCEL-é x 922-1003 × y 850-877; a gombok belseje - a szöveg befoglaló doboza nélkül - **egyszínű** (az APPLY 1416 képpontjából 1416 a 111-es kitöltés, a jobb szélső sáv x 893-913 mind 111; a CANCEL jobb széle x 985-999 a fekete minta fölött 70). Nincs pipa, X vagy más jel.
+
+**3. A felirat helye a gombon - megerősített.** A `m_buttonfontC` szimmetrikus: `Praxis Semi Bold/Heavy`, `fontsize 12`, `fonttrack -1`, `textalign center`, `XConstraint 0, 0, 5` és `1, 1, -5`, `YConstraint 0.5, 0.5, 0` (`fontmacros_win.tre:204-214`). A felvételen az APPLY szövege x 862-889 × y 860-867: a gombon belül mindkét irányban középen áll (bal és jobb rés 27 képpont). A szövegszín `m_buttontypecolor3` = `FFFFFFFF CCFFFFFF FFFFFFFF` (`macros.tre:139`); hogy a három érték melyik gombállapothoz tartozik, az **NINCS MÉRVE** (a mai kód a másodikat az egér alatti állapothoz használja).
+
+**4. A két gomb köze - mérve, eltér a mai kódtól.** A #69 felvételén az APPLY kerete a 916., a CANCEL-é a 922. oszlopon kezdődik/végződik: a két keret között **5 képpont** háttér látszik (x 917-921). A mai a PicasaPy-ban: `EditorToolBar.qml` `koz: 4`-et használ („a rajzuk közt 4 képpont marad"). ⚠️ **A hatás nincs mérve nálunk** - a renderelt összevetésben (a #4037 „Kész, ha" 3. pontja) ez is kiderül; ha a kép 5-öt mutat, a kép a mérce.
+
+**Nálunk (a PicasaPy-ban: `EditorToolBar.qml`, `origin/main` `75502697`, mérve olvasással):**
+
+| | eredeti | nálunk | teendő |
+|---|---|---|---|
+| felirat (angol) | `APPLY` · `CANCEL` | `qsTr("Apply")` · `qsTr("Cancel")` (`:214`, `:221`) → angolul `Apply`/`Cancel` | `qsTr("APPLY")` · `qsTr("CANCEL")` |
+| felirat (magyar) | `ALKALMAZ` · `MÉGSE` | `Alkalmaz` · `Mégse` (a PicasaPy-ban: `picasapy_hu.ts`, `EditorToolBar` környezet) | új fordítás: `APPLY` → `ALKALMAZ`, `CANCEL` → `MÉGSE`; a többi panel `Apply`/`Cancel` fordítása változatlan |
+| jel | nincs | `EditorActionBadge` mindkét gombon, a jobb szélhez 9 képpontra (`:155`-`:159`) | a `SavGomb`-ból a jel kikerül |
+| felirat helye | a gomb közepén | `anchors.centerIn: parent` (`:143`) - jellel együtt is középen | változatlan |
+| köz a két keret közt | 5 képpont (#69) | `koz: 4` | a renderelt összevetés dönt |
+
+*Bizonyítottsági fok:* a felirat, a jel hiánya és a felirat helye **megerősített** (a nyelvi erőforrás, a `.tre` és az élő felvétel egyezik; független újralevezetés: egyezik). A **magyar** nagybetű közvetlen látása és a gombállapotok (rámutatott, lenyomott) színe **NINCS MÉRVE** (a felvételen csak nyugalmi állapot van).
