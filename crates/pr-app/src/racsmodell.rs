@@ -243,7 +243,7 @@ mod tesztek {
             },
             2,
         );
-        let (folytatas, masodik) = allapot.hozzaad(
+        let (uj_mappa_masodik, masodik) = allapot.hozzaad(
             Mappa {
                 ut: "album".into(),
                 nev: "album".to_string(),
@@ -258,7 +258,7 @@ mod tesztek {
 
         assert!(uj_mappa);
         assert_eq!(elso.len(), 1);
-        assert!(!folytatas);
+        assert!(!uj_mappa_masodik);
         assert_eq!(masodik[0].0, 1);
         assert_eq!(allapot.mappak.len(), 1);
         assert_eq!(allapot.mappak[0].teljes_db, 2);

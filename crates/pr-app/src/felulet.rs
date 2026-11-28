@@ -97,6 +97,7 @@ struct NyilvantartasEredmeny {
     uj_fejlecek: Vec<(String, usize)>,
     uj_munkak: Vec<(usize, Foto)>,
     arcra_kuldo: Vec<Foto>,
+    regi_sor_db: usize,
     uj_sorok: Option<(usize, usize)>,
 }
 
@@ -107,8 +108,12 @@ impl InduloAllapot {
         mappak: Vec<UtemezettMappa>,
     ) -> NyilvantartasEredmeny {
         let regi_sorok = allapot.sorok.len();
+        let regi_utolso_sor = allapot.sorok.last().cloned();
         let volt_mappa = !mappak.is_empty();
-        let mut eredmeny = NyilvantartasEredmeny::default();
+        let mut eredmeny = NyilvantartasEredmeny {
+            regi_sor_db: regi_sorok,
+            ..NyilvantartasEredmeny::default()
+        };
         for utemezett in mappak {
             let UtemezettMappa {
                 mappa,
@@ -131,9 +136,13 @@ impl InduloAllapot {
         if volt_mappa {
             self.sikeres_mappabetoltes();
         }
-        let uj_sor_db = allapot.sorok.len();
-        if uj_sor_db > regi_sorok {
-            eredmeny.uj_sorok = Some((regi_sorok, uj_sor_db - regi_sorok));
+        let megvaltozott_regi_sor = regi_sorok
+            .checked_sub(1)
+            .filter(|sor| allapot.sorok.get(*sor) != regi_utolso_sor.as_ref());
+        let elso_erintett_sor = megvaltozott_regi_sor.unwrap_or(regi_sorok);
+        let sor_db = allapot.sorok.len();
+        if sor_db > elso_erintett_sor {
+            eredmeny.uj_sorok = Some((elso_erintett_sor, sor_db - elso_erintett_sor));
         }
         eredmeny
     }
@@ -180,8 +189,18 @@ impl Kezelo {
                 foto,
                 mutat: false,
             }));
-        if let Some((regi_sorok, uj_sor_db)) = felvetel.uj_sorok {
-            self.modell.sorok_hozzaadva(regi_sorok, uj_sor_db);
+        if let Some((elso_erintett_sor, erintett_sor_db)) = felvetel.uj_sorok {
+            let vegso_erintett_sor = elso_erintett_sor + erintett_sor_db;
+            let regi_sor_vege = vegso_erintett_sor.min(felvetel.regi_sor_db);
+            for sor in elso_erintett_sor..regi_sor_vege {
+                self.modell.sor_valtozott(sor);
+            }
+            if vegso_erintett_sor > felvetel.regi_sor_db {
+                self.modell.sorok_hozzaadva(
+                    felvetel.regi_sor_db,
+                    vegso_erintett_sor - felvetel.regi_sor_db,
+                );
+            }
         }
     }
 
@@ -539,6 +558,45 @@ mod tesztek {
         assert_eq!(
             allapot.darabszamos_allapotszoveg(racs.fotok.len(), racs.mappak.len(), 0, 0, 1),
             "2 kép, 1 mappa   várakozó bélyegkép: 0   arckeresés: 0/1"
+        );
+    }
+
+    #[test]
+    fn ket_utem_ertesit_a_bovulo_regi_sorrol_es_csak_az_elso_fejlecerol() {
+        fn utem(kezdo: usize, db: usize) -> UtemezettMappa {
+            UtemezettMappa {
+                mappa: Mappa {
+                    ut: PathBuf::from("keptar/album"),
+                    nev: "album".to_string(),
+                    fotok: (kezdo..kezdo + db)
+                        .map(|index| Foto {
+                            ut: PathBuf::from(format!("keptar/album/{index}.jpg")),
+                            meret: index as u64,
+                            mtime_ns: 0,
+                        })
+                        .collect(),
+                },
+                teljes_kep_db: 5,
+            }
+        }
+
+        let mut indulo = InduloAllapot::default();
+        let mut racs = Allapot::uj(4, Arc::new(Sorban::uj()));
+
+        let elso = indulo.regisztral_mappakat(&mut racs, vec![utem(0, 3)]);
+        assert_eq!(elso.uj_sorok, Some((0, 2)));
+        assert_eq!(elso.uj_fejlecek.len(), 1);
+
+        let masodik = indulo.regisztral_mappakat(&mut racs, vec![utem(3, 2)]);
+        assert_eq!(masodik.uj_sorok, Some((1, 2)));
+        assert!(masodik.uj_fejlecek.is_empty());
+        assert_eq!(
+            racs.sorok,
+            vec![
+                crate::elrendezes::SorTipus::Fejlec { mappa: 0 },
+                crate::elrendezes::SorTipus::Kepek { elso: 0, db: 4 },
+                crate::elrendezes::SorTipus::Kepek { elso: 4, db: 1 },
+            ]
         );
     }
 
